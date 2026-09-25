@@ -3,3 +3,4 @@ island/build/
 .DS_Store
 .vercel
 *.tmp
+.env*

@@ -2,3 +2,7 @@ island/build
 node_modules
 test
 .github
+.env*
+.vercel
+site/tools
+site/README.md
