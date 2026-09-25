@@ -61,7 +61,8 @@ test('until the terms are accepted tabby stays off and points at /tabby:setup', 
   assert.match(settings.statusLine.command, /tabby\.mjs" statusline$/);
   assert.ok(fs.existsSync(path.join(process.env.TABBY_HOME, 'bin', 'tabby.mjs')), 'launcher');
   assert.ok(fs.existsSync(path.join(process.env.CLAUDE_CONFIG_DIR, 'commands', 'tab.md')), '/tab');
-  assert.match(fs.readFileSync(path.join(tmp, '.zshrc'), 'utf8'), />>> tabby/);
+  const rc = path.basename(process.env.SHELL || 'zsh') === 'bash' ? '.bashrc' : '.zshrc';
+  assert.match(fs.readFileSync(path.join(tmp, rc), 'utf8'), />>> tabby/);
 });
 
 test('session start paints the tab and records identity', () => {
