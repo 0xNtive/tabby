@@ -41,6 +41,7 @@ struct TabbyIslandApp {
             ]
             row["model"] = session.model
             row["accent"] = session.accentHex
+            row["dot"] = session.dotHex
             row["tty"] = session.tty
             row["term"] = session.term
             row["lastPrompt"] = session.lastPrompt
@@ -52,8 +53,11 @@ struct TabbyIslandApp {
         }
         let output: [String: Any] = [
             "sessions": sessions,
-            "themes": snapshot.themes.map { "\($0.id) (\($0.accents.count) accents)" },
+            "themes": snapshot.themes.map { "\($0.id) [\($0.group)] (\($0.accents.count) accents)" },
+            "groups": snapshot.groups.map { "\($0.id): \($0.name)" },
             "globalTheme": snapshot.globalThemeId ?? NSNull(),
+            "config": ["islandMode": snapshot.config.mode.rawValue, "islandAnnounce": snapshot.config.announce,
+                       "islandHotkeys": snapshot.config.hotkeys],
             "cli": ["node": snapshot.cli.node, "cli": snapshot.cli.cli],
         ]
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]) {
@@ -90,6 +94,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if UserDefaults.standard.bool(forKey: "showIsland") { island.show() }
 
         setupStatusItem()
+        if Debug.enabled {
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name("dev.tabby.island.debug"), object: nil, queue: .main
+            ) { [weak self] note in
+                let command = note.object as? String
+                MainActor.assumeIsolated {
+                    if command == "menu" { self?.dumpMenu() }
+                    if command == "about" { self?.showAbout() }
+                }
+            }
+        }
         store.$snapshot
             .sink { [weak self] snapshot in
                 MainActor.assumeIsolated { self?.updateStatusBadge(snapshot) }
@@ -102,11 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "circle.hexagongrid.fill", accessibilityDescription: "Tabby Island")
-            image?.isTemplate = true
-            button.image = image
+            button.image = Brand.statusIcon()
             button.imagePosition = .imageLeading
-            button.toolTip = "Tabby Island — your Claude Code sessions"
+            button.toolTip = "tabby — your Claude Code sessions"
+            button.setAccessibilityLabel("tabby")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -129,44 +143,148 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        guard let island else { return }
         let factory = MenuFactory.shared
+        let config = island.config
         let sessions = store.listSessions
         if sessions.isEmpty {
-            let empty = NSMenuItem(title: "No Claude sessions", action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            menu.addItem(empty)
+            menu.addItem(factory.info("No Claude sessions"))
         } else {
             menu.addItem(NSMenuItem.sectionHeader(title: "Claude sessions"))
-            for session in sessions {
-                let item = factory.item(session.title, image: Swatch.dot(session.accentHex ?? Palette.neutralHex)) {
+            for (index, session) in sessions.enumerated() {
+                let item = factory.item(session.title, image: Swatch.dot(session.dotHex ?? Palette.neutralHex)) {
                     Actions.focus(session)
                 }
                 item.attributedTitle = MenuFactory.sessionTitle(session)
                 item.toolTip = [session.summary, session.lastPrompt.map { "“\($0)”" }, session.statusDetail]
                     .compactMap { $0 }
                     .joined(separator: "\n")
+                if config.hotkeys, index < 9 { shortcut(item, "\(index + 1)") }
                 menu.addItem(item)
             }
         }
 
         menu.addItem(.separator())
-        menu.addItem(factory.item("Show Island", checked: island?.isShown ?? false) { [weak self] in
+        menu.addItem(factory.item("Show Island", checked: island.isShown) { [weak self] in
             self?.toggleIsland()
         })
-        let themes = NSMenuItem(title: "Theme for All Tabs", action: nil, keyEquivalent: "")
-        themes.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: nil)
-        themes.submenu = factory.themeMenu(store: store, current: store.snapshot.globalThemeId) { id in
-            Actions.setThemeAll(id)
+        menu.addItem(factory.submenu("Mode", symbol: config.mode.symbol,
+                                     menu: factory.modeMenu(current: config.mode) { [weak island] mode in
+                                         island?.setMode(mode)
+                                     }))
+        let announce = factory.item("Show Announcements", checked: config.announce) { [weak island] in
+            island?.setAnnounce(!config.announce)
         }
-        menu.addItem(themes)
+        announce.toolTip = "“✓ … is done” and “… needs you” in the island while it's collapsed"
+        menu.addItem(announce)
         menu.addItem(.separator())
+        menu.addItem(factory.submenu("Tile Windows", symbol: "square.grid.2x2",
+                                     menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in
+                                         island?.tile(count)
+                                     }))
+        menu.addItem(factory.submenu("Theme for All Tabs", symbol: "paintpalette",
+                                     menu: factory.themeMenu(store: store, current: store.snapshot.globalThemeId) { id in
+                                         Actions.setThemeAll(id)
+                                     }))
+        menu.addItem(factory.submenu("Keyboard Shortcuts", symbol: "keyboard", menu: shortcutsMenu(config)))
+        menu.addItem(.separator())
+        menu.addItem(factory.item("About tabby", symbol: "info.circle") { [weak self] in self?.showAbout() })
         menu.addItem(NSMenuItem(title: "Quit Tabby Island", action: #selector(NSApplication.terminate(_:)),
                                 keyEquivalent: "q"))
+    }
+
+    private func shortcut(_ item: NSMenuItem, _ key: String) {
+        item.keyEquivalent = key
+        item.keyEquivalentModifierMask = [.control, .option]
+    }
+
+    private func shortcutsMenu(_ config: IslandConfig) -> NSMenu {
+        let factory = MenuFactory.shared
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let on = config.hotkeys
+        let taken = HotkeyCenter.shared.unavailable
+        let rows: [(String, String, Int, @MainActor () -> Void)] = [
+            ("Open Island with Keyboard", " ", Shortcut.toggle, { [weak island] in island?.toggleKeyboard() }),
+            ("Next Session That Needs You", "n", Shortcut.next, { [weak island] in island?.jumpToNextNeedingYou() }),
+            ("Tile Windows", "g", Shortcut.tile, { [weak island] in island?.tile(nil) }),
+            ("Cycle Mode", "m", Shortcut.mode, { [weak island] in island?.cycleMode() }),
+        ]
+        for (title, key, code, action) in rows {
+            let item = factory.item(taken.contains(code) ? "\(title) (shortcut in use by another app)" : title,
+                                    action: action)
+            shortcut(item, key)
+            item.isEnabled = on
+            menu.addItem(item)
+        }
+        let jump = factory.info("Jump to Session 1–9   ⌃⌥1 … ⌃⌥9")
+        menu.addItem(jump)
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem.sectionHeader(title: "In the island"))
+        for line in ["↑ ↓  select   ↩  open   1–9  jump", "R  rename   C  color   T  theme",
+                     "M  mode   G  tile   esc  close"] {
+            menu.addItem(factory.info(line))
+        }
+        menu.addItem(.separator())
+        menu.addItem(factory.item("Enable Global Shortcuts", checked: on) { [weak island] in
+            island?.setHotkeys(!on)
+        })
+        return menu
+    }
+
+    /// Debug: the status menu as text (it can't be screenshotted without Screen Recording).
+    private func dumpMenu() {
+        let menu = NSMenu()
+        menuNeedsUpdate(menu)
+        var lines: [String] = []
+        func walk(_ menu: NSMenu, _ depth: Int) {
+            for item in menu.items {
+                if item.isSeparatorItem { lines.append(String(repeating: "  ", count: depth) + "—"); continue }
+                var line = String(repeating: "  ", count: depth) + (item.state == .on ? "✓ " : "") + item.title
+                if !item.keyEquivalent.isEmpty {
+                    let mods = item.keyEquivalentModifierMask
+                    line += "  [\(mods.contains(.control) ? "⌃" : "")\(mods.contains(.option) ? "⌥" : "")\(mods.contains(.command) ? "⌘" : "")\(item.keyEquivalent == " " ? "Space" : item.keyEquivalent.uppercased())]"
+                }
+                if !item.isEnabled { line += "  (disabled)" }
+                if item.image != nil { line += "  ◧" }
+                lines.append(line)
+                if let submenu = item.submenu, depth < 1 || submenu.items.count < 30 { walk(submenu, depth + 1) }
+            }
+        }
+        walk(menu, 0)
+        Debug.log("status menu:\n" + lines.joined(separator: "\n"))
     }
 
     private func toggleIsland() {
         guard let island else { return }
         if island.isShown { island.hide() } else { island.show() }
         UserDefaults.standard.set(island.isShown, forKey: "showIsland")
+    }
+
+    private func showAbout() {
+        let credits = NSMutableAttributedString()
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.paragraphSpacing = 4
+        let body: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraph,
+        ]
+        credits.append(NSAttributedString(string: "Tabby Island · every Claude Code tab, at a glance.\n", attributes: body))
+        var link = body
+        link[.link] = Brand.github
+        credits.append(NSAttributedString(string: "GitHub", attributes: link))
+        credits.append(NSAttributedString(string: "  ·  ", attributes: body))
+        link[.link] = Brand.website
+        credits.append(NSAttributedString(string: "claude-tabby.vercel.app", attributes: link))
+
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "tabby",
+            .applicationVersion: Brand.version,
+            .version: "",
+            .credits: credits,
+        ])
     }
 }

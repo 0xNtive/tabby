@@ -15,12 +15,21 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
+if [ -f "$HERE/AppIcon.icns" ]; then
+  cp "$HERE/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+fi
+
+# The About panel shows tabby's version (package.json), not a separate island number.
+VERSION="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$HERE/../package.json" 2>/dev/null | head -n 1 || true)"
+if [ -n "$VERSION" ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+fi
 
 xcrun --sdk macosx swiftc \
   -O -parse-as-library -swift-version 5 \
   -target "$ARCH-apple-macos$MIN_MACOS" \
   -module-name TabbyIsland \
-  -framework AppKit -framework SwiftUI -framework QuartzCore -framework Combine \
+  -framework AppKit -framework SwiftUI -framework QuartzCore -framework Combine -framework Carbon \
   "$HERE"/Sources/*.swift \
   -o "$APP/Contents/MacOS/TabbyIsland"
 

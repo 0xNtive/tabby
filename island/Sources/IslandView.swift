@@ -54,6 +54,7 @@ struct IslandRootView: View {
         .onPreferenceChange(RowFramesKey.self) { frames in MainActor.assumeIsolated { onRowFrames(frames) } }
         .onPreferenceChange(ViewportKey.self) { frame in MainActor.assumeIsolated { onViewport(frame) } }
         .environment(\.colorScheme, .dark)
+        .focusEffectDisabled()
     }
 
     // MARK: Island shape
@@ -61,7 +62,7 @@ struct IslandRootView: View {
     private func island(_ geometry: IslandGeometry) -> some View {
         let expanded = ui.expanded
         let width = expanded
-            ? max(IslandGeometry.expandedWidth, collapsedWidth(geometry) + 24)
+            ? max(ui.mode.width, collapsedWidth(geometry) + 24)
             : collapsedWidth(geometry)
         let radius: CGFloat = expanded ? 26 : max(8, geometry.barHeight * 0.36)
         let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: radius,
@@ -71,11 +72,11 @@ struct IslandRootView: View {
             header(geometry, expanded: expanded)
                 .frame(height: geometry.barHeight)
                 .contentShape(Rectangle())
-                .onTapGesture { if !ui.expanded { actions.expand() } }
+                .onTapGesture { if !ui.expanded { actions.tapHeader() } }
             if expanded {
                 expandedBody(geometry)
                     .transition(.asymmetric(
-                        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.06)),
+                        insertion: .opacity.animation(.easeOut(duration: 0.16).delay(0.04)),
                         removal: .opacity.animation(.easeIn(duration: 0.08))
                     ))
             }
@@ -93,6 +94,9 @@ struct IslandRootView: View {
 
     private var sessionCount: Int { store.snapshot.sessions.count }
 
+    /// The live activity, while collapsed.
+    private var announcement: Announcement? { ui.expanded ? nil : ui.announcement }
+
     /// Width of each "ear" beside the notch: fits the dots on the left, status on the right.
     private var earWidth: CGFloat {
         let dots = min(sessionCount, 6)
@@ -100,12 +104,28 @@ struct IslandRootView: View {
         return max(dotsWidth + 20, 46)
     }
 
+    /// An announcement widens both ears (the pill stays centered on the notch) to fit its
+    /// message on the right, up to what the panel can hold.
+    private func announcementEar(_ announcement: Announcement, _ geometry: IslandGeometry) -> CGFloat {
+        let title = min(TextMetrics.width(announcement.title, size: 12, weight: .semibold),
+                        announcement.kind == .info ? 320 : 210)
+        let suffix = announcement.suffix.map { TextMetrics.width($0, size: 12, weight: .medium) + 4 } ?? 0
+        let content = 14 + 6 + title + suffix
+        let middle = geometry.hasNotch ? geometry.notchWidth : 12
+        let limit = (geometry.panelSize.width - middle) / 2 - 16
+        return min(content + 24, limit)
+    }
+
     private func collapsedWidth(_ geometry: IslandGeometry) -> CGFloat {
+        let ear = sessionCount == 0 ? (geometry.hasNotch ? 18 : 26) : earWidth
+        let right = announcement.map { max(ear, announcementEar($0, geometry)) } ?? ear
         if geometry.hasNotch {
-            // With no sessions the island is just a hair wider than the notch: invisible but hoverable.
-            return geometry.notchWidth + 2 * (sessionCount == 0 ? 18 : earWidth)
+            // Symmetric around the notch. With no sessions the island is just a hair wider
+            // than the notch: invisible but hoverable.
+            return geometry.notchWidth + 2 * right
         }
-        return sessionCount == 0 ? 64 : 2 * earWidth + 12
+        if sessionCount == 0 && announcement == nil { return 64 }
+        return ear + right + 12
     }
 
     // MARK: Header (the part that hugs the notch)
@@ -113,7 +133,7 @@ struct IslandRootView: View {
     private func header(_ geometry: IslandGeometry, expanded: Bool) -> some View {
         HStack(spacing: 0) {
             leftEar
-            Spacer(minLength: geometry.hasNotch ? geometry.notchWidth : 12)
+            Spacer(minLength: geometry.hasNotch ? geometry.notchWidth + 12 : 12)
             rightEar
         }
         .padding(.horizontal, expanded ? 18 : 10)
@@ -123,7 +143,8 @@ struct IslandRootView: View {
         let dots = store.dotSessions
         return HStack(spacing: 2) {
             ForEach(dots.prefix(6)) { session in
-                PulseDot(hex: session.accentHex, status: session.status, dotSize: 7, reduceMotion: ui.reduceMotion)
+                PulseDot(hex: session.dotHex, status: session.status, dotSize: 7, reduceMotion: ui.reduceMotion,
+                         celebrates: !ui.expanded)
                     .frame(width: 12, height: 12)
                     .help(session.title)
             }
@@ -140,28 +161,32 @@ struct IslandRootView: View {
     private var rightEar: some View {
         let waiting = store.waitingCount
         let busy = store.busyCount
-        if waiting > 0 {
-            HStack(spacing: 3) {
-                Image(systemName: "bell.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                Text("\(waiting)")
-                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+        if let announcement {
+            AnnouncementLabel(announcement: announcement)
+                .id(announcement.id)
+                .transition(ui.reduceMotion
+                    ? .opacity
+                    : .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.86, anchor: .trailing))
+                                      .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.08)),
+                                  removal: .opacity.animation(.easeIn(duration: 0.12))))
+        } else if waiting > 0 {
+            HStack(spacing: 4) {
+                Bell(count: waiting, reduceMotion: ui.reduceMotion)
+                    .frame(width: 12, height: 12)
+                Count(value: waiting, color: Palette.waiting, weight: .bold, reduceMotion: ui.reduceMotion)
             }
-            .foregroundStyle(Palette.waiting)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(waiting) waiting for you")
         } else if busy > 0 {
             HStack(spacing: 4) {
                 Spinner(color: NSColor.white.withAlphaComponent(0.8), reduceMotion: ui.reduceMotion)
                     .frame(width: 10, height: 10)
-                Text("\(busy)")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.85))
+                Count(value: busy, color: .white.opacity(0.85), weight: .semibold, reduceMotion: ui.reduceMotion)
             }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(busy) working")
         } else if sessionCount > 0 {
-            Text("\(sessionCount)")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.55))
+            Count(value: sessionCount, color: .white.opacity(0.58), weight: .semibold, reduceMotion: ui.reduceMotion)
                 .accessibilityLabel("\(sessionCount) idle")
         }
     }
@@ -175,20 +200,27 @@ struct IslandRootView: View {
                 VStack(spacing: 6) {
                     Image(systemName: "moon.zzz")
                         .font(.system(size: 18))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(.white.opacity(0.4))
                     Text("No Claude sessions")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.58))
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 22)
+                .padding(.vertical, 24)
             } else {
                 // No frame here: a max-height frame takes the whole proposal and leaves the
                 // island tall and half empty. The rows hug their content; only an overflowing
                 // list switches to a scroll view (which then fills the rest of the panel).
                 ViewThatFits(in: .vertical) {
                     rows(sessions)
-                    ScrollView(.vertical, showsIndicators: false) { rows(sessions) }
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) { rows(sessions) }
+                            .mask(ScrollEdgeFade())
+                            .onChange(of: ui.hoveredRow) { _, id in
+                                guard ui.keyboard, let id else { return }
+                                withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+                            }
+                    }
                 }
                 .background(GeometryReader { proxy in
                     Color.clear.preference(key: ViewportKey.self, value: proxy.frame(in: .named(IslandSpace.name)))
@@ -197,218 +229,291 @@ struct IslandRootView: View {
             Rectangle()
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
             footer(count: sessions.count)
         }
     }
 
     private func rows(_ sessions: [IslandSession]) -> some View {
-        VStack(spacing: 2) {
-            ForEach(sessions) { session in
+        let detailed = ui.mode == .detailed
+        return VStack(spacing: detailed ? 0 : 2) {
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                if detailed && index > 0 {
+                    let quiet = ui.hoveredRow == session.id || ui.hoveredRow == sessions[index - 1].id
+                    Rectangle()
+                        .fill(Color.white.opacity(quiet ? 0 : 0.07))
+                        .frame(height: 1)
+                        .padding(.leading, 38)
+                        .padding(.trailing, 10)
+                }
                 SessionRow(session: session,
+                           mode: ui.mode,
                            hovered: ui.hoveredRow == session.id,
                            reduceMotion: ui.reduceMotion,
+                           renameText: ui.renaming == session.id ? $ui.renameText : nil,
+                           onRenameCommit: actions.commitRename,
+                           onRenameCancel: actions.cancelRename,
                            onTap: { actions.tapRow(session) },
                            onMenu: { actions.sessionMenu(session) })
+                    .modifier(StaggeredEntrance(index: index, enabled: !ui.staticRender, reduceMotion: ui.reduceMotion))
                     .background(GeometryReader { proxy in
                         Color.clear.preference(key: RowFramesKey.self,
                                                value: [session.id: proxy.frame(in: .named(IslandSpace.name))])
                     })
+                    .id(session.id)
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
+
+    // MARK: Footer
 
     private func footer(count: Int) -> some View {
-        HStack(spacing: 8) {
-            Text("\(count) session\(count == 1 ? "" : "s")")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.45))
-            Spacer()
-            Button {
-                actions.themeAllMenu()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "paintpalette.fill")
-                        .font(.system(size: 10.5))
-                    Text(store.globalThemeName.map { "Theme · \($0)" } ?? "Theme")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundStyle(.white.opacity(0.8))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(Color.white.opacity(0.09)))
-                .contentShape(Capsule())
+        VStack(spacing: 0) {
+            if ui.keyboard || ui.renaming != nil {
+                KeyboardHint(renaming: ui.renaming != nil)
+                    .padding(.top, 10)
+                    .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .help("Apply a theme to every tab")
+            HStack(spacing: 8) {
+                brand(count: count)
+                Spacer(minLength: 8)
+                ModePicker(mode: ui.mode, reduceMotion: ui.reduceMotion) { actions.setMode($0) }
+                FooterIconButton(symbol: "square.grid.2x2", help: "Tile session windows (⌃⌥G)") { actions.tileMenu() }
+                themeButton
+            }
+            .frame(height: 48)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 40)
+        .padding(.horizontal, 18)
+    }
+
+    private func brand(count: Int) -> some View {
+        HStack(spacing: 6) {
+            CatMark(blinks: !ui.reduceMotion && !ui.staticRender)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
+            Text("tabby")
+                .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.94))
+            HStack(spacing: 4) {
+                Text("·")
+                Text("\(count)")
+                    .contentTransition(ui.reduceMotion ? .opacity : .numericText(value: Double(count)))
+                    .animation(ui.reduceMotion ? nil : .snappy(duration: 0.35), value: count)
+                Text(count == 1 ? "session" : "sessions")
+            }
+            .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.58))
+        }
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    private var themeButton: some View {
+        Button {
+            actions.themeAllMenu()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "paintpalette.fill")
+                    .font(.system(size: 10.5))
+                Text(store.globalThemeName ?? "Theme")
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(Capsule().fill(Color.white.opacity(0.09)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help("Theme for every tab")
     }
 }
 
-// MARK: - Session row
+// MARK: - Collapsed pieces
 
-struct SessionRow: View {
-    let session: IslandSession
-    let hovered: Bool
+/// A count that rolls its digits when it changes.
+struct Count: View {
+    let value: Int
+    let color: Color
+    let weight: Font.Weight
     let reduceMotion: Bool
-    let onTap: () -> Void
-    let onMenu: () -> Void
-
-    private var accent: Color { Color(hexString: session.accentHex) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            PulseDot(hex: session.accentHex, status: session.status, dotSize: 9, reduceMotion: reduceMotion)
-                .frame(width: 18, height: 18)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(session.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
+        Text("\(value)")
+            .font(.system(size: 11, weight: weight).monospacedDigit())
+            .foregroundStyle(color)
+            .contentTransition(reduceMotion ? .opacity : .numericText(value: Double(value)))
+            .animation(reduceMotion ? nil : .snappy(duration: 0.35), value: value)
+    }
+}
+
+/// "✓ Title is done" / "🔔 Title needs you" on the right ear.
+struct AnnouncementLabel: View {
+    let announcement: Announcement
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: announcement.symbol)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(announcement.tint)
+                .frame(width: 14)
+            HStack(spacing: 4) {
+                Text(announcement.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if let suffix = announcement.suffix {
+                    Text(suffix)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(announcement.tint)
                         .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 4)
-                    if hovered {
-                        Button(action: onMenu) {
-                            Image(systemName: "ellipsis.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.white.opacity(0.65))
-                                .frame(width: 18, height: 18)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Rename, color, theme…")
-                        .transition(.opacity)
-                    }
-                }
-                TimelineView(.periodic(from: .now, by: 15)) { context in
-                    Text(secondaryLine(now: context.date))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                }
-                ContextBar(pct: session.contextPct, accent: accent)
-                    .padding(.top, 1)
-                if hovered {
-                    details
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .fixedSize()
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(hovered ? 0.075 : 0))
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .onTapGesture(perform: onTap)
-        .overlay(RightClickCatcher { _ in onMenu() })
+        .help(announcement.detail ?? "")
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(session.title), \(session.project), \(session.statusDetail)")
         .accessibilityAddTraits(.isButton)
     }
+}
 
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if let summary = session.summary {
-                Text(summary)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let note = session.note {
-                Label(note, systemImage: "note.text")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let prompt = session.lastPrompt {
-                Text("“\(prompt)”")
-                    .font(.system(size: 11).italic())
-                    .foregroundStyle(.white.opacity(0.42))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 5) {
-                Image(systemName: session.status.symbol)
-                Text(statusLine)
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundStyle(statusColor)
-            .lineLimit(1)
-        }
-        .padding(.top, 3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+// MARK: - Footer pieces
 
-    private var statusLine: String {
-        var parts = [session.statusDetail]
-        if let used = session.context?.usedTokens {
-            if let window = session.context?.windowSize {
-                parts.append("\(Fmt.tokens(used)) / \(Fmt.tokens(window)) tokens")
-            } else {
-                parts.append("\(Fmt.tokens(used)) tokens")
+/// Minimal · Standard · Detailed as three icons; the selection slides between them.
+struct ModePicker: View {
+    let mode: IslandMode
+    let reduceMotion: Bool
+    let onSelect: (IslandMode) -> Void
+    @Namespace private var selection
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(IslandMode.allCases) { option in
+                Button {
+                    onSelect(option)
+                } label: {
+                    Image(systemName: option.symbol)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(option == mode ? 0.95 : 0.5))
+                        .frame(width: 26, height: 22)
+                        .background {
+                            if option == mode {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.16))
+                                    .matchedGeometryEffect(id: "selection", in: selection)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(option.help)
+                .accessibilityLabel("\(option.title) mode")
+                .accessibilityAddTraits(option == mode ? .isSelected : [])
             }
         }
-        if let cost = session.context?.costUsd, cost > 0 { parts.append(Fmt.cost(cost)) }
-        return parts.joined(separator: " · ")
-    }
-
-    private var statusColor: Color {
-        switch session.status {
-        case .waiting: return Palette.waiting
-        case .error: return Palette.danger
-        default: return Color.white.opacity(0.55)
-        }
-    }
-
-    private func secondaryLine(now: Date) -> String {
-        [session.project, session.model, Fmt.ago(session.activityAt, now: now)]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
+        .padding(2)
+        .background(Capsule().fill(Color.white.opacity(0.07)))
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: mode)
     }
 }
 
-// MARK: - Context bar
-
-struct ContextBar: View {
-    let pct: Double?
-    let accent: Color
+struct FooterIconButton: View {
+    let symbol: String
+    let help: String
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.1))
-                    if let pct {
-                        Capsule()
-                            .fill(color(for: pct))
-                            .frame(width: max(4, proxy.size.width * CGFloat(min(max(pct, 0), 100) / 100)))
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.82))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.white.opacity(0.09)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// Shown while the island has keyboard focus (⌃⌥Space); drops labels to fit narrow modes.
+struct KeyboardHint: View {
+    private typealias Item = (key: String, label: String)
+    private let full: [Item] = [
+        ("↑↓", "select"), ("↩", "open"), ("R", "rename"), ("C", "color"),
+        ("T", "theme"), ("M", "mode"), ("G", "tile"), ("esc", "close"),
+    ]
+    private let short: [Item] = [
+        ("↑↓", ""), ("↩", "open"), ("R", "rename"), ("C", "color"),
+        ("T", "theme"), ("M", "mode"), ("G", "tile"), ("esc", ""),
+    ]
+    private let keys: [Item] = [
+        ("↑↓", ""), ("↩", ""), ("R", "rename"), ("C", "color"), ("T", "theme"), ("M", "mode"), ("G", "tile"), ("esc", ""),
+    ]
+    private let rename: [Item] = [("↩", "save"), ("esc", "cancel")]
+    var renaming = false
+
+    var body: some View {
+        Group {
+            if renaming {
+                HStack(spacing: 10) {
+                    row(rename, spacing: 10)
+                    Text("Leave it empty to let AI name it")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    row(full, spacing: 9)
+                    row(short, spacing: 8)
+                    row(keys, spacing: 6)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(renaming
+            ? "Return saves the name, Escape cancels. Leave it empty to let AI name it."
+            : "Keyboard: arrows select, Return opens, R rename, C color, T theme, M mode, G tile, Escape closes")
+    }
+
+    private func row(_ items: [Item], spacing: CGFloat) -> some View {
+        HStack(spacing: spacing) {
+            ForEach(items, id: \.key) { item in
+                HStack(spacing: 4) {
+                    Text(item.key)
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.white.opacity(0.13)))
+                    if !item.label.isEmpty {
+                        Text(item.label)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                 }
             }
-            .frame(height: 4)
-            Text(pct.map { "\(Int($0.rounded()))%" } ?? "—")
-                .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.white.opacity(pct == nil ? 0.3 : 0.62))
-                .frame(width: 32, alignment: .trailing)
         }
-        .frame(height: 12)
-        .accessibilityElement()
-        .accessibilityLabel(pct.map { "Context \(Int($0.rounded())) percent used" } ?? "Context usage unknown")
+        .lineLimit(1)
+        .fixedSize()
     }
+}
 
-    private func color(for pct: Double) -> Color {
-        if pct >= 90 { return Palette.danger }
-        if pct >= 70 { return Palette.warn }
-        return accent
+/// Fades a scrolling list into the island's black at both ends.
+struct ScrollEdgeFade: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 8)
+            Rectangle().fill(Color.black)
+            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 20)
+        }
     }
 }
