@@ -1,0 +1,19 @@
+{
+  "name": "tabby",
+  "version": "0.2.0",
+  "description": "Every Claude Code tab, at a glance: an AI-written name, a calm color and a live status (working / your turn / needs you) for each session, /tab to rename or re-theme in one line, window tiling and a macOS session island.",
+  "author": {
+    "name": "0xNtive"
+  },
+  "keywords": [
+    "terminal",
+    "tabs",
+    "themes",
+    "iterm2",
+    "tmux",
+    "productivity"
+  ],
+  "homepage": "https://claude-tabby.vercel.app",
+  "repository": "https://github.com/0xNtive/tabby",
+  "license": "MIT"
+}

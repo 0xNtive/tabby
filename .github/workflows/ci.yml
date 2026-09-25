@@ -1,0 +1,30 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [18, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: Derived files are up to date
+        run: |
+          node scripts/export.js
+          git diff --exit-code -- docs/contrast.md site/themes.json
+
+  island:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash island/build.sh

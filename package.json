@@ -1,0 +1,72 @@
+{
+  "name": "claude-tabby",
+  "version": "0.2.0",
+  "description": "Every Claude Code tab, at a glance: AI tab names, calm colors, live status, 57 themes, /tab commands, window tiling and a macOS session island.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "claude-code-plugin",
+    "anthropic",
+    "terminal",
+    "tabs",
+    "iterm2",
+    "terminal-app",
+    "tmux",
+    "themes",
+    "macos",
+    "productivity"
+  ],
+  "homepage": "https://claude-tabby.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xNtive/tabby.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xNtive/tabby/issues"
+  },
+  "license": "MIT",
+  "author": "0xNtive",
+  "type": "module",
+  "bin": {
+    "tabby": "bin/tabby.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "hooks/",
+    "commands/",
+    "shell/",
+    "scripts/export.js",
+    "island/Sources/",
+    "island/Info.plist",
+    "island/AppIcon.icns",
+    "island/build.sh",
+    "island/README-island.md",
+    ".claude-plugin/",
+    "docs/",
+    "README.md",
+    "TERMS.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "brand/logo.svg",
+    "brand/logo-mono.svg",
+    "brand/app-icon.svg",
+    "brand/README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/",
+    "export": "node scripts/export.js",
+    "island": "bash island/build.sh",
+    "prepublishOnly": "npm test && node scripts/export.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
