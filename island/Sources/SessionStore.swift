@@ -3,10 +3,15 @@ import Darwin
 import Foundation
 
 struct StoreSnapshot: Equatable, Sendable {
+    /// False until the first load from disk has landed.
+    var loaded = false
     var sessions: [IslandSession] = []
     var themes: [ThemeInfo] = []
+    /// Theme menu sections, in tabby's order (Signature, Calm, Classic, Vivid, Light, High contrast).
+    var groups: [ThemeGroup] = []
     var defaultThemeId: String?
     var globalThemeId: String?
+    var config = IslandConfig()
     var cli = CLIConfig(node: "/opt/homebrew/bin/node", cli: "")
 }
 
@@ -20,13 +25,23 @@ final class SessionStore: ObservableObject {
     private let queue = DispatchQueue(label: "dev.tabby.island.loader", qos: .utility)
     private var timer: Timer?
     private var inFlight = false
+    private let fixed: Bool
 
     /// `automation: false` skips AppleScript title reads (used for smoke tests).
     init(automation: Bool = true) {
         loader = SnapshotLoader(automation: automation)
+        fixed = false
+    }
+
+    /// A store frozen on the given data (snapshot renders of demo sessions).
+    init(fixed snapshot: StoreSnapshot) {
+        loader = SnapshotLoader(automation: false)
+        fixed = true
+        self.snapshot = snapshot
     }
 
     func start() {
+        guard !fixed else { return }
         refresh()
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
@@ -37,7 +52,7 @@ final class SessionStore: ObservableObject {
     }
 
     func refresh() {
-        guard !inFlight else { return }
+        guard !fixed, !inFlight else { return }
         inFlight = true
         let loader = self.loader
         queue.async { [weak self] in
@@ -53,8 +68,11 @@ final class SessionStore: ObservableObject {
     }
 
     /// Expanded-list order: waiting, error, busy, then everything else; stable by start time.
-    var listSessions: [IslandSession] {
-        snapshot.sessions.sorted { a, b in
+    /// ⌃⌥1…9 follow it too.
+    var listSessions: [IslandSession] { Self.listOrder(snapshot.sessions) }
+
+    static func listOrder(_ sessions: [IslandSession]) -> [IslandSession] {
+        sessions.sorted { a, b in
             if a.status.sortRank != b.status.sortRank { return a.status.sortRank < b.status.sortRank }
             if a.startedAt != b.startedAt { return a.startedAt < b.startedAt }
             return a.id < b.id
@@ -71,6 +89,11 @@ final class SessionStore: ObservableObject {
 
     var waitingCount: Int { snapshot.sessions.filter { $0.status == .waiting }.count }
     var busyCount: Int { snapshot.sessions.filter { $0.status == .busy }.count }
+
+    func session(id: String?) -> IslandSession? {
+        guard let id else { return nil }
+        return snapshot.sessions.first { $0.id == id }
+    }
 
     func theme(_ id: String?) -> ThemeInfo? {
         guard let id else { return nil }
@@ -111,6 +134,7 @@ final class SnapshotLoader: @unchecked Sendable {
     private var transcripts: [String: TranscriptInfo] = [:]
     private var heads: [String: (modelId: String?, marketing: String?)] = [:]
     private var processes: [Int: (tty: String?, term: String?)] = [:]
+    private var themeCache: (stamp: FileStamp, themes: ThemeLoad)?
     private let tailBytes: UInt64 = 256 * 1024
     private let headBytes = 128 * 1024
     private let titleReader: TerminalTitleReader
@@ -124,12 +148,19 @@ final class SnapshotLoader: @unchecked Sendable {
 
     func load() -> StoreSnapshot {
         var snapshot = StoreSnapshot()
+        snapshot.loaded = true
         snapshot.cli = loadCLI()
         let themes = loadThemes()
         snapshot.themes = themes.list
+        snapshot.groups = themes.groups
         snapshot.defaultThemeId = themes.defaultId
         let config = readJSON(tabbyDir.appendingPathComponent("config.json"))
         snapshot.globalThemeId = str(config?["theme"]) ?? themes.defaultId
+        snapshot.config = IslandConfig(
+            mode: IslandMode(raw: str(config?["islandMode"])) ?? .standard,
+            announce: bool(config?["islandAnnounce"]) ?? true,
+            hotkeys: bool(config?["islandHotkeys"]) ?? true
+        )
         snapshot.sessions = loadSessions()
         return snapshot
     }
@@ -278,6 +309,8 @@ final class SnapshotLoader: @unchecked Sendable {
             theme: str(record?["theme"]),
             accentKey: str(record?["accentKey"]),
             accentHex: str(record?["accent"]),
+            dotHex: str(record?["dot"]) ?? ColorMath.onBlack(str(record?["accent"])),
+            cursorHex: str(record?["cursor"]),
             status: status,
             waitingFor: str(entry?["waitingFor"]) ?? str(record?["waitingFor"]),
             lastPrompt: lastPrompt.map { Fmt.oneLine($0, max: 240) },
@@ -421,25 +454,75 @@ final class SnapshotLoader: @unchecked Sendable {
 
     // MARK: Themes, config, CLI location
 
-    private func loadThemes() -> (list: [ThemeInfo], defaultId: String?) {
-        guard let json = readJSON(tabbyDir.appendingPathComponent("themes.json")) else { return ([], nil) }
+    struct ThemeLoad {
+        var list: [ThemeInfo] = []
+        var groups: [ThemeGroup] = []
+        var defaultId: String?
+    }
+
+    struct FileStamp: Equatable {
+        var mtime: Date
+        var size: UInt64
+    }
+
+    /// themes.json is ~60 KB and rarely changes: parse it again only when it does.
+    private func loadThemes() -> ThemeLoad {
+        let url = tabbyDir.appendingPathComponent("themes.json")
+        guard let attributes = try? fm.attributesOfItem(atPath: url.path),
+              let mtime = attributes[.modificationDate] as? Date,
+              let size = (attributes[.size] as? NSNumber)?.uint64Value else {
+            themeCache = nil
+            return ThemeLoad()
+        }
+        let stamp = FileStamp(mtime: mtime, size: size)
+        if let cache = themeCache, cache.stamp == stamp { return cache.themes }
+        let themes = parseThemes(readJSON(url))
+        themeCache = (stamp, themes)
+        return themes
+    }
+
+    /// Menu sections in tabby's order; unknown groups follow in order of first use.
+    private static let groupOrder = ["signature", "calm", "classic", "vivid", "light", "contrast"]
+    private static let groupNames = ["signature": "Signature", "calm": "Calm", "classic": "Classic",
+                                     "vivid": "Vivid", "light": "Light", "contrast": "High contrast"]
+
+    private func parseThemes(_ json: [String: Any]?) -> ThemeLoad {
+        guard let json else { return ThemeLoad() }
+        let keyOrder = (json["accentKeys"] as? [Any])?.compactMap { $0 as? String } ?? []
         var themes: [ThemeInfo] = []
         for case let theme as [String: Any] in (json["themes"] as? [Any]) ?? [] {
             guard let id = str(theme["id"]) else { continue }
+            let dots = theme["dots"] as? [String: Any]
             var accents: [Accent] = []
+            func add(_ key: String, _ hex: String) {
+                accents.append(Accent(key: key, hex: hex, dot: str(dots?[key]) ?? ColorMath.onBlack(hex) ?? hex))
+            }
             if let map = theme["accents"] as? [String: Any] {
-                for (key, value) in map { if let hex = str(value) { accents.append(Accent(key: key, hex: hex)) } }
+                for (key, value) in map { if let hex = str(value) { add(key, hex) } }
             } else if let list = theme["accents"] as? [Any] {
                 for case let item as [String: Any] in list {
-                    if let key = str(item["key"]), let hex = str(item["hex"]) { accents.append(Accent(key: key, hex: hex)) }
+                    if let key = str(item["key"]), let hex = str(item["hex"]) { add(key, hex) }
                 }
             }
-            accents.sort(by: Hue.ordered)
-            themes.append(ThemeInfo(id: id, name: str(theme["name"]) ?? id, mode: str(theme["mode"]) ?? "dark",
+            // tabby's accent order (red … pink) when known, else rainbow order.
+            accents.sort { a, b in
+                let i = keyOrder.firstIndex(of: a.key) ?? Int.max, j = keyOrder.firstIndex(of: b.key) ?? Int.max
+                return i != j ? i < j : Hue.ordered(a, b)
+            }
+            let mode = str(theme["mode"]) ?? "dark"
+            // Older themes.json files have no groups: light themes, calm darks, the rest.
+            let group = str(theme["group"]) ?? (mode == "light" ? "light" : (bool(theme["calm"]) == true ? "calm" : "classic"))
+            themes.append(ThemeInfo(id: id, name: str(theme["name"]) ?? id, mode: mode, group: group,
                                     bg: str(theme["bg"]) ?? "#1e1e1e", fg: str(theme["fg"]) ?? "#d0d0d0",
-                                    accents: accents))
+                                    accents: accents, blurb: str(theme["blurb"]) ?? ""))
         }
-        return (themes, str(json["default"]))
+        let names = json["groups"] as? [String: Any] ?? [:]
+        var order = Self.groupOrder.filter { id in themes.contains { $0.group == id } }
+        for theme in themes where !order.contains(theme.group) { order.append(theme.group) }
+        let groups = order.map { id in
+            ThemeGroup(id: id, name: str(names[id]) ?? Self.groupNames[id] ?? id.capitalized)
+        }
+        return ThemeLoad(list: themes, groups: groups, defaultId: str(json["default"]))
     }
 
     private func loadCLI() -> CLIConfig {
@@ -492,6 +575,20 @@ private func int(_ value: Any?) -> Int? {
 private func str(_ value: Any?) -> String? {
     guard let string = value as? String, !string.isEmpty else { return nil }
     return string
+}
+
+/// JSON booleans, 0/1, or "true"/"false"/"on"/"off" strings (config values set by hand).
+private func bool(_ value: Any?) -> Bool? {
+    switch value {
+    case let number as NSNumber: return number.boolValue
+    case let string as String:
+        switch string.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "true", "yes", "on", "1": return true
+        case "false", "no", "off", "0": return false
+        default: return nil
+        }
+    default: return nil
+    }
 }
 
 // MARK: - Process probing (tty + terminal of sessions tabby hasn't recorded)

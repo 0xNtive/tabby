@@ -30,9 +30,23 @@ enum Actions {
         runCLI(["reset", "--session", session.cliTarget])
     }
 
-    /// Runs `<node> <tabby.js> <args…>` off the main thread, then refreshes the store.
-    static func runCLI(_ args: [String]) {
-        guard let cli = store?.snapshot.cli else { return }
+    /// `tabby config <key> <json>`: the CLI JSON-parses the value.
+    static func setConfig(_ key: String, json: String) {
+        runCLI(["config", key, json])
+    }
+
+    /// `tabby tile [n]`: arranges the sessions' terminal windows in a grid.
+    static func tile(_ count: Int?, completion: @escaping @MainActor (String) -> Void) {
+        runCLI(["tile"] + (count.map { [String($0)] } ?? [])) { _, output in completion(output) }
+    }
+
+    /// Runs `<node> <tabby.js> <args…>` off the main thread, then refreshes the store and
+    /// hands the combined stdout/stderr to `completion` on the main thread.
+    static func runCLI(_ args: [String], completion: (@MainActor (Int32, String) -> Void)? = nil) {
+        guard let cli = store?.snapshot.cli, !cli.cli.isEmpty else {
+            completion?(-1, "tabby's CLI was not found. Run `tabby island` once from a terminal.")
+            return
+        }
         let node = cli.node
         let script = cli.cli
         DispatchQueue.global(qos: .userInitiated).async {
@@ -43,24 +57,54 @@ enum Actions {
             let extraPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
             environment["PATH"] = environment["PATH"].map { "\($0):\(extraPath)" } ?? extraPath
             environment["TABBY_SOURCE"] = "island"
+            environment["NO_COLOR"] = "1"
             process.environment = environment
-            process.standardOutput = FileHandle.nullDevice
-            let stderr = Pipe()
-            process.standardError = stderr
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+            var status: Int32 = -1
+            var output = ""
             do {
                 try process.run()
-                let errorOutput = stderr.fileHandleForReading.readDataToEndOfFile()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
-                if process.terminationStatus != 0 {
-                    NSLog("tabby island: `tabby %@` exited %d: %@", args.joined(separator: " "),
-                          process.terminationStatus, String(decoding: errorOutput, as: UTF8.self))
+                status = process.terminationStatus
+                output = String(decoding: data, as: UTF8.self)
+                if status != 0 {
+                    NSLog("tabby island: `tabby %@` exited %d: %@", args.joined(separator: " "), status, output)
                 }
             } catch {
+                output = "Could not run tabby: \(error.localizedDescription)"
                 NSLog("tabby island: could not run %@ %@: %@", node, script, error.localizedDescription)
             }
+            let result = (status, output)
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { store?.refresh() }
+                MainActor.assumeIsolated {
+                    store?.refresh()
+                    completion?(result.0, result.1)
+                }
             }
+        }
+    }
+
+    /// The line of CLI output worth showing after `tile`: an Accessibility hint first,
+    /// else anything that isn't the plain "Tiled …" success line.
+    static func notice(fromTileOutput output: String) -> (text: String, accessibility: Bool)? {
+        let lines = output
+            .replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        if let line = lines.first(where: { $0.localizedCaseInsensitiveContains("accessibility") }) {
+            return (line, true)
+        }
+        if let line = lines.first(where: { !$0.hasPrefix("Tiled ") }) { return (line, false) }
+        return nil
+    }
+
+    static func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -180,41 +224,6 @@ enum Actions {
     """
 }
 
-// MARK: - Rename dialog
-
-enum RenameResult {
-    case rename(String)
-    case auto
-    case cancel
-}
-
-@MainActor
-enum Dialogs {
-    static func rename(current: String, project: String) -> RenameResult {
-        NSApp.activate()
-        let alert = NSAlert()
-        alert.messageText = "Rename tab"
-        alert.informativeText = "Session in \(project). Leave it empty to let AI pick a name."
-        let field = NSTextField(string: current)
-        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-        field.placeholderString = "Tab name"
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Rename")
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Let AI Name It")
-        alert.window.initialFirstResponder = field
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? .auto : .rename(name)
-        case .alertThirdButtonReturn:
-            return .auto
-        default:
-            return .cancel
-        }
-    }
-}
-
 // MARK: - Menus
 
 @MainActor
@@ -244,6 +253,19 @@ final class MenuFactory: NSObject {
         return item
     }
 
+    func info(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    func submenu(_ title: String, symbol: String? = nil, menu: NSMenu) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
+        item.submenu = menu
+        return item
+    }
+
     func sessionMenu(for session: IslandSession, store: SessionStore,
                      rename: @escaping @MainActor () -> Void) -> NSMenu {
         let menu = NSMenu()
@@ -251,32 +273,18 @@ final class MenuFactory: NSObject {
 
         let header = NSMenuItem(title: session.title, action: nil, keyEquivalent: "")
         header.attributedTitle = MenuFactory.sessionTitle(session)
-        header.image = Swatch.dot(session.accentHex ?? Palette.neutralHex)
+        header.image = Swatch.dot(session.dotHex ?? Palette.neutralHex)
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
 
         menu.addItem(item("Focus Tab", symbol: "arrow.up.forward.app") { Actions.focus(session) })
         menu.addItem(item("Rename…", symbol: "pencil") { rename() })
-
-        let colors = NSMenuItem(title: "Color", action: nil, keyEquivalent: "")
-        colors.image = NSImage(systemSymbolName: "paintbrush.pointed", accessibilityDescription: nil)
-        let colorMenu = NSMenu()
-        for accent in store.accents(for: session) {
-            colorMenu.addItem(item(accent.key.capitalized, image: Swatch.dot(accent.hex),
-                                   checked: accent.key == session.accentKey) {
-                Actions.setColor(session, key: accent.key)
-            })
-        }
-        colors.submenu = colorMenu
-        menu.addItem(colors)
-
-        let themes = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
-        themes.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: nil)
-        themes.submenu = themeMenu(store: store, current: session.theme ?? store.snapshot.globalThemeId) { id in
-            Actions.setTheme(session, id: id)
-        }
-        menu.addItem(themes)
+        menu.addItem(submenu("Color", symbol: "paintbrush.pointed", menu: colorMenu(for: session, store: store)))
+        menu.addItem(submenu("Theme", symbol: "paintpalette",
+                             menu: themeMenu(store: store, current: session.theme ?? store.snapshot.globalThemeId) { id in
+                                 Actions.setTheme(session, id: id)
+                             }))
 
         menu.addItem(.separator())
         menu.addItem(item("Rename with AI", symbol: "sparkles") { Actions.renameWithAI(session) })
@@ -284,25 +292,69 @@ final class MenuFactory: NSObject {
         return menu
     }
 
+    /// The session theme's accents, as the dots the island shows.
+    func colorMenu(for session: IslandSession, store: SessionStore) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for accent in store.accents(for: session) {
+            menu.addItem(item(accent.key.capitalized, image: Swatch.dot(accent.dot),
+                              checked: accent.key == session.accentKey) {
+                Actions.setColor(session, key: accent.key)
+            })
+        }
+        return menu
+    }
+
+    /// One submenu per theme group (Signature, Calm, Classic, Vivid, Light, High contrast).
     func themeMenu(store: SessionStore, current: String?, apply: @escaping @MainActor (String) -> Void) -> NSMenu {
         let menu = NSMenu()
         let themes = store.snapshot.themes
         guard !themes.isEmpty else {
-            let empty = NSMenuItem(title: "No themes yet — run `tabby install`", action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            menu.addItem(empty)
+            menu.addItem(info("No themes yet — run `tabby install`"))
             return menu
         }
-        let dark = themes.filter { $0.mode != "light" }
-        let light = themes.filter { $0.mode == "light" }
-        for (title, group) in [("Dark", dark), ("Light", light)] where !group.isEmpty {
-            if menu.numberOfItems > 0 { menu.addItem(.separator()) }
-            menu.addItem(NSMenuItem.sectionHeader(title: title))
-            for theme in group {
-                menu.addItem(item(theme.name, image: Swatch.theme(theme), checked: theme.id == current) {
+        let groups = store.snapshot.groups.isEmpty
+            ? [ThemeGroup(id: "", name: "Themes")]
+            : store.snapshot.groups
+        for group in groups {
+            let members = group.id.isEmpty ? themes : themes.filter { $0.group == group.id }
+            guard !members.isEmpty else { continue }
+            let submenu = NSMenu()
+            for theme in members {
+                let entry = item(theme.name, image: Swatch.theme(theme), checked: theme.id == current) {
                     apply(theme.id)
-                })
+                }
+                if !theme.blurb.isEmpty { entry.toolTip = theme.blurb }
+                submenu.addItem(entry)
             }
+            let parent = self.submenu(group.name, menu: submenu)
+            parent.state = members.contains { $0.id == current } ? .on : .off
+            menu.addItem(parent)
+        }
+        return menu
+    }
+
+    /// "Tile all sessions (N)", then 2 · 3 · 4 · 6 · 8 windows.
+    func tileMenu(sessionCount: Int, run: @escaping @MainActor (Int?) -> Void) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let all = item("Tile All Sessions (\(sessionCount))", symbol: "square.grid.2x2") { run(nil) }
+        all.isEnabled = sessionCount > 0
+        menu.addItem(all)
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem.sectionHeader(title: "Most recent sessions"))
+        for count in [2, 3, 4, 6, 8] {
+            menu.addItem(item("\(count) Windows") { run(count) })
+        }
+        return menu
+    }
+
+    func modeMenu(current: IslandMode, set: @escaping @MainActor (IslandMode) -> Void) -> NSMenu {
+        let menu = NSMenu()
+        for mode in IslandMode.allCases {
+            let entry = item(mode.title, symbol: mode.symbol, checked: mode == current) { set(mode) }
+            entry.toolTip = mode.help
+            menu.addItem(entry)
         }
         return menu
     }
