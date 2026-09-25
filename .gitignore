@@ -1,0 +1,5 @@
+node_modules/
+island/build/
+.DS_Store
+.vercel
+*.tmp

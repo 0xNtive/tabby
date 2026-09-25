@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "tabby",
+  "description": "tabby: every Claude Code tab, at a glance",
+  "owner": {
+    "name": "0xNtive"
+  },
+  "plugins": [
+    {
+      "name": "tabby",
+      "description": "AI tab names, calm colors, live status, 57 themes, /tab, window tiling and a macOS session island for every Claude Code session.",
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://claude-tabby.vercel.app",
+      "version": "0.2.0"
+    }
+  ]
+}
