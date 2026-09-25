@@ -210,7 +210,7 @@ function doctor() {
     ['sessions', `${[...readRegistry().values()].filter((r) => r.kind === 'interactive').length} running · ${liveSessions().length} tracked`],
     ['state', paths.root],
   ];
-  for (const [k, v] of rows) console.log(`  ${c(DIM, pad(k, 12))} ${v}`);
+  for (const [k, v] of rows) console.log(`  ${c(DIM, pad(k, 14))} ${v}`);
 }
 
 // Color sessions that were already running before tabby was installed (colors only —
