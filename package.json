@@ -54,7 +54,7 @@
     "brand/README.md"
   ],
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "export": "node scripts/export.js",
     "island": "bash island/build.sh",
     "prepublishOnly": "npm test && node scripts/export.js"
