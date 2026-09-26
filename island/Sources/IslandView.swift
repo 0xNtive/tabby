@@ -447,7 +447,7 @@ struct KeyboardHint: View {
     private typealias Item = (key: String, label: String)
     private let full: [Item] = [
         ("↑↓", "select"), ("↩", "open"), ("R", "rename"), ("C", "color"),
-        ("T", "theme"), ("M", "mode"), ("G", "tile"), ("esc", "close"),
+        ("T", "theme"), ("M", "mode"), ("G", "tile"), ("W", "watermark"), ("esc", "close"),
     ]
     private let short: [Item] = [
         ("↑↓", ""), ("↩", "open"), ("R", "rename"), ("C", "color"),
@@ -481,7 +481,7 @@ struct KeyboardHint: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(renaming
             ? "Return saves the name, Escape cancels. Leave it empty to let AI name it."
-            : "Keyboard: arrows select, Return opens, R rename, C color, T theme, M mode, G tile, Escape closes")
+            : "Keyboard: arrows select, Return opens, R rename, C color, T theme, M mode, G tile, W watermark, comma settings, Escape closes")
     }
 
     private func row(_ items: [Item], spacing: CGFloat) -> some View {

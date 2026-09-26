@@ -90,12 +90,147 @@ enum IslandMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The island's settings plus the tabby settings its Settings window shows, read from
+/// ~/.claude/tabby/config.json (with changes the CLI is still writing laid on top).
 struct IslandConfig: Equatable, Sendable {
     var mode: IslandMode = .standard
     /// Live-activity announcements in the collapsed pill (`islandAnnounce`).
     var announce = true
-    /// Global ⌃⌥ shortcuts (`islandHotkeys`).
+    /// Global shortcuts on or off (`islandHotkeys`).
     var hotkeys = true
+    /// Every action's shortcut; a missing action has none (`islandShortcuts` overrides the defaults).
+    var shortcuts = ShortcutAction.defaults
+    /// Each session's topic behind its Terminal window (`watermark`, `watermarkOpacity`, …).
+    var watermark = WatermarkSettings()
+
+    // tabby's own settings (Settings › General).
+    /// The theme for every tab (`theme`); nil means tabby's default.
+    var theme: String?
+    /// ai | heuristic | off
+    var namer = "ai"
+    /// subtle | medium | bold
+    var strength = "medium"
+    /// circle | square | heart | none
+    var marker = "circle"
+    var animate = true
+    /// Terminal.app windows show only the session name (`terminalTabTitles`).
+    var terminalTitles = false
+
+    init() {}
+
+    init(raw: [String: ConfigValue]) {
+        mode = IslandMode(raw: raw["islandMode"]?.string) ?? .standard
+        announce = raw["islandAnnounce"]?.bool ?? true
+        hotkeys = raw["islandHotkeys"]?.bool ?? true
+        if let overrides = raw["islandShortcuts"]?.object {
+            for action in ShortcutAction.allCases {
+                guard let value = overrides[action.rawValue] else { continue }
+                shortcuts[action] = Self.combo(value, for: action)
+            }
+        }
+        watermark = WatermarkSettings(raw: raw)
+        theme = raw["theme"]?.string
+        namer = raw["namer"]?.string ?? "ai"
+        strength = raw["strength"]?.string ?? "medium"
+        marker = raw["marker"]?.string ?? "circle"
+        animate = raw["animate"]?.bool ?? true
+        terminalTitles = raw["terminalTabTitles"]?.bool ?? false
+    }
+
+    /// "", "none", "off", false or null turn a shortcut off; anything unreadable keeps the default.
+    private static func combo(_ value: ConfigValue, for action: ShortcutAction) -> KeyCombo? {
+        switch value {
+        case .null, .bool(false):
+            return nil
+        case .string(let spec):
+            let trimmed = spec.trimmingCharacters(in: .whitespaces).lowercased()
+            if ["", "none", "off", "false"].contains(trimmed) { return nil }
+            if let combo = KeyCombo(spec: trimmed) { return combo }
+            // The jump digits may be given as modifiers alone: "ctrl+opt".
+            if action == .jump, let combo = KeyCombo(spec: trimmed + "+1") { return combo }
+            return action.defaultCombo
+        default:
+            return action.defaultCombo
+        }
+    }
+}
+
+/// One value from config.json, comparable, so a setting the user just changed can be held
+/// until the CLI has written it.
+enum ConfigValue: Equatable, Sendable {
+    case null
+    case bool(Bool)
+    case number(Double)
+    case string(String)
+    case array([ConfigValue])
+    case object([String: ConfigValue])
+
+    init(_ value: Any?) {
+        guard let value else {
+            self = .null
+            return
+        }
+        switch value {
+        case let number as NSNumber:
+            self = CFGetTypeID(number) == CFBooleanGetTypeID() ? .bool(number.boolValue) : .number(number.doubleValue)
+        case let string as String: self = .string(string)
+        case let array as [Any]: self = .array(array.map { ConfigValue($0) })
+        case let object as [String: Any]: self = .object(object.mapValues { ConfigValue($0) })
+        default: self = .null
+        }
+    }
+
+    var any: Any {
+        switch self {
+        case .null: return NSNull()
+        case .bool(let value): return value
+        case .number(let value): return value
+        case .string(let value): return value
+        case .array(let values): return values.map(\.any)
+        case .object(let values): return values.mapValues(\.any)
+        }
+    }
+
+    /// For `tabby config <key> <json>`.
+    var json: String {
+        guard let data = try? JSONSerialization.data(withJSONObject: any, options: [.fragmentsAllowed, .sortedKeys]) else {
+            return "null"
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// JSON booleans, 0/1, or "true"/"false"/"on"/"off" strings (config values set by hand).
+    var bool: Bool? {
+        switch self {
+        case .bool(let value): return value
+        case .number(let value): return value != 0
+        case .string(let value):
+            switch value.trimmingCharacters(in: .whitespaces).lowercased() {
+            case "true", "yes", "on", "1": return true
+            case "false", "no", "off", "0": return false
+            default: return nil
+            }
+        default: return nil
+        }
+    }
+
+    var number: Double? {
+        switch self {
+        case .number(let value): return value
+        case .string(let value): return Double(value.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "%", with: ""))
+        default: return nil
+        }
+    }
+
+    var string: String? {
+        guard case .string(let value) = self, !value.isEmpty else { return nil }
+        return value
+    }
+
+    var object: [String: ConfigValue]? {
+        guard case .object(let value) = self else { return nil }
+        return value
+    }
 }
 
 // MARK: - Announcements (live activities in the collapsed pill)
@@ -218,6 +353,10 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     var startedAt: Double
     var activityAt: Double?
     var hasRecord: Bool
+    /// The Terminal.app window showing this session's tab (a window-server window number).
+    var windowId: Int? = nil
+    /// `/tab off`: tabby leaves this tab alone.
+    var disabled = false
 
     /// What the tabby CLI accepts for `--session`.
     var cliTarget: String { sessionId ?? String(pid) }

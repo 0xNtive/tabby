@@ -44,6 +44,7 @@ struct TabbyIslandApp {
             row["dot"] = session.dotHex
             row["tty"] = session.tty
             row["term"] = session.term
+            row["windowId"] = session.windowId
             row["lastPrompt"] = session.lastPrompt
             row["summary"] = session.summary
             if let pct = session.contextPct { row["contextPct"] = (pct * 10).rounded() / 10 }
@@ -57,7 +58,15 @@ struct TabbyIslandApp {
             "groups": snapshot.groups.map { "\($0.id): \($0.name)" },
             "globalTheme": snapshot.globalThemeId ?? NSNull(),
             "config": ["islandMode": snapshot.config.mode.rawValue, "islandAnnounce": snapshot.config.announce,
-                       "islandHotkeys": snapshot.config.hotkeys],
+                       "islandHotkeys": snapshot.config.hotkeys,
+                       "islandShortcuts": ShortcutAction.allCases.map { "\($0.rawValue)=\(snapshot.config.shortcuts[$0]?.spec ?? "none")" },
+                       "watermark": [
+                           "enabled": snapshot.config.watermark.enabled, "opacity": snapshot.config.watermark.opacity,
+                           "size": snapshot.config.watermark.size.rawValue, "color": snapshot.config.watermark.color.rawValue,
+                           "position": snapshot.config.watermark.position.rawValue,
+                       ] as [String: Any]],
+            "terminalWindows": snapshot.terminalWindowIds.sorted(),
+            "automationDenied": snapshot.automationDenied,
             "cli": ["node": snapshot.cli.node, "cli": snapshot.cli.cli],
         ]
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]) {
@@ -106,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 MainActor.assumeIsolated {
                     if command == "menu" { self?.dumpMenu() }
                     if command == "about" { self?.showAbout() }
+                    if command == "toggle-island" { self?.toggleIsland() }
                 }
             }
         }
@@ -163,7 +173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.toolTip = [session.summary, session.lastPrompt.map { "“\($0)”" }, session.statusDetail]
                     .compactMap { $0 }
                     .joined(separator: "\n")
-                if config.hotkeys, index < 9 { shortcut(item, "\(index + 1)") }
+                if config.hotkeys, index < 9, let jump = config.shortcuts[.jump] {
+                    shortcut(item, KeyCombo(KeyNames.jumpDigits[index], jump.modifiers))
+                }
                 menu.addItem(item)
             }
         }
@@ -181,6 +193,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         announce.toolTip = "“✓ … is done” and “… needs you” in the island while it's collapsed"
         menu.addItem(announce)
+        let watermark = factory.item("Show Watermark", checked: config.watermark.enabled) { [weak island] in
+            island?.toggleWatermark()
+        }
+        watermark.toolTip = "Each session's topic in large, faint letters over its Terminal window"
+        if config.hotkeys { shortcut(watermark, config.shortcuts[.watermark]) }
+        menu.addItem(watermark)
         menu.addItem(.separator())
         menu.addItem(factory.submenu("Tile Windows", symbol: "square.grid.2x2",
                                      menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in
@@ -192,14 +210,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                      }))
         menu.addItem(factory.submenu("Keyboard Shortcuts", symbol: "keyboard", menu: shortcutsMenu(config)))
         menu.addItem(.separator())
+        let settings = factory.item("Settings…", symbol: "gearshape") { [weak island] in island?.openSettings() }
+        settings.keyEquivalent = ","
+        settings.keyEquivalentModifierMask = [.command]
+        menu.addItem(settings)
         menu.addItem(factory.item("About tabby", symbol: "info.circle") { [weak self] in self?.showAbout() })
         menu.addItem(NSMenuItem(title: "Quit Tabby Island", action: #selector(NSApplication.terminate(_:)),
                                 keyEquivalent: "q"))
     }
 
-    private func shortcut(_ item: NSMenuItem, _ key: String) {
+    /// Shows a shortcut on a menu item (only while the menu is open does it act as one).
+    private func shortcut(_ item: NSMenuItem, _ combo: KeyCombo?) {
+        guard let combo, let key = combo.menuKey else { return }
         item.keyEquivalent = key
-        item.keyEquivalentModifierMask = [.control, .option]
+        item.keyEquivalentModifierMask = combo.modifiers.eventFlags
     }
 
     private func shortcutsMenu(_ config: IslandConfig) -> NSMenu {
@@ -208,31 +232,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         let on = config.hotkeys
         let taken = HotkeyCenter.shared.unavailable
-        let rows: [(String, String, Int, @MainActor () -> Void)] = [
-            ("Open Island with Keyboard", " ", Shortcut.toggle, { [weak island] in island?.toggleKeyboard() }),
-            ("Next Session That Needs You", "n", Shortcut.next, { [weak island] in island?.jumpToNextNeedingYou() }),
-            ("Tile Windows", "g", Shortcut.tile, { [weak island] in island?.tile(nil) }),
-            ("Cycle Mode", "m", Shortcut.mode, { [weak island] in island?.cycleMode() }),
-        ]
-        for (title, key, code, action) in rows {
-            let item = factory.item(taken.contains(code) ? "\(title) (shortcut in use by another app)" : title,
-                                    action: action)
-            shortcut(item, key)
-            item.isEnabled = on
+        for action in ShortcutAction.allCases where action != .jump {
+            let combo = config.shortcuts[action]
+            let inUse = combo.map { taken.contains($0) } ?? false
+            let item = factory.item(inUse ? "\(action.menuTitle) (shortcut in use by another app)" : action.menuTitle) {
+                [weak island] in island?.perform(action)
+            }
+            if on { shortcut(item, combo) }
             menu.addItem(item)
         }
-        let jump = factory.info("Jump to Session 1–9   ⌃⌥1 … ⌃⌥9")
-        menu.addItem(jump)
+        if let jump = config.shortcuts[.jump] {
+            menu.addItem(factory.info("Jump to Session 1–9   \(ShortcutAction.jump.display(jump))"))
+        }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: "In the island"))
         for line in ["↑ ↓  select   ↩  open   1–9  jump", "R  rename   C  color   T  theme",
-                     "M  mode   G  tile   esc  close"] {
+                     "M  mode   G  tile   W  watermark", ",  settings   esc  close"] {
             menu.addItem(factory.info(line))
         }
         menu.addItem(.separator())
         menu.addItem(factory.item("Enable Global Shortcuts", checked: on) { [weak island] in
             island?.setHotkeys(!on)
         })
+        menu.addItem(factory.item("Customize Shortcuts…") { [weak island] in island?.openSettings(.shortcuts) })
         return menu
     }
 
@@ -261,8 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func toggleIsland() {
         guard let island else { return }
-        if island.isShown { island.hide() } else { island.show() }
-        UserDefaults.standard.set(island.isShown, forKey: "showIsland")
+        island.setShown(!island.isShown)
     }
 
     private func showAbout() {

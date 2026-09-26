@@ -19,7 +19,8 @@ Running five Claude sessions at once, every tab looks the same. tabby gives each
 - **a name** that Claude Haiku writes from what you're doing, in about 2 s;
 - **a color**, and a background tinted to match, distinct from your other open sessions;
 - **a live status** in the title: `◐` working (animated), `✳` your turn, `🔔` needs you (blinking);
-- **one-line control** with `/tab`, launch flags, keyboard shortcuts and a macOS island.
+- **a watermark**: the topic in large, faint letters over its Terminal window (macOS);
+- **one-line control** with `/tab`, launch flags, keyboard shortcuts and a macOS island with its own Settings.
 
 ## Install
 
@@ -67,6 +68,7 @@ In Claude. `/tab` is answered by a hook: it's instant and never costs tokens.
 /tab theme nord              this tab                      /tab theme nord all   every tab
 /tab ls                      every session: status, context, summary
 /tab note waiting on design  a note shown in the island
+/tab watermark off           hide the watermarks (on brings them back)
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
 ```
 
@@ -97,7 +99,9 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 - **Hover to expand:** every session's name, status and context meter.
 - **Actions:** click a row to jump to that terminal tab; right-click it to rename, recolor or re-theme.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
-- **Shortcuts:**
+- **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through; it follows the window as you move it, and fades while you drag.
+- **Settings** (⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, theme for every tab, the watermark's strength, size, color and position, and every shortcut.
+- **Shortcuts,** all changeable in Settings › Shortcuts:
 
   | Shortcut | Action |
   |---|---|
@@ -106,8 +110,12 @@ A Dynamic-Island-style overlay at the top center of your Mac.
   | ⌃⌥1–9 | jump to a session |
   | ⌃⌥G | tile windows |
   | ⌃⌥M | switch mode |
+  | ⌃⌥W | watermark on or off |
+  | ⌃⌥, | Settings |
 
-`tabby island` starts it; `tabby island login` launches it at login. It idles under 1% CPU.
+`tabby island` starts it; `tabby island login` (or Settings › Open at login) launches it at login. It idles under 1% CPU.
+
+The watermark asks Terminal which window shows which session, so macOS asks once to let Tabby Island control Terminal.
 
 Tiling from the island splits tabs into windows only with Accessibility for Tabby Island. If macOS shows it as allowed but tabs still don't split, click the island's "Allow Accessibility" notice: it clears permissions left over from an earlier build, and macOS asks again.
 

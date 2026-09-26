@@ -12,7 +12,13 @@ struct StoreSnapshot: Equatable, Sendable {
     var defaultThemeId: String?
     var globalThemeId: String?
     var config = IslandConfig()
+    /// config.json as read, for settings the user is changing (see PendingConfig).
+    var configRaw: [String: ConfigValue] = [:]
     var cli = CLIConfig(node: "/opt/homebrew/bin/node", cli: "")
+    /// macOS refused to let the island control Terminal (Automation), last time it asked.
+    var automationDenied = false
+    /// Every Terminal.app window with a tab, when the watermark is on.
+    var terminalWindowIds: Set<Int> = []
 }
 
 // MARK: - Store (main actor)
@@ -65,6 +71,12 @@ final class SessionStore: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Reads Terminal's tabs again soon (a tab moved into a window the watermark doesn't know).
+    func requestTerminalWindows() {
+        loader.requestTerminalWindows()
+        refresh()
     }
 
     /// Expanded-list order: waiting, error, busy, then everything else; stable by start time.
@@ -135,12 +147,19 @@ final class SnapshotLoader: @unchecked Sendable {
     private var heads: [String: (modelId: String?, marketing: String?)] = [:]
     private var processes: [Int: (tty: String?, term: String?)] = [:]
     private var themeCache: (stamp: FileStamp, themes: ThemeLoad)?
+    /// When a Terminal tab's window first went unknown; it's asked for urgently only for a while.
+    private var missingWindowSince: [String: Date] = [:]
     private let tailBytes: UInt64 = 256 * 1024
     private let headBytes = 128 * 1024
     private let titleReader: TerminalTitleReader
 
     init(automation: Bool) {
         titleReader = TerminalTitleReader(enabled: automation)
+    }
+
+    /// The watermark saw a Terminal window no known tab lives in: read Terminal's tabs again soon.
+    func requestTerminalWindows() {
+        titleReader.requestUrgent()
     }
 
     private var claudeDir: URL { home.appendingPathComponent(".claude", isDirectory: true) }
@@ -156,18 +175,18 @@ final class SnapshotLoader: @unchecked Sendable {
         snapshot.defaultThemeId = themes.defaultId
         let config = readJSON(tabbyDir.appendingPathComponent("config.json"))
         snapshot.globalThemeId = str(config?["theme"]) ?? themes.defaultId
-        snapshot.config = IslandConfig(
-            mode: IslandMode(raw: str(config?["islandMode"])) ?? .standard,
-            announce: bool(config?["islandAnnounce"]) ?? true,
-            hotkeys: bool(config?["islandHotkeys"]) ?? true
-        )
-        snapshot.sessions = loadSessions()
+        snapshot.configRaw = (config ?? [:]).mapValues { ConfigValue($0) }
+        snapshot.config = IslandConfig(raw: snapshot.configRaw)
+        snapshot.sessions = loadSessions(windows: snapshot.config.watermark.enabled)
+        snapshot.automationDenied = titleReader.automationDenied
+        if snapshot.config.watermark.enabled { snapshot.terminalWindowIds = Set(titleReader.terminalWindows().values) }
         return snapshot
     }
 
     // MARK: Sessions
 
-    private func loadSessions() -> [IslandSession] {
+    /// `windows`: also find each Terminal.app session's window (for the watermark).
+    private func loadSessions(windows: Bool) -> [IslandSession] {
         var recordsById: [String: [String: Any]] = [:]
         var recordsByPid: [Int: [String: Any]] = [:]
         let recordDir = tabbyDir.appendingPathComponent("sessions", isDirectory: true)
@@ -184,7 +203,8 @@ final class SnapshotLoader: @unchecked Sendable {
         let registryDir = claudeDir.appendingPathComponent("sessions", isDirectory: true)
         let registryNames = try? fm.contentsOfDirectory(atPath: registryDir.path)
         let terminalTitles = titleReader.current()
-        var needs = TitleNeeds()
+        let terminalWindows = windows ? titleReader.terminalWindows() : [:]
+        var needs = TitleNeeds(windows: windows)
         var sessions: [IslandSession] = []
         var seenPids = Set<Int>()
         var usedTranscripts = Set<String>()
@@ -205,8 +225,8 @@ final class SnapshotLoader: @unchecked Sendable {
                 record = candidate
             }
             sessions.append(makeSession(entry: entry, record: record, pid: pid, sessionId: sessionId,
-                                        terminalTitles: terminalTitles, needs: &needs,
-                                        usedTranscripts: &usedTranscripts))
+                                        terminalTitles: terminalTitles, terminalWindows: terminalWindows,
+                                        needs: &needs, usedTranscripts: &usedTranscripts))
         }
 
         // Claude Code builds without the registry: trust live tabby records instead.
@@ -216,12 +236,20 @@ final class SnapshotLoader: @unchecked Sendable {
                       SessionStatus(raw: str(record["status"])) != .ended else { continue }
                 seenPids.insert(pid)
                 sessions.append(makeSession(entry: nil, record: record, pid: pid, sessionId: sessionId,
-                                            terminalTitles: terminalTitles, needs: &needs,
-                                            usedTranscripts: &usedTranscripts))
+                                            terminalTitles: terminalTitles, terminalWindows: terminalWindows,
+                                            needs: &needs, usedTranscripts: &usedTranscripts))
             }
         }
 
-        titleReader.refreshIfNeeded(terminal: needs.terminal, iTerm: needs.iTerm)
+        // A tab whose window isn't known is asked for right away, but only for its first 15 s:
+        // a tty Terminal doesn't list (screen, say) must not trigger a read every second.
+        let now = Date()
+        missingWindowSince = missingWindowSince.filter { needs.missing.contains($0.key) }
+        for tty in needs.missing where missingWindowSince[tty] == nil { missingWindowSince[tty] = now }
+        let urgent = missingWindowSince.values.contains { now.timeIntervalSince($0) < 15 }
+        // Titles are read every 3 s; windows alone (the watermark) every 6 s.
+        titleReader.refreshIfNeeded(terminal: needs.terminalTitles || needs.terminalWindows, iTerm: needs.iTerm,
+                                    every: needs.terminalTitles || needs.iTerm ? 3 : 6, urgent: urgent)
         transcripts = transcripts.filter { usedTranscripts.contains($0.key) }
         heads = heads.filter { usedTranscripts.contains($0.key) }
         processes = processes.filter { seenPids.contains($0.key) }
@@ -229,13 +257,20 @@ final class SnapshotLoader: @unchecked Sendable {
     }
 
     private struct TitleNeeds {
-        var terminal = false
+        /// Look up Terminal.app windows too (the watermark is on).
+        var windows = false
+        /// Sessions without a tabby title, in Terminal.app and iTerm2.
+        var terminalTitles = false
         var iTerm = false
+        /// A Terminal.app session whose window to find.
+        var terminalWindows = false
+        /// Terminal ttys without a known window.
+        var missing: Set<String> = []
     }
 
     private func makeSession(entry: [String: Any]?, record: [String: Any]?, pid: Int, sessionId: String?,
-                             terminalTitles: [String: String], needs: inout TitleNeeds,
-                             usedTranscripts: inout Set<String>) -> IslandSession {
+                             terminalTitles: [String: String], terminalWindows: [String: Int],
+                             needs: inout TitleNeeds, usedTranscripts: inout Set<String>) -> IslandSession {
         let cwd = str(record?["cwd"]) ?? str(entry?["cwd"]) ?? ""
         let project = str(record?["project"]) ?? (cwd.isEmpty ? "session" : URL(fileURLWithPath: cwd).lastPathComponent)
 
@@ -292,8 +327,14 @@ final class SnapshotLoader: @unchecked Sendable {
         let recordTitle = str(record?["title"])
         var terminalTitle: String?
         if recordTitle == nil {
-            if (term ?? "").contains("iterm") { needs.iTerm = true } else { needs.terminal = true }
+            if (term ?? "").contains("iterm") { needs.iTerm = true } else { needs.terminalTitles = true }
             terminalTitle = tty.flatMap { terminalTitles[$0] }
+        }
+        var windowId: Int?
+        if needs.windows, (term ?? "apple-terminal") == "apple-terminal", let tty {
+            needs.terminalWindows = true
+            windowId = terminalWindows[tty]
+            if windowId == nil { needs.missing.insert(tty) }
         }
         return IslandSession(
             id: sessionId ?? str(record?["sessionId"]) ?? "pid-\(pid)",
@@ -321,7 +362,9 @@ final class SnapshotLoader: @unchecked Sendable {
             startedAt: num(entry?["startedAt"]) ?? num(record?["startedAt"]) ?? 0,
             activityAt: num(entry?["statusUpdatedAt"]) ?? num(entry?["updatedAt"])
                 ?? num(record?["statusAt"]) ?? num(record?["updatedAt"]),
-            hasRecord: record != nil
+            hasRecord: record != nil,
+            windowId: windowId,
+            disabled: bool(record?["disabled"]) ?? false
         )
     }
 

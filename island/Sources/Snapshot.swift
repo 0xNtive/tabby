@@ -86,6 +86,71 @@ enum Snapshotter {
 
         renderBrand(folder: folder)
         renderSwatches(live.snapshot, folder: folder)
+        renderSettings(store: demo, folder: folder)
+        renderWatermarks(demo.snapshot, folder: folder)
+    }
+
+    // MARK: Settings and watermark
+
+    /// Each Settings pane, in light and dark.
+    private static func renderSettings(store: SessionStore, folder: URL) {
+        let island = IslandController(store: store, inert: true)
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            for tab in SettingsTab.allCases {
+                island.settingsState.tab = tab
+                let host = NSHostingView(rootView: SettingsView(island: island, store: store, state: island.settingsState))
+                host.frame = NSRect(x: 0, y: 0, width: 600, height: 640)
+                let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.appearance = NSAppearance(named: appearance)
+                window.contentView = host
+                RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+                host.layoutSubtreeIfNeeded()
+                host.display()
+                guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+                host.cacheDisplay(in: host.bounds, to: rep)
+                let name = appearance == .darkAqua ? "dark" : "light"
+                write(rep, to: folder.appendingPathComponent("settings-\(tab.rawValue)-\(name).png"))
+                window.close()
+            }
+        }
+    }
+
+    /// The watermark over mock terminal windows: demo sessions in several sizes and positions.
+    private static func renderWatermarks(_ snapshot: StoreSnapshot, folder: URL) {
+        let cases: [(WatermarkSize, WatermarkPosition, WatermarkColor, CGSize)] = [
+            (.medium, .center, .session, CGSize(width: 760, height: 460)),
+            (.large, .center, .session, CGSize(width: 760, height: 460)),
+            (.small, .top, .session, CGSize(width: 760, height: 460)),
+            (.medium, .bottom, .neutral, CGSize(width: 760, height: 460)),
+            (.medium, .center, .session, CGSize(width: 480, height: 620)),
+            (.medium, .center, .session, CGSize(width: 1400, height: 380)),
+        ]
+        for (index, item) in cases.enumerated() {
+            let session = snapshot.sessions[index % max(1, snapshot.sessions.count)]
+            var settings = WatermarkSettings()
+            settings.size = item.0
+            settings.position = item.1
+            settings.color = item.2
+            let theme = snapshot.themes.first { $0.id == (session.theme ?? snapshot.globalThemeId) }
+            let view = TerminalMockView(frame: NSRect(origin: .zero, size: item.3))
+            view.background = NSColor(hexString: theme?.bg) ?? .black
+            view.foreground = NSColor(hexString: theme?.fg) ?? .white
+            view.watermark.text = session.title
+            view.watermark.tint = settings.tint(for: session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId)
+            view.watermark.settings = settings
+            let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            view.layoutSubtreeIfNeeded()
+            view.layout()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            let name = "watermark-\(index + 1)-\(item.0.rawValue)-\(item.1.rawValue)-\(item.2.rawValue).png"
+            write(rep, to: folder.appendingPathComponent(name))
+            window.close()
+        }
     }
 
     // MARK: Island states
