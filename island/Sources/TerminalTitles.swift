@@ -82,8 +82,9 @@ final class TerminalTitleReader: @unchecked Sendable {
             var mergedTitles: [String: String] = [:]
             var mergedWindows: [String: Int] = [:]
             var refused = false
-            // Only talk to apps that are already running; `tell application` would launch them.
-            if terminal, Self.isRunning("com.apple.Terminal") {
+            // Only talk to apps that are already running (`tell application` would launch them),
+            // and only once macOS allows it: the setup window asks, so no prompt pops up from here.
+            if terminal, Self.allowed("com.apple.Terminal", refused: &refused) {
                 switch Self.execute(terminalScript) {
                 case .success(let text):
                     let tabs = Self.parse(text)
@@ -92,7 +93,7 @@ final class TerminalTitleReader: @unchecked Sendable {
                 case .failure(let error): refused = refused || error.code == -1743
                 }
             }
-            if iTerm, Self.isRunning("com.googlecode.iterm2") {
+            if iTerm, Self.allowed("com.googlecode.iterm2", refused: &refused) {
                 switch Self.execute(iTermScript) {
                 case .success(let text): mergedTitles.merge(Self.parse(text).titles) { $1 }
                 case .failure(let error): refused = refused || error.code == -1743
@@ -142,8 +143,16 @@ final class TerminalTitleReader: @unchecked Sendable {
         return (titles, windows)
     }
 
-    private static func isRunning(_ bundleId: String) -> Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
+    /// Running, and the island may control it. Not asked yet counts as refused for the
+    /// Settings hint, without asking.
+    private static func allowed(_ bundleId: String, refused: inout Bool) -> Bool {
+        switch PermissionCenter.automationStatus(bundleId, ask: false) {
+        case .allowed?: return true
+        case nil: return false
+        default:
+            refused = true
+            return false
+        }
     }
 
     // Three Apple events in all (one per property, for every tab at once): asking tab by tab

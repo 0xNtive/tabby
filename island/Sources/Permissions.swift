@@ -34,6 +34,8 @@ final class PermissionCenter: ObservableObject {
 
     @Published private(set) var accessibility: Status = .unknown
     @Published private(set) var automation: [Target: Status] = [:]
+    /// Terminal just became controllable: the store can read its tabs now.
+    var onTerminalAllowed: (() -> Void)?
 
     private var timer: Timer?
     private var watchers = 0
@@ -139,6 +141,7 @@ final class PermissionCenter: ObservableObject {
                     self.asking.remove(target)
                     self.automation[target] = status
                     Self.remember(target, status == .allowed)
+                    if target == .terminal, status == .allowed { self.onTerminalAllowed?() }
                 }
             }
         }
@@ -164,10 +167,16 @@ final class PermissionCenter: ObservableObject {
 
     // MARK: macOS
 
-    /// `nil` when the target isn't running (macOS only answers for running apps).
     nonisolated private static func determine(_ target: Target, ask: Bool) -> Status? {
-        guard !NSRunningApplication.runningApplications(withBundleIdentifier: target.rawValue).isEmpty else { return nil }
-        let descriptor = NSAppleEventDescriptor(bundleIdentifier: target.rawValue)
+        automationStatus(target.rawValue, ask: ask)
+    }
+
+    /// May the island send Apple events to the app with this bundle id? `nil` when it isn't
+    /// running (macOS only answers for running apps). With `ask`, macOS shows its prompt if it
+    /// hasn't asked yet; that call blocks until it's answered.
+    nonisolated static func automationStatus(_ bundleId: String, ask: Bool) -> Status? {
+        guard !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty else { return nil }
+        let descriptor = NSAppleEventDescriptor(bundleIdentifier: bundleId)
         let status = AEDeterminePermissionToAutomateTarget(descriptor.aeDesc, AEEventClass(typeWildCard),
                                                            AEEventID(typeWildCard), ask)
         switch Int(status) {
