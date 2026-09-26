@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.5 — 2026-09-26
+
+- **Tiling from Tabby Island works again.** macOS tied the island's Accessibility and Automation permissions to the exact build that received them, and every rebuild changes an ad-hoc signature's hash. System Settings kept showing Tabby Island as allowed, but macOS silently refused it, so tabs were never split.
+  - The island is now signed with a stable requirement (its bundle id), so permissions survive rebuilds.
+  - "Allow Accessibility" clears the island's stale entries first, so macOS asks again and the new permission sticks.
+- **Tiling never squeezes a tab again:**
+  - tabby now waits until Terminal is really in front, which takes a moment when its windows are on another desktop, and until Accessibility sees the right window.
+  - It counts a window's tabs directly and moves a session out of a tab group until it's alone.
+  - Then only windows that are on screen are placed, never a background tab.
+- **Without Accessibility, tiling still arranges every separate window.** Only background tabs stay put, with a note on what to allow. Before, two separate windows that happened to share a frame, both maximized for example, were mistaken for tabs and skipped, so nothing moved.
+- **Bold text is readable in Terminal.app.** Terminal draws bold text in the profile's own bold color, which no escape code changes. A light profile such as Man Page, whose bold is black, made bold text vanish on a dark tabby background. tabby now sets each tab's bold color to its text color, and puts the profile's back when the session ends.
+
 ## 0.2.4 — 2026-09-26
 
 - **Terminal.app windows and tabs finally show only the session name.** The 0.2.0 setting never took effect. Terminal reads its preferences only at launch, and rewrites them from memory, so they were lost.

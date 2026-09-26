@@ -104,6 +104,8 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 
 `tabby island` starts it; `tabby island login` launches it at login. It idles under 1% CPU.
 
+Tiling from the island splits tabs into windows only with Accessibility for Tabby Island. If macOS shows it as allowed but tabs still don't split, click the island's "Allow Accessibility" notice: it clears permissions left over from an earlier build, and macOS asks again.
+
 ## Colors that don't hurt
 
 - **Contrast stays fixed.** A session's background is its theme's background, shifted toward the session color in OKLCH at the same lightness, so text contrast doesn't move. tabby also never lets a tint make text less readable than the theme itself.
@@ -129,7 +131,7 @@ Tuning options:
 
 | | title | background | tab color | jump to tab | tile |
 |---|---|---|---|---|---|
-| Terminal.app | ✓ only the name ([how](#how-it-works)) | ✓ | emoji marker | ✓ | ✓ (tabs → windows with Accessibility) |
+| Terminal.app | ✓ only the name ([how](#how-it-works)) | ✓ (bold text too) | emoji marker | ✓ | ✓ (tabs → windows with Accessibility) |
 | iTerm2 | ✓ | ✓ | ✓ native, pulses when waiting | ✓ | ✓ |
 | Ghostty, WezTerm, kitty, Alacritty | ✓ | ✓ | emoji marker | – | – |
 | VS Code / Cursor | ✓ with `"terminal.integrated.tabs.title": "${sequence}"` | ✓ | emoji marker | – | – |

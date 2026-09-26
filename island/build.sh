@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds island/build/Tabby Island.app (ad-hoc signed). Usage: bash island/build.sh
+# Builds island/build/Tabby Island.app (ad-hoc signed, stable requirement). Usage: bash island/build.sh
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,5 +33,7 @@ xcrun --sdk macosx swiftc \
   "$HERE"/Sources/*.swift \
   -o "$APP/Contents/MacOS/TabbyIsland"
 
-codesign --force --sign - --timestamp=none "$APP" >/dev/null
+# Required to be "this bundle id", not this build's hash (the ad-hoc default): macOS keys the
+# Accessibility and Automation permissions to it, so they survive rebuilds.
+codesign --force --sign - --timestamp=none -r='designated => identifier "dev.tabby.island"' "$APP" >/dev/null
 echo "Built $APP"
