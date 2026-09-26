@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3 — 2026-09-26
+
+- **Tiling really separates tabs now.** In a macOS tab group each tab keeps its own window frame, and the window shows the selected tab's frame. Resizing a tab from outside only squeezed its terminal inside the shared window; that is the bug you saw.
+  - Nothing is resized until every session has its own window. Each session's tab is brought forward and, if "Window › Move Tab to New Window" is enabled (it shares the window), it is moved out.
+  - Detection no longer resizes anything, and only the sessions' own windows are ever touched.
+  - Minimized session windows are restored and included.
+  - Resizes go out in one batch.
+- **Without Accessibility** (needed to split tabs), sessions that share a window as tabs are left untouched instead of half-moved, and tabby says what to enable.
+
 ## 0.2.2 — 2026-09-26
 
 - **Contrast re-check, now including Claude Code's own UI.** Claude draws colored text (dim gray, suggestions, its orange, diff words) from its dark or light palette, designed for a black or white background.
