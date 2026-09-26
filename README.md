@@ -28,7 +28,7 @@ Running five Claude sessions at once, every tab looks the same. tabby gives each
 curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash
 ```
 
-One command, about 20 seconds. It adds the plugin to Claude Code, shows the [terms](TERMS.md) (short version: local, free, no telemetry) and runs the setup below. On a Mac it also builds Tabby Island and asks macOS for Accessibility, which tiling needs to split tabs and bring full-screen windows back. Needs Node 18+ and Claude Code; add `-s -- --yes` after `bash` to accept the terms without a prompt.
+One command, about 20 seconds. It adds the plugin to Claude Code, shows the [terms](TERMS.md) (short version: local, free, no telemetry) and runs the setup below. On a Mac it also builds Tabby Island and opens its setup window, like installing a Mac app: it walks you through the permissions tiling and the watermark need, and checks each one as you allow it. Needs Node 18+ and Claude Code; add `-s -- --yes` after `bash` to accept the terms without a prompt.
 
 Or inside Claude Code:
 
@@ -50,7 +50,7 @@ Setup changes only these, backs up `settings.json` first, and `tabby uninstall` 
 | Terminal.app: each Claude tab uses a "<profile> · tabby" copy of its profile while it runs | windows and tabs read `🔵 ◐ Dark Mode Settings`, not `api — 🔵 ◐ Dark Mode Settings — caffeinate ◂ claude --dangerously-skip-permissions — 80×24` |
 | `~/.claude/tabby/bin/tabby.mjs` | a launcher that always runs the newest installed copy |
 
-Later, `tabby island accessibility` asks for the island's permission again, and `/tabby:setup island` builds the island from inside Claude (Xcode Command Line Tools).
+Later, `tabby island onboarding` opens that setup window again, and `/tabby:setup island` builds the island from inside Claude (Xcode Command Line Tools).
 
 Other ways to install:
 - **From a checkout:** `git clone https://github.com/0xNtive/tabby && node tabby/bin/tabby.js install`.
@@ -100,7 +100,7 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 - **Actions:** click a row to jump to that terminal tab; right-click it to rename, recolor or re-theme.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through; it follows the window as you move it, and fades while you drag.
-- **Settings** (⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, theme for every tab, the watermark's strength, size, color and position, and every shortcut.
+- **Settings** (the cog in the island's footer, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, theme for every tab, the watermark's strength, size, color and position, every shortcut, and the permissions.
 - **Shortcuts,** all changeable in Settings › Shortcuts:
 
   | Shortcut | Action |
@@ -117,7 +117,7 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 
 The watermark asks Terminal which window shows which session, so macOS asks once to let Tabby Island control Terminal.
 
-Tiling from the island splits tabs into windows only with Accessibility for Tabby Island. If macOS shows it as allowed but tabs still don't split, click the island's "Allow Accessibility" notice: it clears permissions left over from an earlier build, and macOS asks again.
+Tiling from the island splits tabs into windows only with Accessibility for Tabby Island. Its setup window (`tabby island onboarding`, or **Setup & Permissions…** in its menu) and Settings › Permissions check each permission live. If macOS shows Tabby Island as allowed but tabs still don't split, click Allow there: it clears permissions left over from an earlier build, and macOS asks again.
 
 ## Colors that don't hurt
 

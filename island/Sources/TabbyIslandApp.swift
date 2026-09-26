@@ -101,9 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let island = IslandController(store: store)
         self.island = island
         if UserDefaults.standard.bool(forKey: "showIsland") { island.show() }
-        // `tabby island accessibility` (and the installer): ask for the permission tiling needs.
-        if CommandLine.arguments.contains("--allow-accessibility") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { Actions.openAccessibilitySettings() }
+        // The setup window: once on first launch, and whenever the installer or
+        // `tabby island onboarding` asks (`--allow-accessibility` starts at the permissions).
+        let arguments = CommandLine.arguments
+        let asked = arguments.contains("--onboarding") || arguments.contains("--allow-accessibility")
+        if asked || !UserDefaults.standard.bool(forKey: "onboardingDone") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                island.showOnboarding(arguments.contains("--allow-accessibility") ? .permissions : .welcome, activate: asked)
+            }
         }
 
         setupStatusItem()
@@ -214,6 +219,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.keyEquivalent = ","
         settings.keyEquivalentModifierMask = [.command]
         menu.addItem(settings)
+        menu.addItem(factory.item("Setup & Permissions…", symbol: "checkmark.shield") { [weak island] in
+            island?.showOnboarding(.permissions, activate: true)
+        })
         menu.addItem(factory.item("About tabby", symbol: "info.circle") { [weak self] in self?.showAbout() })
         menu.addItem(NSMenuItem(title: "Quit Tabby Island", action: #selector(NSApplication.terminate(_:)),
                                 keyEquivalent: "q"))

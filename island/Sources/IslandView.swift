@@ -279,9 +279,11 @@ struct IslandRootView: View {
             HStack(spacing: 8) {
                 brand(count: count)
                 Spacer(minLength: 8)
-                ModePicker(mode: ui.mode, reduceMotion: ui.reduceMotion) { actions.setMode($0) }
-                FooterIconButton(symbol: "square.grid.2x2", help: "Tile session windows (⌃⌥G)") { actions.tileMenu() }
-                themeButton
+                // The theme's name gives way first when a narrow mode is short of room.
+                ViewThatFits(in: .horizontal) {
+                    controls(themeName: true)
+                    controls(themeName: false)
+                }
             }
             .frame(height: 48)
         }
@@ -310,26 +312,46 @@ struct IslandRootView: View {
         .fixedSize()
     }
 
-    private var themeButton: some View {
+    private func controls(themeName: Bool) -> some View {
+        HStack(spacing: 8) {
+            ModePicker(mode: ui.mode, reduceMotion: ui.reduceMotion) { actions.setMode($0) }
+            FooterIconButton(symbol: "square.grid.2x2", help: help("Tile session windows", .tile)) { actions.tileMenu() }
+            themeButton(showName: themeName)
+            FooterIconButton(symbol: "gearshape.fill", help: help("Settings", .settings)) { actions.openSettings() }
+        }
+        .fixedSize()
+    }
+
+    /// "Settings (⌃⌥,)" with the shortcut as configured.
+    private func help(_ title: String, _ action: ShortcutAction) -> String {
+        let config = store.snapshot.config
+        guard config.hotkeys, let combo = config.shortcuts[action] else { return title }
+        return "\(title) (\(action.display(combo)))"
+    }
+
+    private func themeButton(showName: Bool) -> some View {
         Button {
             actions.themeAllMenu()
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "paintpalette.fill")
                     .font(.system(size: 10.5))
-                Text(store.globalThemeName ?? "Theme")
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
+                if showName {
+                    Text(store.globalThemeName ?? "Theme")
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                }
             }
             .foregroundStyle(.white.opacity(0.82))
-            .padding(.horizontal, 10)
-            .frame(height: 26)
+            .padding(.horizontal, showName ? 10 : 0)
+            .frame(minWidth: 26, minHeight: 26, maxHeight: 26)
             .background(Capsule().fill(Color.white.opacity(0.09)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .help("Theme for every tab")
+        .help(showName ? "Theme for every tab" : "Theme for every tab: \(store.globalThemeName ?? "tabby")")
+        .accessibilityLabel("Theme for every tab")
     }
 }
 

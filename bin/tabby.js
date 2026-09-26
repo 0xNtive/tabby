@@ -265,11 +265,15 @@ function island(sub = 'start') {
     if (sub === 'build') return;
   }
   if (sub === 'login') return islandLogin();
-  if (sub === 'accessibility') {
-    // Restart it with the flag: the island asks macOS itself, so the permission is Tabby Island's.
+  if (sub === 'onboarding' || sub === 'setup' || sub === 'accessibility') {
+    // Restart it with the flag (a running app ignores new arguments). The island asks macOS
+    // itself, so each permission is Tabby Island's own.
     spawnSync('osascript', ['-e', 'quit app "Tabby Island"'], { stdio: 'ignore' });
-    spawnSync('open', [app, '--args', '--allow-accessibility']);
-    return console.log('Tabby Island asks for Accessibility: in System Settings, switch Tabby Island on. Tiling can then split tabs and leave full screen.');
+    for (let i = 0; i < 40 && spawnSync('pgrep', ['-x', 'TabbyIsland']).status === 0; i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    spawnSync('open', [app, '--args', sub === 'accessibility' ? '--allow-accessibility' : '--onboarding']);
+    return console.log(sub === 'accessibility'
+      ? 'Tabby Island opened its permissions: click Allow on each, and it checks them as you go.'
+      : 'Tabby Island opened its setup window: a minute, and it walks you through the permissions.');
   }
   spawnSync('open', [app]);
   console.log('Tabby Island is running — hover the top-center of your screen.');
@@ -317,7 +321,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
   tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
   tabby adopt                 color sessions that were started before tabby
-  tabby island [build|stop|login|accessibility]   the macOS session island (Settings: ⌃⌥, or its menu-bar icon)
+  tabby island [build|stop|login|onboarding]   the macOS session island (Settings: ⌃⌥, or its menu-bar icon)
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
