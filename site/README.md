@@ -13,7 +13,7 @@ site/
 ├── assets/
 │   ├── site.css        all styles
 │   ├── site.js         demo terminal, island, theme gallery, copy buttons
-│   ├── logo.svg · logo-mono.svg · app-icon-1024.png   (copied from ../brand)
+│   ├── logo.svg · app-icon-1024.png   (from ../brand)
 │   ├── favicon.svg · favicon-32.png · apple-touch-icon.png
 │   └── og.svg → og.png social card (1200×630)
 └── tools/

@@ -92,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let island = IslandController(store: store)
         self.island = island
         if UserDefaults.standard.bool(forKey: "showIsland") { island.show() }
+        // `tabby island accessibility` (and the installer): ask for the permission tiling needs.
+        if CommandLine.arguments.contains("--allow-accessibility") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { Actions.openAccessibilitySettings() }
+        }
 
         setupStatusItem()
         if Debug.enabled {

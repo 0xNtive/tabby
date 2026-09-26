@@ -133,11 +133,17 @@ enum Snapshotter {
         }
     }
 
-    /// Draws the rendered panel over a gradient "wallpaper" with a menu-bar strip.
+    /// Draws the rendered panel over a gradient "wallpaper" with a menu-bar strip, or, with
+    /// `TABBY_SNAPSHOT_BACKDROP=none` (renders for the website), on a transparent background.
     private static func composite(_ island: NSBitmapImageRep, size: CGSize, barHeight: CGFloat) -> NSBitmapImageRep {
         guard let out = bitmap(pixelsWide: island.pixelsWide, pixelsHigh: island.pixelsHigh, size: size) else { return island }
+        let bare = ProcessInfo.processInfo.environment["TABBY_SNAPSHOT_BACKDROP"] == "none"
         draw(into: out) {
             let bounds = NSRect(origin: .zero, size: size)
+            if bare {
+                island.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                return
+            }
             NSGradient(colors: [NSColor(srgbRed: 0.16, green: 0.25, blue: 0.40, alpha: 1),
                                 NSColor(srgbRed: 0.40, green: 0.29, blue: 0.45, alpha: 1)])?.draw(in: bounds, angle: -60)
             NSColor(white: 1, alpha: 0.16).setFill()

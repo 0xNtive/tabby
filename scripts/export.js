@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates derived files from lib/themes.js:
 //   docs/contrast.md   — the contrast audit (checked in, reviewed in PRs)
-//   site/themes.json   — theme data for the website gallery and demo
+//   site/themes.json   — theme data (all themes, with their audit numbers)
+//   site/index.html    — the homepage's theme chips and counts (between <!-- themes:* --> markers)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,3 +51,28 @@ const md = [
 
 out('docs/contrast.md', md);
 out('site/themes.json', JSON.stringify(themesExport('tabby'), null, 0) + '\n');
+
+// Homepage theme rail: a fixed selection, rendered as static chips (front: the theme; back: its audit).
+const FEATURED = ['tabby', 'nord', 'ember', 'rose-pine', 'kanagawa', 'tokyo-night', 'catppuccin-mocha', 'everforest', 'midnight', 'gruvbox-material', 'flexoki', 'iceberg', 'oxocarbon', 'paper', 'mist', 'one-dark', 'night-owl', 'modus-vivendi'];
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const chip = (t) => {
+  const a = audit(t);
+  const acc = Object.values(t.accents).slice(0, 4);
+  const claude = Math.round(a.claudeKeep * 100);
+  return `      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="${esc(t.name)}: text contrast ${a.text} to 1, ${a.rating}. Claude's own colors keep ${claude}% of their contrast.">
+        <div class="chip-face chip-front" style="background:${t.bg}"><div class="chip-term" style="color:${t.fg}"><div><span style="color:${acc[1]}">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots">${acc.map((c) => `<span style="background:${c}"></span>`).join('')}</div></div><div class="chip-meta"><strong>${esc(t.name)}</strong><code>bg ${t.bg}<br>text ${t.fg}</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>${a.text}:1</dd></div><div><dt>Rating</dt><dd>${a.rating}</dd></div><div><dt>Claude UI</dt><dd>${claude}%</dd></div><div><dt>Mode</dt><dd>${t.mode}</dd></div></dl><strong>${esc(t.name)}</strong></div>
+      </div></li>`;
+};
+const indexFile = path.join(ROOT, 'site/index.html');
+let index = fs.readFileSync(indexFile, 'utf8');
+const put = (name, value) => {
+  const re = new RegExp(`(<!-- ${name} -->)[\\s\\S]*?(<!-- /${name} -->)`);
+  if (!re.test(index)) throw new Error(`site/index.html is missing <!-- ${name} --> markers`);
+  index = index.replace(re, `$1${value}$2`);
+};
+put('themes:total', String(THEMES.length));
+put('themes:aaa', String(THEMES.filter((t) => audit(t).rating === 'AAA').length));
+put('themes:chips', '\n' + FEATURED.map((id) => THEMES.find((t) => t.id === id)).filter(Boolean).map(chip).join('\n') + '\n');
+fs.writeFileSync(indexFile, index);
+console.log('wrote site/index.html (theme chips)');

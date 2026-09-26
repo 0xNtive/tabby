@@ -12,7 +12,7 @@ tabby names, colors and tracks the terminal tabs of your Claude Code sessions. I
 
 - **tabby has no servers and collects nothing.** No telemetry, analytics or tracking. Your prompts, code, file names and session data stay on your machine.
 - **AI names.** To name a tab, tabby sends your recent prompts in that session (up to about 6, each trimmed) and a short excerpt of Claude's last reply to Anthropic's Claude Haiku model, using *your own* Claude Code login. This is the same provider and account you already use with Claude Code, and Anthropic's terms and privacy policy apply to those requests. Turn it off with `tabby config namer heuristic`, which names tabs locally, or `off`.
-- **The website** is a static page. It sets no cookies, and uses no analytics unless a future version says so.
+- **The website** sets no cookies and runs no analytics, unless a future version of these terms says so.
 
 ## 3. Sponsored content
 
@@ -45,7 +45,7 @@ Claude and Claude Code are trademarks of Anthropic. tabby is an independent proj
 
 ## 8. Changes and ending
 
-We may update these terms. Material changes are announced in the release notes, and tabby asks you to accept them again before it continues. You can stop using tabby at any time. These terms end for you when you uninstall it, except sections 5–7.
+We may update these terms. Material changes are announced in the release notes, and tabby asks you to accept them again before it continues. You can stop using tabby at any time. These terms end for you when you uninstall it, except sections 5, 6 and 7.
 
 ## 9. Contact
 

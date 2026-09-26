@@ -2,86 +2,64 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-// MARK: - The tabby cat (brand/logo.svg, viewBox 0 0 64 64, y down)
+// MARK: - The tabby cat (brand/logo.svg, a 2048-unit viewBox, y down; stored here in 64 units)
 
 enum CatGeometry {
-    /// Tight bounds of the head in viewBox units.
-    static let bounds = CGRect(x: 7, y: 6.5, width: 50, height: 51)
+    /// Tight bounds of the cat (head and ears) in 64-unit viewBox coordinates.
+    static let bounds = CGRect(x: 13.169, y: 13.151, width: 37.672, height: 37.76)
 
-    static let head: CGPath = {
-        // M10 24 13.5 8.6Q14 6.5 15.8 7.7L26.5 15.4Q32 13.7 37.5 15.4L48.2 7.7Q50 6.5 50.5 8.6
-        // L54 24Q57 30 57 37.5 57 57.5 32 57.5 7 57.5 7 37.5 7 30 10 24Z
+    /// The head, its three forehead stripes (the "tabs") cut into the outline.
+    static let head = svgPath("M 1075.06 596.563 C 1103.58 597.124 1133.09 596.87 1161.67 596.968 C 1161.1 612.758 1161.75 632.101 1161.79 648.136 L 1161.94 748.863 L 1161.73 805.718 C 1161.61 827.183 1158.69 852.031 1173.32 869.408 C 1181.46 879.109 1193.21 885.056 1205.84 885.864 C 1219.21 886.661 1232.29 881.829 1241.93 872.539 C 1255.14 859.889 1257.82 846.321 1257.92 829.044 C 1258.37 751.907 1256.26 674.042 1257.76 596.96 C 1354.48 599.746 1446.38 639.848 1514.2 708.868 C 1573.4 767.806 1611.44 844.68 1622.38 927.5 C 1626.68 962.715 1625.89 995.426 1625.92 1030.88 L 1625.93 1180.58 C 1625.93 1214.91 1626.89 1254.88 1623.52 1288.57 C 1615.28 1363.82 1585.1 1434.98 1536.72 1493.2 C 1473.31 1569.05 1382.1 1616.28 1283.56 1624.29 C 1253.12 1626.82 1220.72 1625.97 1190.05 1625.91 L 1053.71 1625.75 L 882.821 1625.93 C 826.153 1626.08 771.001 1629.16 715.436 1617 C 660.049 1604.87 601.072 1576.2 557.78 1539.32 C 479.762 1473.95 431.319 1379.95 423.363 1278.48 C 421.402 1253.15 421.976 1228.01 422.016 1202.61 L 422.075 1101.83 L 422.075 1012.15 C 422.083 990.876 421.656 968.871 423.377 947.724 C 429.614 867.321 461.28 790.989 513.789 729.782 C 581.968 650.383 673.676 605.226 777.595 597.419 C 780.389 597.039 787.224 597.048 790.336 596.96 L 790.275 761.055 C 790.226 784.069 790.079 807.084 790.227 830.097 C 790.33 846.124 792.617 858.693 804.068 870.885 C 812.715 880.254 824.861 885.617 837.611 885.695 C 850.369 885.821 863.913 880.714 873 871.691 C 879.944 864.763 884.535 855.827 886.123 846.147 C 888.209 833.935 887.349 785.433 887.369 770.315 L 887.133 596.955 L 974.886 597.066 C 976.173 672.366 975.264 750.06 975.137 825.589 L 975.038 886.208 C 975.019 909.161 971.785 932.601 988.701 950.674 C 997.444 960.047 1009.62 965.461 1022.44 965.674 C 1047.53 966.175 1070.55 949.432 1073.84 923.797 C 1075.62 909.982 1074.99 895.459 1074.95 881.507 L 1074.69 816.996 L 1075.06 596.563 z")
+
+    static let ears: CGPath = {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: 10, y: 24))
-        path.addLine(to: CGPoint(x: 13.5, y: 8.6))
-        path.addQuadCurve(to: CGPoint(x: 15.8, y: 7.7), control: CGPoint(x: 14, y: 6.5))
-        path.addLine(to: CGPoint(x: 26.5, y: 15.4))
-        path.addQuadCurve(to: CGPoint(x: 37.5, y: 15.4), control: CGPoint(x: 32, y: 13.7))
-        path.addLine(to: CGPoint(x: 48.2, y: 7.7))
-        path.addQuadCurve(to: CGPoint(x: 50.5, y: 8.6), control: CGPoint(x: 50, y: 6.5))
-        path.addLine(to: CGPoint(x: 54, y: 24))
-        path.addQuadCurve(to: CGPoint(x: 57, y: 37.5), control: CGPoint(x: 57, y: 30))
-        path.addQuadCurve(to: CGPoint(x: 32, y: 57.5), control: CGPoint(x: 57, y: 57.5))
-        path.addQuadCurve(to: CGPoint(x: 7, y: 37.5), control: CGPoint(x: 7, y: 57.5))
-        path.addQuadCurve(to: CGPoint(x: 10, y: 24), control: CGPoint(x: 7, y: 30))
-        path.closeSubpath()
+        path.addPath(svgPath("M 507.446 423.19 C 509.77 423.038 512.098 422.952 514.426 422.931 C 534.526 422.906 547.183 437.998 560.276 450.909 C 568.564 459.084 576.756 467.368 584.978 475.611 L 684.884 576.473 C 630.796 592.882 600.345 607.08 554.365 639.912 C 522.765 662.333 485.141 698.383 463.579 730.706 C 462.532 716.678 463.073 693.687 463.065 679.23 L 463.085 584.988 L 463.048 513.315 C 463.049 475.092 458.065 432.674 507.446 423.19 z"))
+        path.addPath(svgPath("M 1529.01 423.248 C 1554.54 420.83 1580.64 439.049 1583.43 464.067 C 1586.68 493.071 1585.17 526.809 1585.13 556.043 L 1585.18 729.358 C 1560.9 699.074 1533.54 671.406 1503.52 646.803 C 1461.09 611.711 1415.97 592.996 1364.19 576.284 C 1397.4 542.106 1430.97 508.279 1464.9 474.809 C 1479.83 459.906 1496.14 442.247 1512.37 428.805 C 1515.94 425.849 1524.24 424.172 1529.01 423.248 z"))
         return path
     }()
 
-    /// The three forehead stripes (the "tabs"): blue, green, orange.
-    static let stripes: [CGPath] = [
-        stripe(CGRect(x: 22.4, y: 19.2, width: 4.2, height: 10), degrees: -14),
-        stripe(CGRect(x: 29.9, y: 17.6, width: 4.2, height: 11.4), degrees: 0),
-        stripe(CGRect(x: 37.4, y: 19.2, width: 4.2, height: 10), degrees: 14),
-    ]
-
+    /// The two round eyes (drawn in Harbor on the logo; holes in the template icon).
     static let eyes: [CGRect] = [
-        CGRect(x: 23.2 - 3.3, y: 38.4 - 3.7, width: 6.6, height: 7.4),
-        CGRect(x: 40.8 - 3.3, y: 38.4 - 3.7, width: 6.6, height: 7.4),
+        CGRect(x: 21.53, y: 34.517, width: 5.022, height: 5.022),
+        CGRect(x: 37.398, y: 34.468, width: 5.127, height: 5.127),
     ]
 
-    static let nose: CGPath = {
-        let path = CGMutablePath()
-        path.addLines(between: [CGPoint(x: 29.6, y: 43.4), CGPoint(x: 34.4, y: 43.4), CGPoint(x: 32, y: 46.2)])
-        path.closeSubpath()
-        return path
-    }()
-
-    static let innerEars: CGPath = {
-        let path = CGMutablePath()
-        path.addLines(between: [CGPoint(x: 17.2, y: 13.6), CGPoint(x: 18.9, y: 10.4), CGPoint(x: 23.1, y: 13.8)])
-        path.closeSubpath()
-        path.addLines(between: [CGPoint(x: 46.8, y: 13.6), CGPoint(x: 45.1, y: 10.4), CGPoint(x: 40.9, y: 13.8)])
-        path.closeSubpath()
-        return path
-    }()
-
-    /// M28.2 48.2q1.9 1.9 3.8 0 1.9 1.9 3.8 0 (stroked)
-    static let mouth: CGPath = {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 28.2, y: 48.2))
-        path.addQuadCurve(to: CGPoint(x: 32, y: 48.2), control: CGPoint(x: 30.1, y: 50.1))
-        path.addQuadCurve(to: CGPoint(x: 35.8, y: 48.2), control: CGPoint(x: 33.9, y: 50.1))
-        return path
-    }()
-
-    /// Head with stripe, eye and nose holes: fill with the even-odd rule (brand/logo-mono.svg).
+    /// Head, ears and eye holes: fill with the even-odd rule.
     static let silhouette: CGPath = {
         let path = CGMutablePath()
         path.addPath(head)
-        stripes.forEach { path.addPath($0) }
+        path.addPath(ears)
         eyes.forEach { path.addEllipse(in: $0) }
-        path.addPath(nose)
         return path
     }()
 
-    private static func stripe(_ rect: CGRect, degrees: CGFloat) -> CGPath {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        var transform = CGAffineTransform(translationX: center.x, y: center.y)
-            .rotated(by: degrees * .pi / 180)
-            .translatedBy(x: -center.x, y: -center.y)
-        let radius = rect.width / 2 * 0.999
-        return CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: &transform)
+    /// Parses the logo's absolute M/L/C/Z path data (2048 units) into 64 units.
+    private static func svgPath(_ data: String) -> CGPath {
+        let path = CGMutablePath()
+        let tokens = data.split(separator: " ")
+        var index = 0
+        var command: Character = "M"
+        func number() -> CGFloat {
+            defer { index += 1 }
+            return CGFloat(Double(tokens[index]) ?? 0) / 32
+        }
+        func point() -> CGPoint { CGPoint(x: number(), y: number()) }
+        while index < tokens.count {
+            if let first = tokens[index].first, first.isLetter {
+                command = first
+                index += 1
+                if command == "Z" || command == "z" { path.closeSubpath(); continue }
+            }
+            switch command {
+            case "M": path.move(to: point())
+            case "L": path.addLine(to: point())
+            case "C":
+                let control1 = point(), control2 = point(), end = point()
+                path.addCurve(to: end, control1: control1, control2: control2)
+            default: index += 1
+            }
+        }
+        return path
     }
 
     /// Maps viewBox units (y down) into a y-up box of `size`, centered, `inset` points from the edges.
@@ -94,11 +72,10 @@ enum CatGeometry {
 }
 
 enum Brand {
-    static let ink = NSColor(hexString: "#262b35")!
-    static let cream = NSColor(hexString: "#f4ede0")!
-    static let blush = NSColor(hexString: "#e394c1")!
-    static let earPink = NSColor(hexString: "#e3a5c2")!
-    static let stripeColors = ["#77b7f4", "#7fc489", "#e79e6b"].map { NSColor(hexString: $0)! }
+    // brand/README.md: Harbor ground, Foam text, Marmalade (the cat) as the one accent.
+    static let harbor = NSColor(hexString: "#0f3a3c")!
+    static let foam = NSColor(hexString: "#eef6f2")!
+    static let marmalade = NSColor(hexString: "#f4913e")!
 
     static let github = URL(string: "https://github.com/0xNtive/tabby")!
     static let website = URL(string: "https://claude-tabby.vercel.app")!
@@ -107,7 +84,7 @@ enum Brand {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     }
 
-    /// The menu-bar icon: the cat as a template image, stripes, eyes and nose cut out.
+    /// The menu-bar icon: the cat as a template image, stripes and eyes cut out.
     static func statusIcon(pointSize: CGFloat = 18) -> NSImage {
         let size = NSSize(width: pointSize, height: pointSize)
         let image = NSImage(size: size, flipped: false) { rect in
@@ -140,11 +117,7 @@ struct CatMark: NSViewRepresentable {
 
 final class CatMarkView: NSView {
     private let body = CAShapeLayer()
-    private let innerEars = CAShapeLayer()
-    private let stripes = (0..<3).map { _ in CAShapeLayer() }
     private let eyes = (0..<2).map { _ in CAShapeLayer() }
-    private let nose = CAShapeLayer()
-    private let mouth = CAShapeLayer()
     private var blinking = false
     private var laidOutSize: CGSize = .zero
 
@@ -152,18 +125,9 @@ final class CatMarkView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.masksToBounds = false
-        body.fillColor = Brand.ink.cgColor
-        // A faint rim keeps the ink-colored head readable on the black island.
-        body.strokeColor = NSColor(white: 1, alpha: 0.16).cgColor
-        innerEars.fillColor = Brand.earPink.withAlphaComponent(0.55).cgColor
-        for (layer, color) in zip(stripes, Brand.stripeColors) { layer.fillColor = color.cgColor }
-        eyes.forEach { $0.fillColor = Brand.cream.cgColor }
-        nose.fillColor = Brand.blush.cgColor
-        mouth.fillColor = nil
-        mouth.strokeColor = Brand.cream.cgColor
-        mouth.lineCap = .round
-        mouth.lineJoin = .round
-        for sublayer in [body, innerEars] + stripes + eyes + [nose, mouth] {
+        body.fillColor = Brand.marmalade.cgColor
+        eyes.forEach { $0.fillColor = Brand.harbor.cgColor }
+        for sublayer in [body] + eyes {
             sublayer.actions = noActions
             layer?.addSublayer(sublayer)
         }
@@ -173,7 +137,7 @@ final class CatMarkView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private let noActions: [String: CAAction] = ["path": NSNull(), "position": NSNull(), "bounds": NSNull(),
-                                                 "transform": NSNull(), "lineWidth": NSNull()]
+                                                 "transform": NSNull()]
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
@@ -181,16 +145,13 @@ final class CatMarkView: NSView {
         super.layout()
         guard bounds.size != laidOutSize, bounds.width > 0 else { return }
         laidOutSize = bounds.size
-        var (transform, scale) = CatGeometry.transform(fitting: bounds.size)
+        var (transform, _) = CatGeometry.transform(fitting: bounds.size)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        body.path = CatGeometry.head.copy(using: &transform)
-        body.lineWidth = max(0.5, 1.1 * scale)
-        innerEars.path = CatGeometry.innerEars.copy(using: &transform)
-        for (layer, path) in zip(stripes, CatGeometry.stripes) { layer.path = path.copy(using: &transform) }
-        nose.path = CatGeometry.nose.copy(using: &transform)
-        mouth.path = CatGeometry.mouth.copy(using: &transform)
-        mouth.lineWidth = max(0.6, 1.5 * scale)
+        let shape = CGMutablePath()
+        shape.addPath(CatGeometry.head)
+        shape.addPath(CatGeometry.ears)
+        body.path = shape.copy(using: &transform)
         // Eyes get their own bounds so they can blink around their centers.
         for (layer, rect) in zip(eyes, CatGeometry.eyes) {
             let frame = rect.applying(transform)

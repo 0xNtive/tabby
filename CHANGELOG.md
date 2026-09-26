@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.8 — 2026-09-26
+
+- **Install in one line:** `curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash`.
+  - It adds the plugin to Claude Code and runs setup, which shows the terms first.
+  - On a Mac it also builds Tabby Island and asks macOS for Accessibility, which tiling needs.
+  - `bash -s -- --yes` accepts the terms without a prompt, and `--no-island` skips the island.
+- **`tabby island accessibility`** restarts the island and asks macOS for the permission again. Use it when tiling says Accessibility is missing but System Settings shows it on.
+- **A new logo.** An orange tabby face whose forehead stripes are tabs, drawn as a vector. The island's cat and the app icon use the same shapes, and the cat still blinks.
+- **A new website** at https://claude-tabby.vercel.app:
+  - generated art: a wall of terminals that lights up under your cursor, with a short looping animation;
+  - real Tabby Island renders, the tile grids and 18 of the themes;
+  - the one-line install.
+- `TABBY_SNAPSHOT_BACKDROP=none` renders island snapshots on a transparent background.
+- The terms' website clause is worded more simply. Nothing in it changed, so there's nothing to accept again.
+
 ## 0.2.7 — 2026-09-26
 
 - **Tiling handles full-screen windows.** A full-screen window lives on its own desktop, so it was never on screen next to the others, and resizing it only shrank it inside its own black desktop.
