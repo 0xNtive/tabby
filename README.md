@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/logo.svg" width="96" alt="tabby, a tabby cat whose stripes are three colored tabs">
+  <img src="brand/logo.svg" width="112" alt="tabby: a geometric orange tabby cat whose forehead stripes are tabs">
 </p>
 
 <h1 align="center">tabby</h1>
@@ -23,7 +23,13 @@ Running five Claude sessions at once, every tab looks the same. tabby gives each
 
 ## Install
 
-Inside Claude Code:
+```sh
+curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash
+```
+
+One command, about 20 seconds. It adds the plugin to Claude Code, shows the [terms](TERMS.md) (short version: local, free, no telemetry) and runs the setup below. On a Mac it also builds Tabby Island and asks macOS for Accessibility, which tiling needs to split tabs and bring full-screen windows back. Needs Node 18+ and Claude Code; add `-s -- --yes` after `bash` to accept the terms without a prompt.
+
+Or inside Claude Code:
 
 ```
 /plugin marketplace add 0xNtive/tabby
@@ -32,7 +38,7 @@ Inside Claude Code:
 /tabby:setup
 ```
 
-`/tabby:setup` shows the [terms](TERMS.md) (short version: local, free, no telemetry). After `/tabby:setup accept`, it runs the one-time setup. Every step is reversible, and `settings.json` is backed up first:
+Setup changes only these, backs up `settings.json` first, and `tabby uninstall` reverts all of it:
 
 | What | Why |
 |---|---|
@@ -43,12 +49,11 @@ Inside Claude Code:
 | Terminal.app: each Claude tab uses a "<profile> · tabby" copy of its profile while it runs | windows and tabs read `🔵 ◐ Dark Mode Settings`, not `api — 🔵 ◐ Dark Mode Settings — caffeinate ◂ claude --dangerously-skip-permissions — 80×24` |
 | `~/.claude/tabby/bin/tabby.mjs` | a launcher that always runs the newest installed copy |
 
-Then `/tabby:setup island` builds the macOS island (about 15 s; needs the Xcode Command Line Tools).
+Later, `tabby island accessibility` asks for the island's permission again, and `/tabby:setup island` builds the island from inside Claude (Xcode Command Line Tools).
 
 Other ways to install:
 - **From a checkout:** `git clone https://github.com/0xNtive/tabby && node tabby/bin/tabby.js install`.
 - **One session only:** `claude --plugin-dir ./tabby`.
-- **npm:** `npx claude-tabby install` (once published).
 
 To remove it: `tabby uninstall`, or `/plugin uninstall tabby@tabby`.
 

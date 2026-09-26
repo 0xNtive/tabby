@@ -2,725 +2,284 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tabby: every Claude Code tab, at a glance</title>
-<meta name="description" content="tabby gives each Claude Code session an AI-written name, a calm color and a live status, right in your terminal's tab bar. Free, local and native to Claude.">
+<meta name="description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta name="theme-color" content="#0f3a3c">
 <link rel="canonical" href="https://claude-tabby.vercel.app/">
-<meta name="theme-color" content="#14161b">
-<meta name="color-scheme" content="dark">
-
-<meta property="og:type" content="website">
 <meta property="og:site_name" content="tabby">
-<meta property="og:url" content="https://claude-tabby.vercel.app/">
 <meta property="og:title" content="tabby: every Claude Code tab, at a glance">
-<meta property="og:description" content="AI-written tab names, calm colors and a live status for every Claude Code session. Free, local and native to Claude.">
-<meta property="og:image" content="https://claude-tabby.vercel.app/assets/og.png">
-<meta property="og:image:type" content="image/png">
+<meta property="og:description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://claude-tabby.vercel.app/">
+<meta property="og:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260926d">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The tabby cat logo beside the tagline “Every Claude Code tab, at a glance.” and a terminal tab bar with four named, colored sessions.">
-<meta property="og:locale" content="en_US">
+<meta property="og:image:alt" content="The tabby cat logo, the line Every Claude Code tab, at a glance, and a wall of terminal windows with colored tabs.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="tabby: every Claude Code tab, at a glance">
-<meta name="twitter:description" content="AI-written tab names, calm colors and a live status for every Claude Code session. Free, local and native to Claude.">
-<meta name="twitter:image" content="https://claude-tabby.vercel.app/assets/og.png">
-<meta name="twitter:image:alt" content="The tabby cat logo beside the tagline “Every Claude Code tab, at a glance.” and a terminal tab bar with four named, colored sessions.">
-
-<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
-
+<meta name="twitter:description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta name="twitter:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260926d">
+<link rel="icon" href="/assets/favicon.svg?v=20260926d" type="image/svg+xml">
+<link rel="icon" href="/assets/favicon-32.png?v=20260926d" sizes="32x32" type="image/png">
+<link rel="icon" href="/assets/favicon-16.png?v=20260926d" sizes="16x16" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png?v=20260926d">
+<link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Parkinsans:wght@300..800&display=swap">
-<link rel="stylesheet" href="/assets/site.css?v=20260926">
-<link rel="preload" href="/themes.json" as="fetch" type="application/json" crossorigin="anonymous">
-<script src="/assets/site.js?v=20260926" defer></script>
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"tabby","url":"https://claude-tabby.vercel.app/","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"A Claude Code plugin and macOS app that gives every Claude Code terminal tab an AI-written name, a calm color and a live status.","license":"https://github.com/0xNtive/tabby/blob/main/LICENSE","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/0xNtive/tabby"]}
-</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;650;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css?v=20260926d">
+<link rel="preload" as="image" href="/assets/hero.webp?v=20260926d" type="image/webp">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"tabby","url":"https://claude-tabby.vercel.app/","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.","image":"https://claude-tabby.vercel.app/assets/og.png","license":"https://github.com/0xNtive/tabby/blob/main/LICENSE","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/0xNtive/tabby"]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
-<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-  <symbol id="i-half" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2.1a5.9 5.9 0 0 0 0 11.8Z" fill="currentColor"/></symbol>
-  <symbol id="i-star" viewBox="0 0 16 16"><path d="M8 1.9v12.2M1.9 8h12.2M3.7 3.7l8.6 8.6M12.3 3.7l-8.6 8.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
-  <symbol id="i-bell" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.2c.5 0 .9.37.95.85a4.3 4.3 0 0 1 3.35 4.2v2.93l1.08 1.62c.35.52-.03 1.2-.65 1.2H3.27c-.62 0-1-.68-.65-1.2L3.7 9.18V6.25a4.3 4.3 0 0 1 3.35-4.2A.95.95 0 0 1 8 1.2ZM6.2 13.2h3.6a1.8 1.8 0 0 1-3.6 0Z"/></symbol>
-  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.4 8.6 6.5 11.6 12.6 4.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-  <symbol id="i-copy" viewBox="0 0 16 16"><rect x="5.6" y="5.6" width="8.2" height="8.2" rx="2.1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.4 3.4v-.2c0-.94-.76-1.7-1.7-1.7H3.2c-.94 0-1.7.76-1.7 1.7v5.5c0 .94.76 1.7 1.7 1.7h.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
-  <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
-  <symbol id="i-palette" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M8 1.4a6.6 6.6 0 1 0 0 13.2c.92 0 1.45-.6 1.45-1.33 0-.4-.18-.7-.38-1-.2-.3-.4-.6-.4-1 0-.72.6-1.25 1.33-1.25h1.5a3.1 3.1 0 0 0 3.1-3.1C14.6 3.8 11.66 1.4 8 1.4Zm-3.3 7a1.05 1.05 0 1 0 0-2.1 1.05 1.05 0 0 0 0 2.1Zm2.05-2.65a1.05 1.05 0 1 0 0-2.1 1.05 1.05 0 0 0 0 2.1Zm3.4 0a1.05 1.05 0 1 0 0-2.1 1.05 1.05 0 0 0 0 2.1Z"/></symbol>
-  <symbol id="i-cat" viewBox="0 0 64 64"><path fill="currentColor" d="M10 24 13.5 8.6Q14 6.5 15.8 7.7L26.5 15.4Q32 13.7 37.5 15.4L48.2 7.7Q50 6.5 50.5 8.6L54 24Q57 30 57 37.5 57 57.5 32 57.5 7 57.5 7 37.5 7 30 10 24Z"/></symbol>
-</svg>
-
 <header class="nav">
-  <div class="wrap nav__inner">
-    <a class="brand" href="/" aria-label="tabby home">
-      <svg class="logo brand__mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <path class="logo__head" fill="#262b35" d="M10 24Q15.5 16 26.5 15.4Q32 13.7 37.5 15.4Q48.5 16 54 24Q57 30 57 37.5 57 57.5 32 57.5 7 57.5 7 37.5 7 30 10 24Z"/>
-        <g class="logo__ear logo__ear--l">
-          <path fill="#262b35" d="M10 24 13.5 8.6Q14 6.5 15.8 7.7L26.5 15.4 21 24Z"/>
-          <path fill="#e3a5c2" opacity=".55" d="M17.2 13.6 18.9 10.4 23.1 13.8Z"/>
-        </g>
-        <g class="logo__ear logo__ear--r">
-          <path fill="#262b35" d="M54 24 50.5 8.6Q50 6.5 48.2 7.7L37.5 15.4 43 24Z"/>
-          <path fill="#e3a5c2" opacity=".55" d="M46.8 13.6 45.1 10.4 40.9 13.8Z"/>
-        </g>
-        <rect x="22.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#77b7f4" transform="rotate(-14 24.5 24.2)"/>
-        <rect x="29.9" y="17.6" width="4.2" height="11.4" rx="2.1" fill="#7fc489"/>
-        <rect x="37.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#e79e6b" transform="rotate(14 39.5 24.2)"/>
-        <ellipse class="logo__eye" cx="23.2" cy="38.4" rx="3.3" ry="3.7" fill="#f4ede0"/>
-        <ellipse class="logo__eye" cx="40.8" cy="38.4" rx="3.3" ry="3.7" fill="#f4ede0"/>
-        <path fill="#e394c1" d="M29.6 43.4h4.8L32 46.2Z"/>
-        <path fill="none" stroke="#f4ede0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M28.2 48.2q1.9 1.9 3.8 0 1.9 1.9 3.8 0"/>
-      </svg>
-      <span class="brand__word">tabby</span>
-    </a>
-    <nav class="nav__links" aria-label="Sections">
-      <a href="#features">Features</a>
-      <a href="#island">Island</a>
-      <a href="#themes">Themes</a>
-      <a href="https://github.com/0xNtive/tabby" class="nav__gh"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg><span>GitHub</span></a>
-    </nav>
-    <a class="btn btn--primary btn--sm nav__cta" href="#install">Install</a>
-  </div>
+  <a href="#top" class="nav-brand" aria-label="tabby, back to the top"><img src="/assets/logo.svg?v=20260926d" alt="" width="30" height="30"><span>tabby</span></a>
+  <nav aria-label="Sections" class="nav-tabs">
+    <a class="nav-tab" href="#anatomy">Tabs</a>
+    <a class="nav-tab" href="#island">Island</a>
+    <a class="nav-tab" href="#tile">Tile</a>
+    <a class="nav-tab" href="#themes">Themes</a>
+    <a class="nav-tab" href="#install" data-keep>Install</a>
+  </nav>
+  <a class="nav-gh" href="https://github.com/0xNtive/tabby">GitHub</a>
 </header>
 
 <main id="main">
-
-<!-- ============ HERO ============ -->
-<section class="hero" aria-labelledby="hero-title">
-  <div class="wrap hero__top">
-    <h1 class="hero__title" id="hero-title">Every Claude Code tab, at a glance.</h1>
-    <div class="hero__copy">
-      <p class="hero__lede">tabby gives each Claude Code session an AI-written name, a calm color and a live status, right in your terminal's tab bar. Free, local and native to Claude.</p>
-      <div class="hero__actions">
-        <a class="btn btn--ghost" href="https://github.com/0xNtive/tabby"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>View on GitHub</a>
-        <p class="hero__note">MIT licensed. Runs on macOS and Linux.</p>
+  <!-- Hero: the wall of terminals starts dormant; tabby's colors follow your cursor. -->
+  <section id="top" class="hero" aria-labelledby="hero-title">
+    <div class="hero-art" data-mode="spot">
+      <img class="hero-dormant" src="/assets/hero-dormant.webp?v=20260926d" alt="" width="1920" height="1080" fetchpriority="high">
+      <img class="hero-lit" src="/assets/hero.webp?v=20260926d" alt="A tidy wall of terminal windows, each with its own colored tab, with tabby's orange cat sitting on top" width="1920" height="1080" fetchpriority="high">
+      <video class="hero-lit hero-video" muted loop playsinline preload="none" aria-hidden="true" data-src="/assets/hero-loop.mp4?v=20260926d" width="1920" height="1080"></video>
+    </div>
+    <div class="hero-copy">
+      <div class="hero-copy-inner">
+      <h1 id="hero-title" class="hero-title">Every Claude tab, at a&nbsp;glance.</h1>
+      <p class="hero-sub">Names, calm colors and live status for every Claude Code session.</p>
+      <div class="hero-ctas">
+        <a href="#install" class="readout" aria-label="Install tabby">
+          <span class="readout-prompt" aria-hidden="true">&gt;_</span>
+          <span class="readout-slot" aria-hidden="true"><span class="readout-label">Install tabby</span><span class="readout-cmd">curl … | bash</span></span>
+        </a>
+        <a href="https://github.com/0xNtive/tabby" class="pathlink">
+          <span>View on GitHub</span><span class="pathlink-arrow" aria-hidden="true">→</span>
+          <svg viewBox="0 0 100 9" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M0 8 H38 Q41 8 42 5 L43.5 2 Q44.5 1 46 1 H62 Q63.5 1 64.5 2 L66 5 Q67 8 70 8 H100"/></svg>
+        </a>
+      </div>
       </div>
     </div>
-    <div class="hero__cta">
-      <div class="install-card">
-        <p class="install-card__title" id="install-hero">Type these inside Claude Code</p>
-        <ol class="cmds" aria-labelledby="install-hero">
-          <li class="cmd" style="--step: var(--blue)"><span class="cmd__n" aria-hidden="true">1</span><code class="cmd__code">/plugin marketplace add 0xNtive/tabby</code><button class="copy" type="button" data-copy="/plugin marketplace add 0xNtive/tabby"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-          <li class="cmd" style="--step: var(--green)"><span class="cmd__n" aria-hidden="true">2</span><code class="cmd__code">/plugin install tabby@tabby</code><button class="copy" type="button" data-copy="/plugin install tabby@tabby"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-          <li class="cmd" style="--step: var(--orange)"><span class="cmd__n" aria-hidden="true">3</span><code class="cmd__code">/tabby:setup</code><button class="copy" type="button" data-copy="/tabby:setup"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-        </ol>
-      </div>
+  </section>
+
+  <!-- One tab, annotated. Callout anchors are measured from tab-macro.webp. -->
+  <section id="anatomy" class="section" aria-labelledby="anatomy-title">
+    <div class="center">
+      <h2 id="anatomy-title" class="h2">Know every tab without clicking.</h2>
+      <p class="lede narrow">tabby writes each session's title for you and keeps it current, so the tab bar tells you what every Claude is doing.</p>
     </div>
-  </div>
-
-  <div class="wrap wrap--stage">
-    <div class="screen screen--hero" id="stage" data-themed>
-      <div class="menubar" aria-hidden="true">
-        <span class="menubar__l"><b>Terminal</b><span>Shell</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span></span>
-        <span class="menubar__r"><svg class="menubar__cat"><use href="#i-cat"/></svg><span>Fri 10:40 PM</span></span>
-      </div>
-
-      <div class="island" data-island="hero" data-mode="standard">
-        <div class="island__shell">
-          <button class="island__head" type="button" aria-expanded="false" aria-controls="island-hero-body">
-            <span class="island__ear island__ear--l" aria-hidden="true">
-              <i class="idot" data-color="green" data-status="idle"></i><i class="idot" data-color="blue" data-status="busy"></i><i class="idot" data-color="purple" data-status="waiting"></i><i class="idot" data-color="orange" data-status="idle"></i>
-            </span>
-            <span class="sr-only">Tabby Island: 4 sessions, 1 needs you. Show sessions.</span>
-            <span class="island__ear island__ear--r" aria-hidden="true"><svg class="ibell"><use href="#i-bell"/></svg><b>1</b></span>
-          </button>
-          <div class="island__body" id="island-hero-body"></div>
-        </div>
-      </div>
-
-      <div class="term term--hero" data-term="hero" data-active="dark">
-        <div class="term__bar">
-          <span class="term__lights" aria-hidden="true"><i></i><i></i><i></i></span>
-          <div class="term__tabs" role="tablist" aria-label="Claude Code sessions">
-            <button class="ttab" role="tab" type="button" id="tt-stripe" data-session="stripe" data-color="green" data-status="idle" aria-selected="false" aria-controls="tpanel" tabindex="-1">
-              <span class="ttab__in"><span class="ttab__pre" aria-hidden="true"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span><span class="ttab__named"><span class="ttab__marker" aria-hidden="true">🟢</span><svg class="st st--idle" aria-hidden="true"><use href="#i-star"/></svg><span class="ttab__title">Stripe Webhook Retries</span></span></span><span class="sr-only">, your turn</span>
-            </button>
-            <button class="ttab" role="tab" type="button" id="tt-dark" data-session="dark" data-color="blue" data-status="busy" aria-selected="true" aria-controls="tpanel" tabindex="0">
-              <span class="ttab__in"><span class="ttab__pre" aria-hidden="true"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span><span class="ttab__named"><span class="ttab__marker" aria-hidden="true">🔵</span><svg class="st st--busy" aria-hidden="true"><use href="#i-half"/></svg><span class="ttab__title">Dark Mode Settings</span></span></span><span class="sr-only">, working</span>
-            </button>
-            <button class="ttab" role="tab" type="button" id="tt-auth" data-session="auth" data-color="purple" data-status="waiting" aria-selected="false" aria-controls="tpanel" tabindex="-1">
-              <span class="ttab__in"><span class="ttab__pre" aria-hidden="true"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span><span class="ttab__named"><span class="ttab__marker" aria-hidden="true">🟣</span><span class="st st--bell" aria-hidden="true">🔔</span><span class="ttab__title">Flaky Auth Tests</span></span></span><span class="sr-only">, needs you</span>
-            </button>
-            <button class="ttab" role="tab" type="button" id="tt-notes" data-session="notes" data-color="orange" data-status="idle" aria-selected="false" aria-controls="tpanel" tabindex="-1">
-              <span class="ttab__in"><span class="ttab__pre" aria-hidden="true"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span><span class="ttab__named"><span class="ttab__marker" aria-hidden="true">🟠</span><svg class="st st--idle" aria-hidden="true"><use href="#i-star"/></svg><span class="ttab__title">Release Notes</span></span></span><span class="sr-only">, your turn</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="term__body" id="tpanel" role="tabpanel" aria-labelledby="tt-dark" tabindex="0">
-          <div class="scr" data-screen="stripe" data-color="green" hidden>
-            <div class="tx">
-              <p class="c-sh"><span class="c-dim">~/dev/api</span> <span class="c-sh__p">$</span> claude</p>
-              <p class="c-user">stripe webhooks fail silently when the db is slow. retry them with backoff</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Read</b>(src/webhooks/stripe.ts)</p>
-              <p class="c-res">Read 142 lines</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Update</b>(src/webhooks/stripe.ts)</p>
-              <p class="c-res">Retries failed events 5 times with exponential backoff</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Bash</b>(npm test -- webhooks)</p>
-              <p class="c-res"><span class="c-ok">18 passed</span>, 0 failed</p>
-              <p class="c-say"><span class="c-b"></span>Done. Failed webhooks now retry with backoff and an idempotency key, so a slow database can't drop or double-process an event.</p>
-            </div>
-            <div class="c-input"><span class="c-caret" aria-hidden="true"></span></div>
-            <p class="c-status"><span class="c-status__dot">●</span> <b>Stripe Webhook Retries</b>  <span class="c-meter" style="--n:6" aria-hidden="true"></span> 58%  <span class="c-dim">Opus 5.5 · $1.12 · api</span></p>
-          </div>
-
-          <div class="scr" data-screen="dark" data-color="blue">
-            <div class="tx">
-              <p class="c-sh"><span class="c-dim">~/dev/web</span> <span class="c-sh__p">$</span> claude</p>
-              <p class="c-user">add a dark mode toggle to settings that follows the system theme</p>
-              <p class="c-say"><span class="c-b"></span>I'll add a theme preference that defaults to the system setting and remembers an explicit choice.</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Read</b>(src/settings/SettingsPage.tsx)</p>
-              <p class="c-res">Read 188 lines</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Update</b>(src/settings/SettingsPage.tsx)</p>
-              <p class="c-res">Added a toggle with three options: System, Light, Dark</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Update</b>(src/theme/useTheme.ts)</p>
-              <p class="c-res">Follows prefers-color-scheme and saves the choice</p>
-              <p class="c-spin"><svg class="c-spin__i" aria-hidden="true"><use href="#i-star"/></svg>Wiring the toggle into the header… <span class="c-dim">(14s · esc to interrupt)</span></p>
-            </div>
-            <div class="c-input"></div>
-            <p class="c-status"><span class="c-status__dot">●</span> <b>Dark Mode Settings</b>  <span class="c-meter" style="--n:3" aria-hidden="true"></span> 31%  <span class="c-dim">Opus 5.5 · $0.42 · web</span></p>
-          </div>
-
-          <div class="scr" data-screen="auth" data-color="purple" hidden>
-            <div class="tx">
-              <p class="c-sh"><span class="c-dim">~/dev/auth</span> <span class="c-sh__p">$</span> claude</p>
-              <p class="c-user">the auth tests fail about 1 in 10 runs in ci. find out why</p>
-              <p class="c-say"><span class="c-b"></span>Found it: two tests share one refresh token, so they race when the suite runs in parallel. Each test now gets its own token.</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Bash</b>(npm test -- auth --repeat 20)</p>
-              <div class="c-ask">
-                <p class="c-ask__t">Bash command</p>
-                <p class="c-ask__cmd">npm test -- auth --repeat 20</p>
-                <p class="c-dim">Run the auth suite 20 times to confirm the fix</p>
-                <p class="c-ask__q">Do you want to proceed?</p>
-                <p class="c-ask__o is-on">❯ 1. Yes</p>
-                <p class="c-ask__o">  2. Yes, and don't ask again for npm test</p>
-                <p class="c-ask__o">  3. No, and tell Claude what to do differently</p>
-              </div>
-            </div>
-            <p class="c-status"><span class="c-status__dot">●</span> <b>Flaky Auth Tests</b>  <span class="c-meter c-meter--warn" style="--n:7" aria-hidden="true"></span> 72%  <span class="c-dim">Opus 5.5 · $0.88 · auth</span></p>
-          </div>
-
-          <div class="scr" data-screen="notes" data-color="orange" hidden>
-            <div class="tx">
-              <p class="c-sh"><span class="c-dim">~/dev/tabby</span> <span class="c-sh__p">$</span> claude</p>
-              <p class="c-user">draft release notes for 0.2 from the changelog</p>
-              <p class="c-say"><span class="c-b c-b--ok"></span><b>Read</b>(CHANGELOG.md)</p>
-              <p class="c-res">Read 64 lines</p>
-              <p class="c-say"><span class="c-b"></span>Here's a draft for 0.2:</p>
-              <p class="c-md"><b>## tabby 0.2</b></p>
-              <p class="c-md">- 57 themes, every one WCAG AA or better</p>
-              <p class="c-md">- Island modes: Minimal, Standard and Detailed</p>
-              <p class="c-md">- tabby tile: 2 to 8 windows in one keystroke</p>
-              <p class="c-say"><span class="c-b"></span>Want me to add upgrade notes too?</p>
-            </div>
-            <div class="c-input"><span class="c-caret" aria-hidden="true"></span></div>
-            <p class="c-status"><span class="c-status__dot">●</span> <b>Release Notes</b>  <span class="c-meter" style="--n:1" aria-hidden="true"></span> 12%  <span class="c-dim">Opus 5.5 · $0.09 · tabby</span></p>
-          </div>
-        </div>
-        <div class="tpop" id="tpop" role="tooltip" hidden></div>
-      </div>
-    </div>
-    <p class="stage__hint"><span class="hint--hover">Click a tab to switch sessions. Hover one to see what it's doing. Real terminals can't show that, so tabby has an island.</span><span class="hint--touch">Tap a tab to switch sessions. Tap the island to see them all.</span></p>
-  </div>
-</section>
-
-<!-- ============ HOW IT WORKS ============ -->
-<section class="section how" id="how" aria-labelledby="how-title">
-  <div class="wrap">
-    <div class="section__head">
-      <h2 id="how-title">How it works</h2>
-      <p class="section__lede">Nothing to configure after setup. You keep using Claude Code the way you do now.</p>
-    </div>
-    <ol class="steps">
-      <li class="step">
-        <span class="step__stripe" style="--c: var(--blue)" aria-hidden="true"></span>
-        <h3 class="step__title"><span class="step__n">1</span>You type a prompt.</h3>
-        <p>Any prompt, in any session. That first message is all tabby needs.</p>
-        <div class="mini" aria-hidden="true">
-          <div class="mini__bar"><span class="mini__tab mini__tab--plain"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span></div>
-          <p class="mini__line"><span class="c-user c-user--inline"><span class="how-type">the auth tests are flaky in ci</span></span></p>
-        </div>
-      </li>
-      <li class="step">
-        <span class="step__stripe" style="--c: var(--green)" aria-hidden="true"></span>
-        <h3 class="step__title"><span class="step__n">2</span>Claude Haiku names the tab.</h3>
-        <p>In about 2&nbsp;s, using your own Claude login. It costs about $0.001, which Pro and Max already cover.</p>
-        <div class="mini" aria-hidden="true">
-          <div class="mini__bar"><span class="mini__tab" data-color="purple"><span class="how-name"><span class="how-name__pre"><svg class="st st--idle"><use href="#i-star"/></svg>claude</span><span class="how-name__post"><span class="ttab__marker">🟣</span><svg class="st st--busy"><use href="#i-half"/></svg>Flaky Auth Tests</span></span></span></div>
-          <p class="mini__line mini__line--dim">Named in 2.1 s for $0.001</p>
-        </div>
-      </li>
-      <li class="step">
-        <span class="step__stripe" style="--c: var(--orange)" aria-hidden="true"></span>
-        <h3 class="step__title"><span class="step__n">3</span>It stays current.</h3>
-        <p>Color, status and context update live as Claude works, so a glance at the tab bar tells you where to look.</p>
-        <div class="mini" aria-hidden="true">
-          <div class="mini__bar"><span class="mini__tab" data-color="purple"><span class="ttab__marker">🟣</span><span class="st st--bell">🔔</span>Flaky Auth Tests</span></div>
-          <p class="mini__line"><span class="c-meter c-meter--warn how-meter" style="--n:7" aria-hidden="true"></span> 72%  <span class="c-dim">needs you</span></p>
-        </div>
-      </li>
-    </ol>
-  </div>
-</section>
-
-<!-- ============ FEATURES ============ -->
-<section class="section features" id="features" aria-labelledby="features-title">
-  <div class="wrap">
-    <div class="section__head">
-      <h2 id="features-title">Made for a crowded tab bar</h2>
-      <p class="section__lede">Each piece works on its own, and all of it stays out of Claude's way.</p>
-    </div>
-
-    <div class="bento">
-      <article class="feat feat--names">
-        <div class="feat__text">
-          <h3>AI tab names that follow the task</h3>
-          <p>Names describe what you're doing, and change when the work does. They sync with Claude's own <code>/resume</code>, and <code>/tab&nbsp;&lt;name&gt;</code> renames in one line.</p>
-        </div>
-        <div class="feat__vis">
-          <div class="mini mini--list" aria-label="The /resume list shows tabby's names">
-            <p class="mini__cmd">/resume</p>
-            <ul class="resume">
-              <li class="is-on"><span>❯</span><b>Flaky Auth Tests</b><span class="c-dim">auth · 1m ago</span></li>
-              <li><span></span><b>Stripe Webhook Retries</b><span class="c-dim">api · 2m ago</span></li>
-              <li><span></span><b>Dark Mode Settings</b><span class="c-dim">web · now</span></li>
-              <li><span></span><b>Release Notes</b><span class="c-dim">tabby · 14m ago</span></li>
-            </ul>
-            <p class="mini__cmd mini__cmd--sep">/tab Auth refactor</p>
-            <p class="mini__out">🟣 Renamed → Auth refactor <span class="c-dim">(AI naming paused · /tab auto to resume)</span></p>
-          </div>
-        </div>
-      </article>
-
-      <article class="feat feat--colors">
-        <div class="feat__text">
-          <h3>Calm colors</h3>
-          <p>Tints shift hue in OKLCH and keep the theme's lightness, so text stays WCAG AA or better in every theme. No two sessions share a color.</p>
-        </div>
-        <div class="feat__vis">
-          <ul class="swatches" aria-label="Tabby Dusk tints with their text contrast">
-            <li data-color="red"><span>Aa</span><small>11.4:1</small></li>
-            <li data-color="orange"><span>Aa</span><small>11.3:1</small></li>
-            <li data-color="yellow"><span>Aa</span><small>11.2:1</small></li>
-            <li data-color="green"><span>Aa</span><small>11.1:1</small></li>
-            <li data-color="teal"><span>Aa</span><small>11.2:1</small></li>
-            <li data-color="blue"><span>Aa</span><small>11.3:1</small></li>
-            <li data-color="purple"><span>Aa</span><small>11.3:1</small></li>
-            <li data-color="pink"><span>Aa</span><small>11.4:1</small></li>
-          </ul>
-          <p class="feat__caption">Tabby Dusk, every tint. Text contrast barely moves.</p>
-        </div>
-      </article>
-
-      <article class="feat feat--oneliners">
-        <div class="feat__text">
-          <h3><code>/tab</code> one-liners</h3>
-          <p>Rename, recolor or re-theme from the prompt. A hook answers them, so they're instant and use zero tokens.</p>
-        </div>
-        <div class="feat__vis">
-          <div class="mini mini--log">
-            <p class="mini__cmd">/tab color teal</p>
-            <p class="mini__out">🔵 Color → teal (#48c7c3) · Tabby Dusk</p>
-            <p class="mini__cmd">/tab theme nord all</p>
-            <p class="mini__out">Theme → Nord for all 4 tabs (and new ones).</p>
-            <p class="mini__cmd">/tab note waiting on design</p>
-            <p class="mini__out">Note saved — it shows when you hover this session in the island.</p>
-          </div>
-        </div>
-      </article>
-
-      <article class="feat feat--status">
-        <div class="feat__text">
-          <h3>Status at a glance</h3>
-          <p>The tab title shows what each session is doing, so you know which tab to open next.</p>
-        </div>
-        <div class="feat__vis">
-          <ul class="glyphs">
-            <li><svg class="st st--busy" aria-hidden="true"><use href="#i-half"/></svg><span><b>Working</b> Claude is busy</span></li>
-            <li><svg class="st st--idle" aria-hidden="true"><use href="#i-star"/></svg><span><b>Your turn</b> Ready for your next prompt</span></li>
-            <li><span class="st st--bell" aria-hidden="true">🔔</span><span><b>Needs you</b> A permission or a question</span></li>
-          </ul>
-        </div>
-      </article>
-
-      <article class="feat feat--keys">
-        <div class="feat__text">
-          <h3>Keyboard shortcuts</h3>
-          <p>Get around without the mouse. They work on this page, too.</p>
-        </div>
-        <div class="feat__vis">
-          <dl class="keys">
-            <div><dt><kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd></dt><dd>Open the island</dd></div>
-            <div><dt><kbd>⌃</kbd><kbd>⌥</kbd><kbd>N</kbd></dt><dd>Next session that needs you</dd></div>
-            <div><dt><kbd>⌃</kbd><kbd>⌥</kbd><kbd>1–9</kbd></dt><dd>Jump to a session</dd></div>
-            <div><dt><kbd>⌃</kbd><kbd>⌥</kbd><kbd>G</kbd></dt><dd>Tile windows</dd></div>
-            <div><dt><kbd>⌃</kbd><kbd>⌥</kbd><kbd>M</kbd></dt><dd>Change island mode</dd></div>
-          </dl>
-        </div>
-      </article>
-
-      <article class="feat feat--tile">
-        <div class="feat__text">
-          <h3>Tile windows</h3>
-          <p>Fill the screen with 2, 3, 4, 6 or 8 session windows in one keystroke: <code>tabby tile</code>.</p>
-        </div>
-        <div class="feat__vis">
-          <div class="tiles" data-n="4" aria-hidden="true">
-            <i class="tw" data-color="green"></i><i class="tw" data-color="blue"></i><i class="tw" data-color="purple"></i><i class="tw" data-color="orange"></i><i class="tw" data-color="teal"></i><i class="tw" data-color="pink"></i><i class="tw" data-color="yellow"></i><i class="tw" data-color="red"></i>
-          </div>
-          <div class="seg seg--tile" role="group" aria-label="Number of windows">
-            <button type="button" data-n="2" aria-pressed="false">2</button><button type="button" data-n="3" aria-pressed="false">3</button><button type="button" data-n="4" aria-pressed="true">4</button><button type="button" data-n="6" aria-pressed="false">6</button><button type="button" data-n="8" aria-pressed="false">8</button>
-          </div>
-        </div>
-      </article>
-
-      <article class="feat feat--flags">
-        <div class="feat__text">
-          <h3>Launch flags</h3>
-          <p>Name, color and theme a session before it starts.</p>
-        </div>
-        <div class="feat__vis">
-          <div class="mini mini--flags">
-            <div class="mini__bar" aria-hidden="true"><span class="mini__tab"><span class="ttab__marker">🔵</span><svg class="st st--idle"><use href="#i-star"/></svg>Auth refactor</span></div>
-            <div class="mini__body">
-              <p class="mini__sh"><span class="c-dim">~/dev/auth $</span> claude <span class="flag">--tab</span> "Auth refactor" <span class="flag">--color</span> teal <span class="flag">--theme</span> nord</p>
-              <p class="c-status"><span class="c-status__dot">●</span> <b>Auth refactor</b>  <span class="c-dim">Nord · teal · Opus 5.5</span></p>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="feat feat--island">
-        <div class="feat__text">
-          <h3>Tabby Island</h3>
-          <p>A Dynamic Island for your sessions, with context meters, three modes and one click to jump to any tab.</p>
-          <a class="textlink" href="#island">Try the island</a>
-        </div>
-        <div class="feat__vis feat__vis--island" aria-hidden="true">
-          <div class="pill">
-            <span class="pill__dots"><i class="idot" data-color="green" data-status="idle"></i><i class="idot" data-color="blue" data-status="busy"></i><i class="idot" data-color="purple" data-status="waiting"></i><i class="idot" data-color="orange" data-status="idle"></i></span>
-            <span class="pill__r"><svg class="ibell"><use href="#i-bell"/></svg><b>1</b></span>
-          </div>
-        </div>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ ISLAND ============ -->
-<section class="section isle" id="island" aria-labelledby="island-title">
-  <div class="wrap">
-    <div class="section__head section__head--split">
-      <div>
-        <h2 id="island-title">Tabby Island</h2>
-        <p class="section__lede">A Dynamic Island for your Claude sessions. It sits around the notch, tells you when a session needs you, and opens on hover with every session's status and context.</p>
-      </div>
-      <ul class="ticks">
-        <li>Context meters for every session. They turn amber past 70%.</li>
-        <li>Three modes: Minimal, Standard and Detailed.</li>
-        <li>Click a row to jump straight to its terminal tab.</li>
-        <li>Right-click a row to rename, recolor or re-theme it.</li>
-      </ul>
-    </div>
-  </div>
-  <div class="wrap wrap--stage">
-    <div class="screen screen--island" id="island-stage" data-themed>
-      <div class="desk" aria-hidden="true">
-        <div class="desk__win desk__win--a" data-color="green"><span class="desk__title">🟢 ✳ Stripe Webhook Retries</span><i></i><i></i><i></i></div>
-        <div class="desk__win desk__win--b" data-color="blue"><span class="desk__title">🔵 ◐ Dark Mode Settings</span><i></i><i></i><i></i><i></i></div>
-        <div class="desk__win desk__win--c" data-color="purple"><span class="desk__title">🟣 🔔 Flaky Auth Tests</span><i></i><i></i></div>
-      </div>
-      <div class="island island--big" data-island="big" data-mode="standard">
-        <div class="island__shell">
-          <button class="island__head" type="button" aria-expanded="false" aria-controls="island-big-body">
-            <span class="island__ear island__ear--l" aria-hidden="true">
-              <i class="idot" data-color="green" data-status="idle"></i><i class="idot" data-color="blue" data-status="busy"></i><i class="idot" data-color="purple" data-status="waiting"></i><i class="idot" data-color="orange" data-status="idle"></i>
-            </span>
-            <span class="sr-only">Tabby Island: 4 sessions, 1 needs you. Show sessions.</span>
-            <span class="island__ear island__ear--r" aria-hidden="true"><svg class="ibell"><use href="#i-bell"/></svg><b>1</b></span>
-          </button>
-          <div class="island__banner" aria-hidden="true"></div>
-          <div class="island__body" id="island-big-body"></div>
-        </div>
-      </div>
-      <p class="isle__live sr-only" aria-live="polite"></p>
-    </div>
-    <div class="isle__controls">
-      <fieldset class="seg seg--modes">
-        <legend class="sr-only">Island mode</legend>
-        <label><input type="radio" name="island-mode" value="minimal"><span>Minimal</span></label>
-        <label><input type="radio" name="island-mode" value="standard" checked><span>Standard</span></label>
-        <label><input type="radio" name="island-mode" value="detailed"><span>Detailed</span></label>
-      </fieldset>
-      <p class="isle__hint"><span class="hint--hover">Hover the island, or press <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd>.</span><span class="hint--touch">Tap the island to open it.</span><br>Tabby Island needs macOS 14 or later. Start it with <code>tabby island</code>.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ THEMES ============ -->
-<section class="section themes" id="themes" aria-labelledby="themes-title">
-  <div class="wrap">
-    <div class="section__head">
-      <h2 id="themes-title">57 themes, all of them readable</h2>
-      <p class="section__lede">Use one theme for every tab, or give each session its own. Every theme passes WCAG AA, and themes marked Claude ✓ also keep Claude Code's own colors crisp. <a href="https://github.com/0xNtive/tabby/blob/main/docs/contrast.md">The audit is on GitHub</a>.</p>
-    </div>
-
-    <div class="themes__layout">
-      <aside class="preview" aria-label="Theme preview">
-        <div class="preview__card" data-themed>
-          <div class="term term--mini" data-term="preview" data-active="dark">
-            <div class="term__bar">
-              <span class="term__lights" aria-hidden="true"><i></i><i></i><i></i></span>
-              <div class="term__tabs term__tabs--static" aria-hidden="true">
-                <span class="ttab" data-color="green"><span class="ttab__in"><span class="ttab__named"><span class="ttab__marker">🟢</span><svg class="st st--idle"><use href="#i-star"/></svg><span class="ttab__title">Stripe Webhook Retries</span></span></span></span>
-                <span class="ttab is-active" data-color="blue"><span class="ttab__in"><span class="ttab__named"><span class="ttab__marker">🔵</span><svg class="st st--busy"><use href="#i-half"/></svg><span class="ttab__title">Dark Mode Settings</span></span></span></span>
-                <span class="ttab" data-color="purple"><span class="ttab__in"><span class="ttab__named"><span class="ttab__marker">🟣</span><span class="st st--bell">🔔</span><span class="ttab__title">Flaky Auth Tests</span></span></span></span>
-                <span class="ttab" data-color="orange"><span class="ttab__in"><span class="ttab__named"><span class="ttab__marker">🟠</span><svg class="st st--idle"><use href="#i-star"/></svg><span class="ttab__title">Release Notes</span></span></span></span>
-              </div>
-            </div>
-            <div class="term__body" aria-hidden="true">
-              <div class="scr" data-color="blue">
-                <div class="tx">
-                  <p class="c-user">add a dark mode toggle to settings</p>
-                  <p class="c-say"><span class="c-b c-b--ok"></span><b>Update</b>(src/theme/useTheme.ts)</p>
-                  <p class="c-res">Follows prefers-color-scheme and saves the choice</p>
-                  <p class="c-spin"><svg class="c-spin__i"><use href="#i-star"/></svg>Wiring the toggle into the header…</p>
-                </div>
-                <p class="c-status"><span class="c-status__dot">●</span> <b>Dark Mode Settings</b>  <span class="c-meter" style="--n:3" aria-hidden="true"></span> 31%</p>
-              </div>
-            </div>
-          </div>
-          <div class="preview__meta">
-            <div class="preview__name">
-              <p class="preview__title" id="pv-name">Tabby Dusk</p>
-              <p class="preview__blurb" id="pv-blurb">Soft slate, pastel accents (default)</p>
-            </div>
-            <p class="preview__facts" id="pv-facts">Text 11.7:1 (AAA). Tinted tabs never drop below 11.5:1. Claude Code's own colors keep 84% of their contrast here. Tagged calm.</p>
-            <div class="cmd cmd--solo">
-              <code class="cmd__code" id="pv-cmd">/tab theme tabby all</code>
-              <button class="copy" type="button" data-copy="/tab theme tabby all" id="pv-copy"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <div class="gallery">
-        <div class="chips" role="group" aria-label="Filter themes">
-          <button type="button" class="chip" data-group="all" aria-pressed="true">All <span>57</span></button>
-          <button type="button" class="chip" data-group="signature" aria-pressed="false">Signature <span>5</span></button>
-          <button type="button" class="chip" data-group="calm" aria-pressed="false">Calm <span>17</span></button>
-          <button type="button" class="chip" data-group="classic" aria-pressed="false">Classic <span>16</span></button>
-          <button type="button" class="chip" data-group="vivid" aria-pressed="false">Vivid <span>3</span></button>
-          <button type="button" class="chip" data-group="light" aria-pressed="false">Light <span>14</span></button>
-          <button type="button" class="chip" data-group="contrast" aria-pressed="false">High contrast <span>2</span></button>
-        </div>
-        <div class="grid" id="theme-grid" aria-label="Themes">
-          <p class="grid__loading grid__loading--js">Loading themes…</p>
-          <noscript><p class="grid__loading">The gallery needs JavaScript. Every theme is also listed in <a class="textlink" href="https://github.com/0xNtive/tabby/blob/main/docs/contrast.md">the contrast audit</a>.</p><style>.grid__loading--js { display: none; }</style></noscript>
-        </div>
-        <p class="grid__note" id="grid-note" aria-live="polite"></p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ COMMANDS ============ -->
-<section class="section commands" id="commands" aria-labelledby="commands-title">
-  <div class="wrap">
-    <div class="section__head">
-      <h2 id="commands-title">Commands</h2>
-      <p class="section__lede"><code>/tab</code> runs inside Claude Code and never costs tokens. <code>tabby</code> runs in any shell.</p>
-    </div>
-    <div class="ref">
-      <table class="ref__table">
-        <caption>Inside Claude Code</caption>
-        <tbody>
-          <tr><th scope="row"><code>/tab &lt;name&gt;</code></th><td>Rename this tab. AI naming pauses for it.</td></tr>
-          <tr><th scope="row"><code>/tab auto</code></th><td>Go back to AI names.</td></tr>
-          <tr><th scope="row"><code>/tab color &lt;red|<wbr>orange|<wbr>yellow|<wbr>green|<wbr>teal|<wbr>blue|<wbr>purple|<wbr>pink|<wbr>next|<wbr>#hex&gt;</code></th><td>Recolor this tab. <code>next</code> picks the next free color.</td></tr>
-          <tr><th scope="row"><code>/tab theme &lt;id&gt; [all]</code></th><td>Re-theme this tab, or every tab with <code>all</code>.</td></tr>
-          <tr><th scope="row"><code>/tab ls</code></th><td>Every session with its status and context.</td></tr>
-          <tr><th scope="row"><code>/tab note &lt;text&gt;</code></th><td>Add a note that shows in the island.</td></tr>
-          <tr><th scope="row"><code>/tab off</code>, <code>/tab on</code></th><td>Turn tabby off or back on for this tab.</td></tr>
-        </tbody>
-      </table>
-      <table class="ref__table">
-        <caption>In your shell</caption>
-        <tbody>
-          <tr><th scope="row"><code>tabby ls</code></th><td>Every running session: name, status, context and summary.</td></tr>
-          <tr><th scope="row"><code>tabby themes</code></th><td>Preview every theme in your terminal.</td></tr>
-          <tr><th scope="row"><code>tabby tile [n]</code></th><td>Tile session windows to fill the screen.</td></tr>
-          <tr><th scope="row"><code>tabby next</code></th><td>Jump to the next session that needs you.</td></tr>
-          <tr><th scope="row"><code>tabby island</code></th><td>Start Tabby Island (macOS 14 or later).</td></tr>
-          <tr><th scope="row"><code>tabby doctor</code></th><td>Check what works in this terminal.</td></tr>
-          <tr><th scope="row"><code>tabby uninstall</code></th><td>Remove tabby and revert every change it made.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- ============ WORKS WITH ============ -->
-<section class="section works" id="terminals" aria-labelledby="works-title">
-  <div class="wrap">
-    <div class="section__head">
-      <h2 id="works-title">Works with your terminal</h2>
-      <p class="section__lede">tabby speaks each terminal's own escape codes, so the result looks native wherever you run Claude.</p>
-    </div>
-    <ul class="terms">
-      <li class="tm">
-        <div class="tm__text"><h3>Terminal.app</h3><p>Colors, plus an emoji color marker in the title. Windows and tabs show only the session name, not the folder, process and arguments.</p></div>
-        <div class="tm__vis tm__vis--apple" aria-hidden="true"><span class="tv-tab">🟢 ✳ Stripe Webhook Retries</span><span class="tv-tab tv-tab--dim">🔵 ◐ Dark Mode Settings</span></div>
-      </li>
-      <li class="tm">
-        <div class="tm__text"><h3>iTerm2</h3><p>Native tab colors, plus the tinted background.</p></div>
-        <div class="tm__vis tm__vis--iterm" aria-hidden="true"><span class="tv-tab" data-color="green">✳ Stripe Webhook Retries</span><span class="tv-tab" data-color="blue">◐ Dark Mode Settings</span></div>
-      </li>
-      <li class="tm">
-        <div class="tm__text"><h3>Ghostty, WezTerm, kitty, Alacritty, VS Code and Cursor</h3><p>The title and colors.</p></div>
-        <div class="tm__vis tm__vis--title" aria-hidden="true"><span class="tv-title">🟢 ✳ Stripe Webhook Retries</span></div>
-      </li>
-      <li class="tm">
-        <div class="tm__text"><h3>tmux</h3><p>The window name, plus a status-bar color.</p></div>
-        <div class="tm__vis tm__vis--tmux" aria-hidden="true"><span class="tv-tmux"><span class="tv-tmux__s">[api]</span><span>0:zsh</span><span class="tv-tmux__w" data-color="green">1:Stripe Webhook Retries*</span><span>2:Release Notes</span></span></div>
-      </li>
+    <figure class="tabmacro">
+      <img src="/assets/tab-macro.webp?v=20260926d" alt="A close-up of one terminal tab with a blue color dot and an orange working spinner" width="2400" height="520" loading="lazy">
+      <span class="tabmacro-title" aria-hidden="true">Stripe Webhook Retries</span>
+      <svg class="tabmacro-lines" viewBox="0 0 1000 216.67" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="150" y1="104" x2="177" y2="150"/><circle cx="177" cy="150" r="2.4"/>
+        <line x1="470" y1="104" x2="470" y2="145"/><circle cx="470" cy="145" r="2.4"/>
+        <line x1="790" y1="104" x2="778" y2="150"/><circle cx="778" cy="150" r="2.4"/>
+      </svg>
+      <figcaption class="callout" style="left:4%"><span class="callout-label"><img src="/assets/icons/drop.png?v=20260926d" alt="" width="22" height="22">Color</span><span class="callout-body">A calm color no other open session has.</span></figcaption>
+      <figcaption class="callout" style="left:36.5%"><span class="callout-label"><img src="/assets/icons/tag.png?v=20260926d" alt="" width="22" height="22">Name</span><span class="callout-body">Written from what you're doing. Rename it any time.</span></figcaption>
+      <figcaption class="callout" style="left:70%"><span class="callout-label"><img src="/assets/icons/pulse.png?v=20260926d" alt="" width="22" height="22">Status</span><span class="callout-body">Working, your turn, or needs you.</span></figcaption>
+    </figure>
+    <ul class="callout-list">
+      <li><img src="/assets/icons/drop.png?v=20260926d" alt="" width="36" height="36"><span><b>Color</b>A calm color no other open session has.</span></li>
+      <li><img src="/assets/icons/tag.png?v=20260926d" alt="" width="36" height="36"><span><b>Name</b>Written from what you're doing. Rename it any time.</span></li>
+      <li><img src="/assets/icons/pulse.png?v=20260926d" alt="" width="36" height="36"><span><b>Status</b>Working, your turn, or needs you.</span></li>
     </ul>
-    <p class="works__note">Everything above runs on macOS and Linux. Tabby Island needs macOS 14 or later.</p>
-  </div>
-</section>
+  </section>
 
-<!-- ============ PRIVACY ============ -->
-<section class="section privacy" id="privacy" aria-labelledby="privacy-title">
-  <div class="wrap privacy__grid">
-    <div class="section__head">
-      <h2 id="privacy-title">Local, quiet and cheap to run</h2>
-      <p class="section__lede">tabby is a few hooks and a small app on your own machine. Here is everything it does beyond that.</p>
-    </div>
-    <dl class="facts">
-      <div class="fact"><dt>No servers, no telemetry.</dt><dd>tabby collects nothing. Your prompts, code and file names stay on your machine.</dd></div>
-      <div class="fact"><dt>One network call.</dt><dd>To name a tab, tabby sends a few recent prompts to Claude Haiku through your own Claude Code login. <code>tabby config namer heuristic</code> names tabs locally instead.</dd></div>
-      <div class="fact"><dt>Out of Claude's way.</dt><dd>Hooks run async, so Claude never waits on tabby. The tool-use fast path takes about 10&nbsp;ms.</dd></div>
-      <div class="fact"><dt>Easy to remove.</dt><dd><code>tabby uninstall</code> reverts everything, and <code>settings.json</code> is backed up before tabby changes it.</dd></div>
-    </dl>
-  </div>
-</section>
-
-<!-- ============ INSTALL ============ -->
-<section class="section install" id="install" aria-labelledby="install-title">
-  <div class="wrap">
-    <div class="install__panel">
-      <div class="install__copy">
-        <svg class="install__icon" viewBox="100 100 824 824" aria-hidden="true" focusable="false">
-          <defs>
-            <linearGradient id="ai-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4150"/><stop offset="1" stop-color="#181b21"/></linearGradient>
-            <linearGradient id="ai-shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
-          </defs>
-          <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#ai-bg)"/>
-          <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#ai-shine)"/>
-          <rect x="101" y="101" width="822" height="822" rx="185" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
-          <g transform="translate(160 150) scale(11)">
-            <path fill="#f4ede0" d="M10 24 13.5 8.6Q14 6.5 15.8 7.7L26.5 15.4Q32 13.7 37.5 15.4L48.2 7.7Q50 6.5 50.5 8.6L54 24Q57 30 57 37.5 57 57.5 32 57.5 7 57.5 7 37.5 7 30 10 24Z"/>
-            <path fill="#e394c1" d="M17.2 13.6 18.9 10.4 23.1 13.8Z M46.8 13.6 45.1 10.4 40.9 13.8Z" opacity=".7"/>
-            <rect x="22.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#4b93dc" transform="rotate(-14 24.5 24.2)"/>
-            <rect x="29.9" y="17.6" width="4.2" height="11.4" rx="2.1" fill="#4fa860"/>
-            <rect x="37.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#dd7f45" transform="rotate(14 39.5 24.2)"/>
-            <ellipse class="logo__eye" cx="23.2" cy="38.4" rx="3.3" ry="3.7" fill="#262b35"/>
-            <ellipse class="logo__eye" cx="40.8" cy="38.4" rx="3.3" ry="3.7" fill="#262b35"/>
-            <path fill="#e07fae" d="M29.6 43.4h4.8L32 46.2Z"/>
-            <path fill="none" stroke="#262b35" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M28.2 48.2q1.9 1.9 3.8 0 1.9 1.9 3.8 0"/>
-          </g>
-        </svg>
-        <h2 id="install-title">Install in three commands</h2>
-        <p>Type them inside Claude Code. Setup asks you to accept the <a href="/terms">terms</a> once, then every new session gets a name, a color and a status on its own.</p>
-        <p class="install__req">Needs Claude Code on macOS or Linux. Tabby Island needs macOS 14 or later.</p>
+  <!-- Real renders of Tabby Island (its snapshot mode, demo sessions). -->
+  <section id="island" class="section" aria-labelledby="island-title">
+    <div class="island-grid">
+      <div class="island-copy">
+        <p class="eyebrow">macOS</p>
+        <h2 id="island-title" class="h2">All your sessions, one glance up.</h2>
+        <p class="lede">Tabby Island sits at the top of your screen. Hover for every session's name, status and context, then click one to jump to its tab.</p>
+        <dl class="shortcuts">
+          <div><dt><kbd class="kbd">⌃⌥Space</kbd></dt><dd>open it from the keyboard</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥N</kbd></dt><dd>jump to the session that needs you</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥G</kbd></dt><dd>tile your windows</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥M</kbd></dt><dd>switch between three levels of detail</dd></div>
+        </dl>
       </div>
-      <div class="install__cmds">
-        <ol class="cmds cmds--lg" aria-label="Install commands">
-          <li class="cmd" style="--step: var(--blue)"><span class="cmd__n" aria-hidden="true">1</span><code class="cmd__code">/plugin marketplace add 0xNtive/tabby</code><button class="copy" type="button" data-copy="/plugin marketplace add 0xNtive/tabby"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-          <li class="cmd" style="--step: var(--green)"><span class="cmd__n" aria-hidden="true">2</span><code class="cmd__code">/plugin install tabby@tabby</code><button class="copy" type="button" data-copy="/plugin install tabby@tabby"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-          <li class="cmd" style="--step: var(--orange)"><span class="cmd__n" aria-hidden="true">3</span><code class="cmd__code">/tabby:setup</code><button class="copy" type="button" data-copy="/tabby:setup"><span class="sr-only">Copy command</span><svg class="copy__i copy__i--copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="copy__i copy__i--ok" aria-hidden="true"><use href="#i-check"/></svg></button></li>
-        </ol>
-        <p class="install__after">Changed your mind? <code>tabby uninstall</code> puts everything back.</p>
+      <div class="island-stack">
+        <img class="island-detailed" src="/assets/island-detailed.webp?v=20260926d" alt="Tabby Island in its detailed mode: each session with its summary, last prompt, context and cost" width="1168" height="1360" loading="lazy">
+        <img class="island-standard" src="/assets/island-standard.webp?v=20260926d" alt="Tabby Island expanded: five sessions with their names, projects and context meters" width="1104" height="992" loading="lazy">
+        <img class="island-waiting" src="/assets/island-waiting.webp?v=20260926d" alt="The collapsed island announcing: Refactor auth middleware needs you" width="1562" height="136" loading="lazy">
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ============ FAQ ============ -->
-<section class="section faq" id="faq" aria-labelledby="faq-title">
-  <div class="wrap faq__grid">
-    <div class="section__head">
-      <h2 id="faq-title">Questions</h2>
-      <p class="section__lede">Something else? <a href="https://github.com/0xNtive/tabby/issues">Open an issue on GitHub</a>.</p>
+  <!-- tabby tile: the numerals pick a count; the diagram is tabby's real grid for it. -->
+  <section id="tile" class="section tile" aria-labelledby="tile-title">
+    <h2 id="tile-title" class="h2">Fill the screen in one key.</h2>
+    <div class="numerals" role="radiogroup" aria-label="Number of windows">
+      <button type="button" class="numeral" role="radio" aria-checked="false" data-n="2" aria-label="2 windows">2</button>
+      <button type="button" class="numeral" role="radio" aria-checked="false" data-n="3" aria-label="3 windows">3</button>
+      <button type="button" class="numeral" role="radio" aria-checked="true" data-n="4" aria-label="4 windows">4</button>
+      <button type="button" class="numeral" role="radio" aria-checked="false" data-n="6" aria-label="6 windows">6</button>
+      <button type="button" class="numeral" role="radio" aria-checked="false" data-n="8" aria-label="8 windows">8</button>
     </div>
-    <div class="qa">
-      <details>
-        <summary>Does it use tokens?</summary>
-        <div class="qa__a"><p><code>/tab</code> commands never do; a hook answers them. Naming a tab uses about 500 Haiku tokens per rename, through your own Claude login. That's roughly $0.001, and Pro and Max plans cover it.</p></div>
-      </details>
-      <details>
-        <summary>Will it slow Claude down?</summary>
-        <div class="qa__a"><p>No. tabby's hooks run async, so Claude never waits for them. The tool-use fast path takes about 10&nbsp;ms.</p></div>
-      </details>
-      <details>
-        <summary>Does it work with iTerm2, tmux or VS Code?</summary>
-        <div class="qa__a"><p>Yes. iTerm2 gets native tab colors, and tmux gets the window name and a status-bar color. VS Code and Cursor get the title and colors; set <code>"terminal.integrated.tabs.title"</code> to <code>"${sequence}"</code> to see the name in the tab. <code>tabby doctor</code> shows what works in your terminal.</p></div>
-      </details>
-      <details>
-        <summary>Can I pick my own colors?</summary>
-        <div class="qa__a"><p>Yes. <code>/tab color teal</code> picks one of eight colors, <code>/tab color #7fc489</code> takes any hex, and <code>/tab theme nord all</code> applies one of 57 themes to every tab.</p></div>
-      </details>
-      <details>
-        <summary>Is it affiliated with Anthropic?</summary>
-        <div class="qa__a"><p>No. tabby is an independent project. Claude and Claude Code are trademarks of Anthropic.</p></div>
-      </details>
-      <details>
-        <summary>Is it free?</summary>
-        <div class="qa__a"><p>Yes. Future versions may show clearly labeled sponsored messages in tabby's own interface, such as the island or the CLI. Never in your Claude conversations. The <a href="/terms">Terms</a> have the details.</p></div>
-      </details>
-      <details>
-        <summary>How do I remove it?</summary>
-        <div class="qa__a"><p>Run <code>tabby uninstall</code>, or <code>/plugin uninstall tabby@tabby</code> inside Claude Code. <code>tabby uninstall</code> also reverts every change tabby made to your settings.</p></div>
-      </details>
+    <div class="tile-detail">
+      <svg class="grid-diagram" viewBox="0 0 160 100" role="img" aria-label="4 windows in a 2 by 2 grid">
+        <rect x="0.75" y="0.75" width="158.5" height="98.5" rx="7" fill="none" stroke="rgb(238 246 242 / 0.35)" stroke-width="1.5"/>
+        <g class="grid-cells"><rect x="4" y="4" width="74" height="44" rx="3.5" fill="#f4913e"/><rect x="82" y="4" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="4" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="82" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/></g>
+      </svg>
+      <code class="tile-cmd"><img src="/assets/icons/grid.png?v=20260926d" alt="" width="28" height="28"><span>tabby tile <span class="tile-n">4</span></span></code>
+      <p class="tile-note">Tabs become windows, full-screen windows come back, and every session gets its own cell.</p>
+      <p class="tile-jump"><img src="/assets/icons/bell.png?v=20260926d" alt="" width="28" height="28"><span><kbd class="kbd">⌃⌥N</kbd> jumps to the one that needs you.</span></p>
     </div>
-  </div>
-</section>
+  </section>
 
+  <!-- A sample of the themes, from lib/themes.js (npm run export rewrites this block). -->
+  <section id="themes" class="themes" aria-labelledby="themes-title">
+    <div class="themes-head">
+      <h2 id="themes-title" class="h2"><!-- themes:total -->57<!-- /themes:total --> calm themes, contrast-checked.</h2>
+      <p class="lede">Text reads at WCAG AA or better in every theme, and <!-- themes:aaa -->46<!-- /themes:aaa --> of them reach AAA. A session's tint never makes it harder to read. <a href="https://github.com/0xNtive/tabby/blob/main/docs/contrast.md">Read the audit</a></p>
+    </div>
+    <ul class="rail" aria-label="Theme samples">
+<!-- themes:chips -->
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Tabby Dusk: text contrast 11.71 to 1, AAA. Claude's own colors keep 84% of their contrast.">
+        <div class="chip-face chip-front" style="background:#15171c"><div class="chip-term" style="color:#ced1d6"><div><span style="color:#e79e6b">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ef9491"></span><span style="background:#e79e6b"></span><span style="background:#c7b05a"></span><span style="background:#7fc489"></span></div></div><div class="chip-meta"><strong>Tabby Dusk</strong><code>bg #15171c<br>text #ced1d6</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>11.71:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>84%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Tabby Dusk</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Nord: text contrast 9.25 to 1, AAA. Claude's own colors keep 58% of their contrast.">
+        <div class="chip-face chip-front" style="background:#2e3440"><div class="chip-term" style="color:#d8dee9"><div><span style="color:#d08770">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#bf616a"></span><span style="background:#d08770"></span><span style="background:#ebcb8b"></span><span style="background:#a3be8c"></span></div></div><div class="chip-meta"><strong>Nord</strong><code>bg #2e3440<br>text #d8dee9</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>9.25:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>58%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Nord</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Ember: text contrast 12.07 to 1, AAA. Claude's own colors keep 84% of their contrast.">
+        <div class="chip-face chip-front" style="background:#1c1611"><div class="chip-term" style="color:#dbd3c6"><div><span style="color:#e59f6f">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ec9693"></span><span style="background:#e59f6f"></span><span style="background:#c6b05f"></span><span style="background:#82c48b"></span></div></div><div class="chip-meta"><strong>Ember</strong><code>bg #1c1611<br>text #dbd3c6</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>12.07:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>84%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Ember</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Rosé Pine: text contrast 13.39 to 1, AAA. Claude's own colors keep 83% of their contrast.">
+        <div class="chip-face chip-front" style="background:#191724"><div class="chip-term" style="color:#e0def4"><div><span style="color:#f6c177">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#eb6f92"></span><span style="background:#f6c177"></span><span style="background:#9ccfd8"></span><span style="background:#31748f"></span></div></div><div class="chip-meta"><strong>Rosé Pine</strong><code>bg #191724<br>text #e0def4</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>13.39:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>83%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Rosé Pine</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Kanagawa: text contrast 11.26 to 1, AAA. Claude's own colors keep 77% of their contrast.">
+        <div class="chip-face chip-front" style="background:#1f1f28"><div class="chip-term" style="color:#dcd7ba"><div><span style="color:#ffa066">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#e46876"></span><span style="background:#ffa066"></span><span style="background:#e6c384"></span><span style="background:#98bb6c"></span></div></div><div class="chip-meta"><strong>Kanagawa</strong><code>bg #1f1f28<br>text #dcd7ba</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>11.26:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>77%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Kanagawa</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Tokyo Night: text contrast 10.59 to 1, AAA. Claude's own colors keep 80% of their contrast.">
+        <div class="chip-face chip-front" style="background:#1a1b26"><div class="chip-term" style="color:#c0caf5"><div><span style="color:#ff9e64">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#f7768e"></span><span style="background:#ff9e64"></span><span style="background:#e0af68"></span><span style="background:#9ece6a"></span></div></div><div class="chip-meta"><strong>Tokyo Night</strong><code>bg #1a1b26<br>text #c0caf5</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>10.59:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>80%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Tokyo Night</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Catppuccin Mocha: text contrast 11.34 to 1, AAA. Claude's own colors keep 76% of their contrast.">
+        <div class="chip-face chip-front" style="background:#1e1e2e"><div class="chip-term" style="color:#cdd6f4"><div><span style="color:#fab387">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#f38ba8"></span><span style="background:#fab387"></span><span style="background:#f9e2af"></span><span style="background:#a6e3a1"></span></div></div><div class="chip-meta"><strong>Catppuccin Mocha</strong><code>bg #1e1e2e<br>text #cdd6f4</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>11.34:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>76%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Catppuccin Mocha</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Everforest: text contrast 7.38 to 1, AAA. Claude's own colors keep 58% of their contrast.">
+        <div class="chip-face chip-front" style="background:#2d353b"><div class="chip-term" style="color:#d3c6aa"><div><span style="color:#e69875">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#e67e80"></span><span style="background:#e69875"></span><span style="background:#dbbc7f"></span><span style="background:#a7c080"></span></div></div><div class="chip-meta"><strong>Everforest</strong><code>bg #2d353b<br>text #d3c6aa</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>7.38:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>58%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Everforest</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Midnight: text contrast 10.2 to 1, AAA. Claude's own colors keep 89% of their contrast.">
+        <div class="chip-face chip-front" style="background:#0f1014"><div class="chip-term" style="color:#bbbec3"><div><span style="color:#cc8e64">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#d38684"></span><span style="background:#cc8e64"></span><span style="background:#b19e56"></span><span style="background:#75af7d"></span></div></div><div class="chip-meta"><strong>Midnight</strong><code>bg #0f1014<br>text #bbbec3</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>10.2:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>89%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Midnight</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Gruvbox Material: text contrast 8.13 to 1, AAA. Claude's own colors keep 69% of their contrast.">
+        <div class="chip-face chip-front" style="background:#292828"><div class="chip-term" style="color:#d4be98"><div><span style="color:#e78a4e">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ea6962"></span><span style="background:#e78a4e"></span><span style="background:#d8a657"></span><span style="background:#a9b665"></span></div></div><div class="chip-meta"><strong>Gruvbox Material</strong><code>bg #292828<br>text #d4be98</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>8.13:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>69%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Gruvbox Material</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Flexoki: text contrast 11.98 to 1, AAA. Claude's own colors keep 91% of their contrast.">
+        <div class="chip-face chip-front" style="background:#100f0f"><div class="chip-term" style="color:#cecdc3"><div><span style="color:#da702c">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#d14d41"></span><span style="background:#da702c"></span><span style="background:#d0a215"></span><span style="background:#879a39"></span></div></div><div class="chip-meta"><strong>Flexoki</strong><code>bg #100f0f<br>text #cecdc3</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>11.98:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>91%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Flexoki</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Iceberg: text contrast 10.6 to 1, AAA. Claude's own colors keep 84% of their contrast.">
+        <div class="chip-face chip-front" style="background:#161821"><div class="chip-term" style="color:#c6c8d1"><div><span style="color:#e2a478">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#e27878"></span><span style="background:#e2a478"></span><span style="background:#b4be82"></span><span style="background:#89b8c2"></span></div></div><div class="chip-meta"><strong>Iceberg</strong><code>bg #161821<br>text #c6c8d1</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>10.6:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>84%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Iceberg</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Oxocarbon: text contrast 13.78 to 1, AAA. Claude's own colors keep 85% of their contrast.">
+        <div class="chip-face chip-front" style="background:#161616"><div class="chip-term" style="color:#dde1e6"><div><span style="color:#42be65">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ee5396"></span><span style="background:#42be65"></span><span style="background:#08bdba"></span><span style="background:#78a9ff"></span></div></div><div class="chip-meta"><strong>Oxocarbon</strong><code>bg #161616<br>text #dde1e6</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>13.78:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>85%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Oxocarbon</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Paper: text contrast 11.12 to 1, AAA. Claude's own colors keep 90% of their contrast.">
+        <div class="chip-face chip-front" style="background:#f7f3eb"><div class="chip-term" style="color:#3d332b"><div><span style="color:#a95f23">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#b05454"></span><span style="background:#a95f23"></span><span style="background:#8a7300"></span><span style="background:#3b874a"></span></div></div><div class="chip-meta"><strong>Paper</strong><code>bg #f7f3eb<br>text #3d332b</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>11.12:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>90%</dd></div><div><dt>Mode</dt><dd>light</dd></div></dl><strong>Paper</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Mist: text contrast 10.87 to 1, AAA. Claude's own colors keep 81% of their contrast.">
+        <div class="chip-face chip-front" style="background:#e6eaef"><div class="chip-term" style="color:#2a313a"><div><span style="color:#a3591c">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#a94e4e"></span><span style="background:#a3591c"></span><span style="background:#836d00"></span><span style="background:#348144"></span></div></div><div class="chip-meta"><strong>Mist</strong><code>bg #e6eaef<br>text #2a313a</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>10.87:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>81%</dd></div><div><dt>Mode</dt><dd>light</dd></div></dl><strong>Mist</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="One Dark: text contrast 6.57 to 1, AA. Claude's own colors keep 66% of their contrast.">
+        <div class="chip-face chip-front" style="background:#282c34"><div class="chip-term" style="color:#abb2bf"><div><span style="color:#d19a66">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#e06c75"></span><span style="background:#d19a66"></span><span style="background:#e5c07b"></span><span style="background:#98c379"></span></div></div><div class="chip-meta"><strong>One Dark</strong><code>bg #282c34<br>text #abb2bf</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>6.57:1</dd></div><div><dt>Rating</dt><dd>AA</dd></div><div><dt>Claude UI</dt><dd>66%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>One Dark</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Night Owl: text contrast 13.54 to 1, AAA. Claude's own colors keep 86% of their contrast.">
+        <div class="chip-face chip-front" style="background:#011627"><div class="chip-term" style="color:#d6deeb"><div><span style="color:#f78c6c">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ef5350"></span><span style="background:#f78c6c"></span><span style="background:#ffeb95"></span><span style="background:#addb67"></span></div></div><div class="chip-meta"><strong>Night Owl</strong><code>bg #011627<br>text #d6deeb</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>13.54:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>86%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Night Owl</strong></div>
+      </div></li>
+      <li class="chip"><div class="chip-inner" tabindex="0" role="group" aria-label="Modus Vivendi: text contrast 21 to 1, AAA. Claude's own colors keep 100% of their contrast.">
+        <div class="chip-face chip-front" style="background:#000000"><div class="chip-term" style="color:#ffffff"><div><span style="color:#d0bc00">❯</span> claude</div><div style="opacity:.75">Refactor auth</div><div class="chip-dots"><span style="background:#ff5f59"></span><span style="background:#d0bc00"></span><span style="background:#44bc44"></span><span style="background:#00d3d0"></span></div></div><div class="chip-meta"><strong>Modus Vivendi</strong><code>bg #000000<br>text #ffffff</code></div></div>
+        <div class="chip-face chip-back"><small>Contrast</small><dl><div><dt>Text</dt><dd>21:1</dd></div><div><dt>Rating</dt><dd>AAA</dd></div><div><dt>Claude UI</dt><dd>100%</dd></div><div><dt>Mode</dt><dd>dark</dd></div></dl><strong>Modus Vivendi</strong></div>
+      </div></li>
+<!-- /themes:chips -->
+    </ul>
+    <p class="themes-cmds"><span>/tab theme nord<span class="sep">·</span>one tab</span><span>/tab theme nord all<span class="sep">·</span>every tab</span></p>
+  </section>
+
+  <section id="install" class="section install" aria-labelledby="install-title">
+    <div class="install-inner">
+      <h2 id="install-title" class="h2 install-title">Install in one line.</h2>
+      <p class="install-note"><img src="/assets/icons/lock.png?v=20260926d" alt="" width="28" height="28"><span>Needs Claude Code and Node 18. Setup shows the terms first, and <code>tabby uninstall</code> undoes everything it changes.</span></p>
+      <div class="cmd-frame">
+        <img class="cmd-cat" src="/assets/cat.webp?v=20260926d" alt="" width="64" height="64">
+        <div class="cmd-box">
+          <code id="install-cmd"><span class="cmd-prompt">&gt;</span>curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash</code>
+          <button type="button" class="stamp" data-copy="curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash"><span aria-live="polite">Copy</span></button>
+        </div>
+      </div>
+      <div class="install-alt">
+        <div>
+          <p class="install-alt-title">Or inside Claude Code</p>
+          <pre>/plugin marketplace add 0xNtive/tabby
+/plugin install tabby@tabby
+/tabby:setup</pre>
+        </div>
+        <p class="install-alt-note">On a Mac the installer also builds Tabby Island and asks macOS for Accessibility, which lets tiling split tabs and bring full-screen windows back.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="questions" class="section" aria-labelledby="questions-title">
+    <div class="q-grid">
+      <div class="q-rail"><span>Free. Local. MIT.</span></div>
+      <div>
+        <h2 id="questions-title" class="h2">Questions, answered.</h2>
+        <div class="qa-list">
+          <details class="qa" open><summary>Does it cost anything?<span class="qa-toggle" aria-hidden="true"></span></summary><p>No. tabby is free and MIT licensed. Tab names come from Claude Haiku through your own Claude Code login, about 500 tokens each, which Pro and Max cover.</p></details>
+          <details class="qa"><summary>What leaves my machine?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Only the naming request, sent through your own Claude login. No servers, no telemetry, no accounts. Everything else lives in ~/.claude/tabby.</p></details>
+          <details class="qa"><summary>Which terminals work?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Terminal.app and iTerm2 get everything, including the island and tiling. Ghostty, WezTerm, kitty, Alacritty, VS Code and tmux get names, colors and live status.</p></details>
+          <details class="qa"><summary>Why does tiling ask for Accessibility?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Moving a tab into its own window and bringing a full-screen window back use macOS window controls. tabby asks once, for Tabby Island, and never records your screen.</p></details>
+          <details class="qa"><summary>How do I turn it off?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Type /tab off for one tab, or run tabby uninstall to revert every change. Your Claude settings file is backed up first.</p></details>
+          <details class="qa"><summary>Is this made by Anthropic?<span class="qa-toggle" aria-hidden="true"></span></summary><p>No. tabby is an independent open source project. Claude is a trademark of Anthropic.</p></details>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
-<footer class="foot">
-  <div class="wrap foot__inner">
-    <div class="foot__brand">
-      <a class="brand brand--foot" href="/" aria-label="tabby home">
-        <svg class="logo brand__mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <path fill="#262b35" d="M10 24 13.5 8.6Q14 6.5 15.8 7.7L26.5 15.4Q32 13.7 37.5 15.4L48.2 7.7Q50 6.5 50.5 8.6L54 24Q57 30 57 37.5 57 57.5 32 57.5 7 57.5 7 37.5 7 30 10 24Z"/>
-          <path fill="#e3a5c2" opacity=".55" d="M17.2 13.6 18.9 10.4 23.1 13.8Z M46.8 13.6 45.1 10.4 40.9 13.8Z"/>
-          <rect x="22.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#77b7f4" transform="rotate(-14 24.5 24.2)"/>
-          <rect x="29.9" y="17.6" width="4.2" height="11.4" rx="2.1" fill="#7fc489"/>
-          <rect x="37.4" y="19.2" width="4.2" height="10" rx="2.1" fill="#e79e6b" transform="rotate(14 39.5 24.2)"/>
-          <ellipse class="logo__eye" cx="23.2" cy="38.4" rx="3.3" ry="3.7" fill="#f4ede0"/>
-          <ellipse class="logo__eye" cx="40.8" cy="38.4" rx="3.3" ry="3.7" fill="#f4ede0"/>
-          <path fill="#e394c1" d="M29.6 43.4h4.8L32 46.2Z"/>
-          <path fill="none" stroke="#f4ede0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M28.2 48.2q1.9 1.9 3.8 0 1.9 1.9 3.8 0"/>
-        </svg>
-        <span class="brand__word">tabby</span>
-      </a>
-      <p class="foot__tag">Made for Claude Code · Not affiliated with Anthropic</p>
-    </div>
-    <nav class="foot__links" aria-label="Footer">
+<footer class="footer">
+  <div class="footer-inner">
+    <a href="/" class="footer-brand"><img src="/assets/logo.svg?v=20260926d" alt="" width="34" height="34">tabby</a>
+    <nav aria-label="Footer">
       <a href="https://github.com/0xNtive/tabby">GitHub</a>
       <a href="/terms">Terms</a>
+      <a href="https://github.com/0xNtive/tabby/blob/main/CHANGELOG.md">Changelog</a>
       <a href="https://github.com/0xNtive/tabby/blob/main/docs/contrast.md">Contrast audit</a>
-      <a href="https://github.com/0xNtive/tabby/blob/main/LICENSE">MIT License</a>
     </nav>
-    <p class="foot__copy">© 2026 tabby contributors</p>
+    <small>MIT licensed. Not affiliated with Anthropic.</small>
   </div>
 </footer>
-
-<div class="toast sr-only" role="status" aria-live="polite"></div>
+<script src="/assets/site.js?v=20260926d" defer></script>
 </body>
 </html>

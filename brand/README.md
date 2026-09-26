@@ -1,6 +1,6 @@
 # tabby brand
 
-**tabby** (always lowercase) organizes Claude Code terminal tabs. The mascot is a tabby cat whose forehead stripes are three colored terminal tabs, one per session.
+**tabby** (always lowercase) organizes Claude Code terminal tabs. The mark is a geometric tabby cat: a rounded-square head, two ears, and three forehead stripes with rounded ends, like tabs hanging from a tab bar. It was generated as a vector with Higgsfield (Recraft V4.1) and recolored to the palette below; the geometry is used unchanged everywhere.
 
 - Tagline: **Every Claude Code tab, at a glance.**
 - One-liner: *AI tab names, calm colors and live status for every Claude Code session. Free, local and native to Claude.*
@@ -10,31 +10,30 @@
 
 | file | use |
 |---|---|
-| `logo.svg` | full-color mark, for dark or light backgrounds |
-| `logo-mono.svg` | single-color template (menu bar, favicons on busy backgrounds) |
-| `app-icon.svg` / `app-icon-1024.png` | macOS app icon (cream cat on a dark squircle) |
-| `../island/AppIcon.icns` | built from `app-icon.svg` (`qlmanage` → `sips` → `iconutil`) |
+| `logo.svg` | the mark, exactly as exported (transparent background, Harbor eyes) |
+| `logo-2048.png` | the mark as a 2048 px transparent PNG |
+| `app-icon.svg` / `app-icon-1024.png` | macOS app icon: the mark on a Harbor squircle |
+| `../island/AppIcon.icns` | built from `app-icon-1024.png` (`sips` → `iconutil`) |
+| `../island/Sources/Brand.swift` | the same paths in code: the menu-bar template icon (stripes and eyes cut out) and the blinking footer cat |
 
 ## Color
 
 | token | hex | role |
 |---|---|---|
-| ink | `#262b35` | cat body, dark UI surfaces |
-| night | `#14161b` | page background |
-| cream | `#f4ede0` | text on dark, eyes |
-| stripe-blue | `#77b7f4` | session 1 |
-| stripe-green | `#7fc489` | session 2 |
-| stripe-orange | `#e79e6b` | session 3 (primary accent / CTA) |
-| blush | `#e394c1` | nose, highlights |
-| waiting | `#ffa138` | "needs you" |
+| Harbor | `#0f3a3c` | ground: app icon, website, dark surfaces |
+| Foam | `#eef6f2` | text on Harbor |
+| Marmalade | `#f4913e` | the cat, and the one accent color |
+| Tab Sky | `#7cc4f0` | session color in illustrations |
+| Tab Rose | `#f59ab1` | session color in illustrations |
+| Tab Moss | `#a7d98f` | session color in illustrations |
 
-These are the Tabby Dusk accents from `lib/themes.js`, so the brand and the product's default theme are the same palette.
+Marmalade on Harbor is 5.2:1; Foam on Harbor is 11:1. Session colors appear only where they stand for sessions (tabs, dots), never as UI accents.
 
 ## Type
 
-- Display: a friendly rounded or soft grotesque. On Apple surfaces use SF Pro Rounded; on the web pick a distinctive open-source equivalent (not Inter or Roboto).
-- Code: a monospace with clear quotes and slashes.
+- Display and text: Outfit (a friendly geometric grotesk). On Apple surfaces, SF Pro Rounded.
+- Code: IBM Plex Mono.
 
 ## Motion
 
-Motion is small and springy, like a cat's ear twitch. Dots pop, bells wiggle, the island breathes. Always respect Reduce Motion.
+Motion is small and springy, like a cat's ear twitch. Dots pop, bells wiggle, the island breathes, the cat blinks. Always respect Reduce Motion.

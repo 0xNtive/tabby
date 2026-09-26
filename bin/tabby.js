@@ -263,6 +263,12 @@ function island(sub = 'start') {
     if (sub === 'build') return;
   }
   if (sub === 'login') return islandLogin(app);
+  if (sub === 'accessibility') {
+    // Restart it with the flag: the island asks macOS itself, so the permission is Tabby Island's.
+    spawnSync('osascript', ['-e', 'quit app "Tabby Island"'], { stdio: 'ignore' });
+    spawnSync('open', [app, '--args', '--allow-accessibility']);
+    return console.log('Tabby Island asks for Accessibility: in System Settings, switch Tabby Island on. Tiling can then split tabs and leave full screen.');
+  }
   spawnSync('open', [app]);
   console.log('Tabby Island is running — hover the top-center of your screen.');
 }
@@ -307,7 +313,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
   tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
   tabby adopt                 color sessions that were started before tabby
-  tabby island [build|stop|login]   the macOS session island
+  tabby island [build|stop|login|accessibility]   the macOS session island
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
