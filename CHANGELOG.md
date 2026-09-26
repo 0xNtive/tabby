@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.6 — 2026-09-26
+
+- **Tiling checks that Terminal really came to the front.** On current macOS, the app you were in can take the front back within a second, and then Terminal's windows can't be read or split. tabby now:
+  - confirms Terminal's windows are on screen before touching anything, and asks for the front again if it's lost for a moment;
+  - otherwise stops with "Terminal didn't stay in front", instead of skipping every session with a misleading note.
+- The whole tile stays well inside the 10 s limit of `/tab tile`.
+- **Bold text** copies each tab's actual text color, which Terminal keeps in its own color space, so bold is exactly as bright as normal text.
+
 ## 0.2.5 — 2026-09-26
 
 - **Tiling from Tabby Island works again.** macOS tied the island's Accessibility and Automation permissions to the exact build that received them, and every rebuild changes an ad-hoc signature's hash. System Settings kept showing Tabby Island as allowed, but macOS silently refused it, so tabs were never split.
