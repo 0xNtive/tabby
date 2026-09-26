@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.7 — 2026-09-26
+
+- **Tiling handles full-screen windows.** A full-screen window lives on its own desktop, so it was never on screen next to the others, and resizing it only shrank it inside its own black desktop.
+  - With Accessibility, tabby now takes each session window out of full screen, waits until it's back on the desktop, splits its tabs, then arranges them all.
+  - Without Accessibility, full-screen windows are left alone, never shrunk.
+  - Accessibility only lists the current desktop's windows, plus a title-bar strip in full screen, so tabby finds a window by its title or frame, not by position in that list.
+- **`/tab tile` gets 60 s** in its hook. Switching desktops takes a moment per window, and at 10 s the hook was cut off.
+
 ## 0.2.6 — 2026-09-26
 
 - **Tiling checks that Terminal really came to the front.** On current macOS, the app you were in can take the front back within a second, and then Terminal's windows can't be read or split. tabby now:

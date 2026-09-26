@@ -79,7 +79,7 @@ Anywhere:
 tabby ls              # every running session: name, status, context %, summary
 tabby next            # jump to the next session that needs you
 tabby focus 2         # jump to session 2
-tabby tile 4          # fill the screen with 2, 3, 4, 6 or 8 session windows (tabs become windows)
+tabby tile 4          # fill the screen with 2, 3, 4, 6 or 8 session windows (tabs and full-screen windows become windows)
 tabby themes          # preview all 57 themes
 tabby doctor          # what works in this terminal
 ```
