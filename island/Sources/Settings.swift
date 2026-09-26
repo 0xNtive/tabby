@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - State
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, watermark, shortcuts
+    case general, watermark, shortcuts, permissions
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -12,8 +12,9 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .general: return "gearshape"
-        case .watermark: return "textformat.size.larger"
+        case .watermark: return "textformat"
         case .shortcuts: return "keyboard"
+        case .permissions: return "checkmark.shield"
         }
     }
 }
@@ -96,6 +97,7 @@ struct SettingsView: View {
                 case .general: GeneralPane(island: island, store: store, state: state)
                 case .watermark: WatermarkPane(island: island, store: store, state: state)
                 case .shortcuts: ShortcutsPane(island: island, state: state)
+                case .permissions: PermissionsPane(island: island, permissions: island.permissions)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -267,7 +269,7 @@ struct WatermarkPane: View {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                         Text("macOS hasn't let Tabby Island control Terminal, so it can't tell which window shows which session.")
                         Spacer(minLength: 8)
-                        Button("Open Settings") { Actions.openAutomationSettings() }
+                        Button("Open Settings") { PermissionCenter.openAutomationPane() }
                     }
                 }
                 Text(footnote(config))
@@ -361,6 +363,93 @@ final class TerminalMockView: NSView {
         NSColor(white: 0.5, alpha: 0.35).setStroke()
         shape.lineWidth = 1
         shape.stroke()
+    }
+}
+
+// MARK: - Permissions
+
+struct PermissionsPane: View {
+    let island: IslandController
+    @ObservedObject var permissions: PermissionCenter
+
+    var body: some View {
+        Form {
+            Section {
+                PermissionRow(title: "Accessibility",
+                              detail: "Tiling splits tabs into their own windows and brings full-screen windows back.",
+                              status: permissions.accessibility,
+                              allow: { permissions.requestAccessibility() },
+                              askAgain: { permissions.requestAccessibility() },
+                              openSettings: PermissionCenter.openAccessibilityPane)
+                PermissionRow(title: "Control Terminal",
+                              detail: "Jump to a session's tab, read tab titles, and find each session's window for the watermark.",
+                              status: permissions.status(of: .terminal),
+                              allow: { permissions.requestAutomation(.terminal) },
+                              askAgain: { permissions.askAgain(.terminal) },
+                              openSettings: PermissionCenter.openAutomationPane)
+                PermissionRow(title: "Control System Events",
+                              detail: "Tiling clicks Terminal's “Move Tab to New Window” for you.",
+                              status: permissions.status(of: .systemEvents),
+                              allow: { permissions.requestAutomation(.systemEvents) },
+                              askAgain: { permissions.askAgain(.systemEvents) },
+                              openSettings: PermissionCenter.openAutomationPane)
+            } header: {
+                Text("macOS permissions")
+            } footer: {
+                Text("Checked live. tabby uses them only on your Mac: nothing is sent anywhere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                HStack {
+                    Text("Walk through setup again")
+                    Spacer()
+                    Button("Open Setup Guide") { island.showOnboarding(.welcome, activate: true) }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { permissions.startWatching() }
+        .onDisappear { permissions.stopWatching() }
+    }
+}
+
+struct PermissionRow: View {
+    let title: String
+    let detail: String
+    let status: PermissionCenter.Status
+    let allow: () -> Void
+    let askAgain: () -> Void
+    let openSettings: () -> Void
+
+    var body: some View {
+        LabeledContent {
+            switch status {
+            case .allowed:
+                Label("Allowed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .waiting:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Button("Open System Settings", action: openSettings)
+                }
+            case .denied:
+                HStack(spacing: 8) {
+                    Button("Ask Again", action: askAgain)
+                    Button("Open System Settings", action: openSettings)
+                }
+            case .notAsked, .unknown:
+                Button("Allow", action: allow)
+                    .buttonStyle(.borderedProminent)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

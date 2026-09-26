@@ -103,39 +103,6 @@ enum Actions {
         return nil
     }
 
-    /// Splitting tabs into windows clicks a Terminal menu through System Events, which needs
-    /// Accessibility for Tabby Island (and Automation of System Events and Terminal). Asking once
-    /// adds the app to the list (off), so the user only has to flip its switch in the pane we open.
-    ///
-    /// Builds before 0.2.5 were signed by their own hash, so a permission granted to one build still
-    /// shows as on in System Settings yet no longer applies after a rebuild. Clear the island's own
-    /// stale entries first so macOS asks again, and the new grant sticks (the signature is stable now).
-    static func openAccessibilitySettings() {
-        if AXIsProcessTrusted() { return }
-        let bundleId = Bundle.main.bundleIdentifier ?? "dev.tabby.island"
-        for service in ["Accessibility", "AppleEvents"] {
-            let reset = Process()
-            reset.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
-            reset.arguments = ["reset", service, bundleId]
-            reset.standardOutput = FileHandle.nullDevice
-            reset.standardError = FileHandle.nullDevice
-            if (try? reset.run()) != nil { reset.waitUntilExit() }
-        }
-        let prompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        if AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary) { return }
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    /// System Settings › Privacy & Security › Automation (the watermark asks Terminal which
-    /// window shows which session).
-    static func openAutomationSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     /// Brings the session's terminal tab to the front.
     static func focus(_ session: IslandSession) {
         let term = (session.term ?? "").lowercased()

@@ -5,8 +5,8 @@
 #   curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash -s -- --yes   # accept the terms, no questions
 #
 # Adds the tabby plugin to Claude Code, runs its one-time setup (terms, Claude settings, the /tab
-# command, shell flags, Terminal.app titles) and, on macOS, builds Tabby Island and asks for the one
-# permission it needs. Every step is reversible: tabby uninstall.
+# command, shell flags, Terminal.app titles) and, on macOS, builds Tabby Island and opens its setup
+# window, which walks through the permissions. Every step is reversible: tabby uninstall.
 set -euo pipefail
 
 YES=0
@@ -22,14 +22,6 @@ bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 say() { printf '  %s\n' "$*"; }
 die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 has_tty() { { : > /dev/tty; } 2> /dev/null; }
-# ask "question" y|n: the default applies with --yes or when there's no terminal to ask on.
-ask() {
-  local answer
-  if [ "$YES" = 1 ] || ! has_tty; then [ "$2" = y ]; return; fi
-  printf '  %s [%s] ' "$1" "$([ "$2" = y ] && echo Y/n || echo y/N)" > /dev/tty
-  read -r answer < /dev/tty || answer=
-  [[ ${answer:-$2} =~ ^[Yy] ]]
-}
 
 bold "tabby: every Claude Code tab, at a glance"
 
@@ -66,10 +58,8 @@ if [ "$(uname)" = Darwin ] && [ "$ISLAND" = 1 ]; then
   if xcode-select -p > /dev/null 2>&1; then
     say "Building Tabby Island (about 15 s)..."
     if tabby island build > /dev/null 2>&1; then
-      tabby island > /dev/null
-      if ask "Let tabby arrange your windows (split tabs, leave full screen)? It asks macOS for Accessibility." y; then
-        tabby island accessibility
-      fi
+      tabby island onboarding > /dev/null
+      say "Tabby Island is open: its setup window walks you through the permissions it needs."
     else
       say "Tabby Island didn't build. Try later with: tabby island build"
     fi

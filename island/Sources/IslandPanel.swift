@@ -123,13 +123,14 @@ struct IslandActions {
     var themeAllMenu: @MainActor () -> Void
     var setMode: @MainActor (IslandMode) -> Void
     var tileMenu: @MainActor () -> Void
+    var openSettings: @MainActor () -> Void
     /// Inline rename: Return commits (empty lets AI name it), Esc cancels.
     var commitRename: @MainActor () -> Void
     var cancelRename: @MainActor () -> Void
 
     static let inert = IslandActions(islandFrame: { _ in }, rowFrames: { _ in }, viewport: { _ in }, tapHeader: {},
                                      tapRow: { _ in }, sessionMenu: { _ in }, themeAllMenu: {}, setMode: { _ in },
-                                     tileMenu: {}, commitRename: {}, cancelRename: {})
+                                     tileMenu: {}, openSettings: {}, commitRename: {}, cancelRename: {})
 }
 
 /// Settings the user just changed, by config key: applied at once, and kept until config.json
@@ -218,10 +219,16 @@ final class IslandController {
 
     /// Snapshot renders: no global shortcuts, no watermark windows.
     private let inert: Bool
+    /// What macOS allows the island (Accessibility, Automation), for the onboarding and Settings.
+    let permissions: PermissionCenter
+    private var onboarding: OnboardingWindowController?
 
     init(store: SessionStore, inert: Bool = false) {
         self.store = store
         self.inert = inert
+        permissions = inert
+            ? PermissionCenter(accessibility: .allowed, automation: [.terminal: .waiting, .systemEvents: .notAsked])
+            : PermissionCenter()
         buildPanel()
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -300,6 +307,7 @@ final class IslandController {
             themeAllMenu: { [weak self] in self?.showThemeAllMenu() },
             setMode: { [weak self] mode in self?.setMode(mode) },
             tileMenu: { [weak self] in self?.showTileMenu() },
+            openSettings: { [weak self] in self?.openSettings() },
             commitRename: { [weak self] in self?.commitRename() },
             cancelRename: { [weak self] in self?.cancelRename() }
         )
@@ -422,7 +430,7 @@ final class IslandController {
         let on = !config.watermark.enabled
         setWatermark(on)
         if !ui.expanded {
-            enqueue(.info(on ? "Watermark on" : "Watermark off", symbol: "textformat.size.larger", topic: "watermark"),
+            enqueue(.info(on ? "Watermark on" : "Watermark off", symbol: "textformat", topic: "watermark"),
                     force: true)
         }
     }
@@ -515,6 +523,31 @@ final class IslandController {
         setShortcut(action, combo)
         endRecording()
         return true
+    }
+
+    // MARK: Onboarding
+
+    /// The first-run window: welcome, permissions, shortcuts. `activate`: take keyboard focus
+    /// (asked for by the user); otherwise it just appears in front.
+    func showOnboarding(_ page: OnboardingPage = .welcome, activate: Bool) {
+        if ui.keyboard { endKeyboard(restoreFocus: false) } else { setExpanded(false) }
+        settingsState.loginItem = Self.loginItemInstalled
+        let window = onboarding ?? OnboardingWindowController(island: self, permissions: permissions, state: settingsState)
+        window.onClose = { [weak self] in self?.onboardingClosed() }
+        onboarding = window
+        window.show(page: page, activate: activate)
+    }
+
+    private func onboardingClosed() {
+        UserDefaults.standard.set(true, forKey: "onboardingDone")
+        // Show where the island lives.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isShown, !self.ui.expanded else { return }
+                self.enqueue(.info("tabby lives here: hover to see every session", symbol: "arrow.up.circle.fill",
+                                   topic: "welcome"), force: true)
+            }
+        }
     }
 
     // MARK: Settings window
@@ -802,7 +835,7 @@ final class IslandController {
             return
         }
         if announcement.opensAccessibility {
-            Actions.openAccessibilitySettings()
+            showOnboarding(.permissions, activate: true)
         } else if let session = store.session(id: announcement.sessionId) {
             Actions.focus(session)
         }

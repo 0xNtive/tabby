@@ -25,7 +25,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Tabby Island switches to the Terminal tab of the session you click, and reads tab titles to name sessions.</string>
+	<string>Tabby Island switches to the Terminal tab of the session you click, reads tab titles to name sessions, finds each session's window for its watermark, and arranges windows when you tile them.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSPrincipalClass</key>

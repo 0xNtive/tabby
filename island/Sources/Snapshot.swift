@@ -88,6 +88,36 @@ enum Snapshotter {
         renderSwatches(live.snapshot, folder: folder)
         renderSettings(store: demo, folder: folder)
         renderWatermarks(demo.snapshot, folder: folder)
+        renderOnboarding(store: demo, folder: folder)
+    }
+
+    /// Each onboarding page (permissions mid-way: one allowed, one asking, one not asked yet), and
+    /// the last page once everything is allowed.
+    private static func renderOnboarding(store: SessionStore, folder: URL) {
+        let island = IslandController(store: store, inert: true)
+        let ready = PermissionCenter(accessibility: .allowed, automation: [.terminal: .allowed, .systemEvents: .allowed])
+        let pages: [(OnboardingPage, PermissionCenter, String)] = [
+            (.welcome, island.permissions, "welcome"), (.permissions, island.permissions, "permissions"),
+            (.done, island.permissions, "done"), (.done, ready, "done-ready"),
+        ]
+        for (page, permissions, name) in pages {
+            let model = OnboardingModel()
+            model.page = page
+            let host = NSHostingView(rootView: OnboardingView(model: model, permissions: permissions, state: island.settingsState,
+                                                              island: island, finish: {}))
+            host.frame = NSRect(x: 0, y: 0, width: 720, height: 560)
+            let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.contentView = host
+            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+            host.layoutSubtreeIfNeeded()
+            host.display()
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            write(rep, to: folder.appendingPathComponent("onboarding-\(name).png"))
+            window.close()
+        }
     }
 
     // MARK: Settings and watermark

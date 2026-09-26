@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.10 — 2026-09-26
+
+- **A setup window, like installing a Mac app.** It's in tabby's colors and has three steps:
+  - **Welcome:** what the island, tiling and the watermark do.
+  - **Permissions:** Accessibility, Control Terminal, Control System Events and Open at login. Each has an Allow button, and its status updates live (Allowed, Waiting…, Not allowed) as you answer macOS.
+  - **You're set:** the shortcuts to start with.
+- **When it opens:**
+  - The installer and `/tabby:setup island` open it.
+  - It shows once on the island's first launch, without taking focus from what you're typing in.
+  - `tabby island onboarding` and **Setup & Permissions…** in the island's menu open it again.
+  - Closing it shows "tabby lives here" in the island.
+- **Getting past a refused permission.** A denied permission offers Ask Again, which clears the island's old answers so macOS asks again, and Open System Settings. This also fixes permissions left over from builds before 0.2.5.
+- **Settings › Permissions:** the same live checks, any time.
+- **A Settings cog** in the expanded island's footer. In the narrow Minimal mode, the theme button shrinks to its icon to make room.
+- The Automation prompt explains what the island does with Terminal: tabs, titles, the watermark and tiling.
+
 ## 0.2.9 — 2026-09-26
 
 - **Watermark.** Tabby Island writes each Terminal.app session's topic in large, faint letters across its window, in the session's color.

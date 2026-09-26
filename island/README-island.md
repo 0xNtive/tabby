@@ -24,7 +24,8 @@ the version in `package.json`, so the About panel shows tabby's version.
 - **Expanded (hover, or ⌃⌥Space):** the list, ordered needs-you → error → working → your
   turn. Click a row to focus its terminal tab; right-click or hover "…" to rename, recolor or
   re-theme. The footer has the cat, the "tabby" wordmark and the session count, then the
-  mode picker, the tile button and the theme-for-all-tabs button.
+  mode picker, the tile button, the theme-for-all-tabs button (just its icon when a narrow
+  mode is short of room) and the Settings cog.
 
 ### Modes (`islandMode` in `~/.claude/tabby/config.json`)
 
@@ -119,12 +120,36 @@ Terminal window with `order(.above, relativeTo:)`.
 Toggle it with ⌃⌥W, W with keyboard focus, the status menu's **Show Watermark**,
 `/tab watermark on|off`, or Settings › Watermark (which also has a live preview).
 
+### Setup window (onboarding)
+
+A first-run window in tabby's colors, like installing a Mac app: **Welcome** (what the island,
+tiling and the watermark do), **Permissions** (each one checked live, once a second), and
+**You're set** (the shortcuts to start with). Closing it pops a "tabby lives here" note in the
+island.
+
+| Permission | Why | How it's asked |
+|---|---|---|
+| Accessibility | tiling splits tabs into windows and takes windows out of full screen | clears an entry an earlier build left (`tccutil reset Accessibility dev.tabby.island`), then `AXIsProcessTrustedWithOptions` adds the island to the list and offers System Settings |
+| Control Terminal | jump to tabs, read titles, find each session's window (watermark) | `AEDeterminePermissionToAutomateTarget(…, askUserIfNeeded: true)` shows macOS's dialog |
+| Control System Events | tiling clicks Terminal's "Move Tab to New Window" | the same, after starting System Events in the background |
+| Open at login | the island is always there | the LaunchAgent below |
+
+A denied Automation permission offers **Ask Again** (resets the island's Automation answers,
+then asks) and **Open System Settings**. macOS only answers for running apps, so the last
+answer for System Events is remembered for when it isn't running.
+
+It shows once on first launch (`onboardingDone` in the island's defaults), without taking
+focus. The installer, `/tabby:setup island` and `tabby island onboarding` open it in front
+(`--onboarding`; `tabby island accessibility` starts at the permissions). **Setup &
+Permissions…** in the status menu opens it too.
+
 ### Settings
 
-**Settings…** in the status menu (or ⌃⌥, or , with keyboard focus) opens a regular window with
-three panes: **General** (show the island, mode, announcements, open at login, and tabby's own
-settings: theme for every tab, background tint, title marker, tab names, animation and
-Terminal.app titles), **Watermark** and **Shortcuts**. Like the menus, it writes through the CLI
+**Settings…** in the status menu (or the cog in the expanded island's footer, ⌃⌥, or , with
+keyboard focus) opens a regular window with four panes: **General** (show the island, mode,
+announcements, open at login, and tabby's own settings: theme for every tab, background tint,
+title marker, tab names, animation and Terminal.app titles), **Watermark**, **Shortcuts** and
+**Permissions** (the same live checks as the setup window). Like the menus, it writes through the CLI
 (`tabby config …`, or the command that repaints every tab, such as `tabby strength subtle`), and
 shows the new value at once. Open at login writes a LaunchAgent that runs the launcher
 (`tabby island`), so it keeps working after updates.
@@ -136,8 +161,8 @@ While collapsed, when a session goes busy → idle the pill springs wider for ab
 queue up (a newer one for the same session replaces the older one). Hovering the pill holds
 the announcement and doesn't expand; clicking it focuses that session. Nothing is announced on
 the first load or for sessions that just appeared, or while the list is expanded. Tiling
-notices use the same pill; an Accessibility notice opens the right System Settings pane when
-clicked. **Show Announcements** in the status menu toggles them.
+notices use the same pill; an Accessibility notice opens the setup window at its permissions
+when clicked. **Show Announcements** in the status menu toggles them.
 
 ### Motion
 
@@ -195,6 +220,8 @@ Screen Recording isn't needed: `--snapshot <dir>` renders the SwiftUI tree with
 - `settings-<pane>-<light|dark>.png`: each Settings pane (drawn without the window's own
   background, so the tab bar is transparent)
 - `watermark-*.png`: demo sessions' watermarks over a mock terminal, in each size and position
+- `onboarding-*.png`: each page of the setup window (permissions part-way: one allowed, one
+  asking, one not asked yet), and `onboarding-done-ready.png` with everything allowed
 
 Core Animation (pings, pops, blinks) isn't captured; snapshots show the resting state.
 
@@ -206,7 +233,8 @@ distributed notifications (object = command): `state`, `menu` (dump the status m
 `about`, `keyboard`, `next`, `mode`, `tile[:n]`, `jump:N`, `rename`,
 `announce:done|waiting|info`, `watermark` (toggle), `watermark:state` (each overlay's frame,
 and whether it's directly above its window), `settings[:general|watermark|shortcuts]`,
-`record:<action>`, `toggle-island`, and `key:<keyCode>[:<chars>]` (posted to the island's own
+`record:<action>`, `onboarding[:welcome|permissions|done]` (shown without taking focus),
+`toggle-island`, and `key:<keyCode>[:<chars>]` (posted to the island's own
 event queue). Without the variable none of this is installed.
 
 ## Performance
@@ -244,7 +272,9 @@ during the expand spring).
 | `Hotkeys.swift` | Carbon global hotkeys |
 | `Shortcuts.swift` | key combos (parse, display, menu keys), the shortcut actions and their defaults |
 | `Watermark.swift` | watermark settings, drawing, the overlay window and the controller that follows Terminal windows |
-| `Settings.swift` | the Settings window: General, Watermark (with a live preview), Shortcuts (with a recorder) |
+| `Settings.swift` | the Settings window: General, Watermark (with a live preview), Shortcuts (with a recorder), Permissions |
+| `Onboarding.swift` | the setup window: welcome, permissions, shortcuts |
+| `Permissions.swift` | live checks and requests for Accessibility and Automation (Terminal, System Events) |
 | `Actions.swift` | tabby CLI calls, tab focusing (AppleScript), menus |
 | `TerminalTitles.swift` | reads Terminal/iTerm tab titles (for sessions without a tabby record) and Terminal's window of each tab |
 | `Snapshot.swift` | `--snapshot` renders and demo data |

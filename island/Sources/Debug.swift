@@ -47,6 +47,10 @@ extension IslandController {
             if parts.count > 1 { Debug.log(watermark.debugState()) } else { toggleWatermark() }
         case "settings":
             openSettings(parts.count > 1 ? SettingsTab(rawValue: parts[1]) : nil)
+        case "onboarding":
+            // Shown without taking focus, so it can be checked while you type elsewhere.
+            showOnboarding(parts.count > 1 ? OnboardingPage.allCases.first { "\($0)" == parts[1] } ?? .welcome : .welcome,
+                           activate: false)
         case "record":
             if parts.count > 1, let action = ShortcutAction(rawValue: parts[1]) { beginRecording(action) }
         case "key":
