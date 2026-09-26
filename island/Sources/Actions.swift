@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 // MARK: - Actions (tabby CLI + tab focusing)
 
@@ -102,7 +103,12 @@ enum Actions {
         return nil
     }
 
+    /// Splitting tabs into windows clicks a Terminal menu through System Events, which needs
+    /// Accessibility for Tabby Island. Asking once adds the app to the list (off), so the user
+    /// only has to flip its switch in the pane we open.
     static func openAccessibilitySettings() {
+        let prompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        if AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary) { return }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }

@@ -34,7 +34,7 @@ const c = (code, s) => (color ? code + s + RESET : s);
 const argv = process.argv.slice(2);
 const flags = {};
 const pos = [];
-const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir']);
+const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir', 'ttys']);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--') {
@@ -400,7 +400,7 @@ function main() {
     case 'next':
       return console.log(next());
     case 'tile':
-      return console.log(tile(Number(pos[1]) || undefined, { dryRun: !!flags['dry-run'] }));
+      return console.log(tile(Number(pos[1]) || undefined, { dryRun: !!flags['dry-run'], ttys: typeof flags.ttys === 'string' ? flags.ttys.split(',') : undefined }));
     case 'terminal-titles': {
       const on = !['off', 'false', 'no'].includes(String(pos[1] || 'on').toLowerCase());
       return console.log(setTerminalTabTitles(on) || `Terminal.app tab titles already ${on ? 'show only the session name' : 'at Terminal defaults'}.`);

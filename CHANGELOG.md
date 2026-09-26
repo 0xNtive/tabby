@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 — 2026-09-26
+
+- **Tiling fixed:**
+  - Tabs of one macOS tab group share a frame. tabby used to set every window's frame at once while tabs were still animating out, so macOS put them back and windows ended up half-tiled. Now tabby moves one window, sees which tabs move with it, pulls those out, waits until each has its own frame, then places every window.
+  - Placement is verified with tolerance for Terminal's character-cell sizing and retried if macOS moves a window again.
+  - Separate windows that merely share a frame are no longer mistaken for tabs.
+  - Only one tile can run at a time.
+- **Island:** "Allow Accessibility" now adds Tabby Island to the Accessibility list before opening the pane.
+
 ## 0.2.0 — 2026-09-25
 
 - **Brand:** the tabby cat, whose three stripes are colored tabs. It appears in the logo, the app icon and the island.
