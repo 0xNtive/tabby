@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4 — 2026-09-26
+
+- **Terminal.app windows and tabs finally show only the session name.** The 0.2.0 setting never took effect. Terminal reads its preferences only at launch, and rewrites them from memory, so they were lost.
+  - Now each Claude tab switches, while its session runs, to a copy of its own profile named "<profile> · tabby". The copy has the same font and look, with the folder, process, arguments and size left out of the title.
+  - The window reads `🟢 ✳ Stripe Webhook Retries`, not `levercat — 🟢 ✳ Stripe Webhook Retries — caffeinate ◂ claude --dangerously-skip-permissions — 80×24`, and so does a tab in a tab group.
+  - The tab goes back to its own profile when the session ends (not on `/clear`), or with `/tab off`.
+  - The switch runs in the background. The first time a profile is used, Terminal opens and closes a window for a moment to import the copy, and focus goes straight back to your window.
+  - `tabby terminal-titles off`, and uninstall, put every tab back and delete the copies. `tabby doctor` lists them.
+
 ## 0.2.3 — 2026-09-26
 
 - **Tiling really separates tabs now.** In a macOS tab group each tab keeps its own window frame, and the window shows the selected tab's frame. Resizing a tab from outside only squeezed its terminal inside the shared window; that is the bug you saw.
