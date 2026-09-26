@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { heuristicTitle, cleanAiTitle, parseNamerOutput } from '../lib/namer.js';
 import { isTabCommand, tabArgs } from '../lib/commands.js';
 import { isSetupCommand, setupArgs } from '../lib/setup.js';
-import { grid, cells, landed } from '../lib/tile.js';
+import { grid, cells, landed, placeable } from '../lib/tile.js';
 import { frameTitle } from '../lib/ticker.js';
 import { DEFAULT_CONFIG } from '../lib/state.js';
 
@@ -69,4 +69,19 @@ test('a tiled window counts as placed despite character-cell snapping', () => {
   assert.ok(landed('6, 39, 489, 880', [6, 39, 502, 894]), 'Terminal rounds the size down to whole cells');
   assert.ok(!landed('0,33,1512,982', [6, 39, 502, 894]), 'a window left full screen is not placed');
   assert.ok(!landed('', [6, 39, 502, 894]));
+});
+
+test('tiling never resizes a background tab: only windows on screen are placed', () => {
+  const byTty = new Map([
+    ['/dev/ttys000', { id: 1, bounds: '6,39,502,894' }],
+    ['/dev/ttys001', { id: 2, bounds: '0,33,1512,982' }], // front tab of a group
+    ['/dev/ttys003', { id: 3, bounds: '0,33,1512,982' }], // background tab of the same group
+  ]);
+  const ttys = [...byTty.keys()];
+  const { units, skipped } = placeable('Terminal', ttys, byTty, new Set([1, 2]));
+  assert.deepEqual(units.map((u) => u.id), [1, 2]);
+  assert.deepEqual(skipped, ['/dev/ttys003']);
+  const sameFrame = placeable('Terminal', ttys, byTty, new Set([1, 2, 3]));
+  assert.equal(sameFrame.units.length, 3, 'separate windows that share a frame are all placed');
+  assert.equal(placeable('iTerm2', ttys, byTty, null).units.length, 3, 'iTerm2 windows hold their own tabs');
 });

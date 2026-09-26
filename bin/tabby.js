@@ -21,7 +21,7 @@ import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next } from '../lib/tile.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY, TERMS_VERSION } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
-import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, twins } from '../lib/terminal-prefs.js';
+import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, twins, setBoldColor } from '../lib/terminal-prefs.js';
 import { runTicker, tickerPid } from '../lib/ticker.js';
 import { claudeTheme, claudeMode } from '../lib/claude-palette.js';
 
@@ -421,6 +421,7 @@ function main() {
       try {
         if (pos[1] === 'all') switchOpenTabs();
         else if (pos[1] === 'restore') restoreProfile(pos[2]);
+        else if (pos[1] === 'bold') setBoldColor(pos[2], pos[3]);
         else if (pos[1] === 'use') {
           const rec = readSession(pos[2]);
           if (rec && !rec.disabled && useTwin(rec.tty) === 'switched') applySession(readSession(pos[2]), readConfig(), { colors: true, title: true });
