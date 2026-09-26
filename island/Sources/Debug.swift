@@ -43,6 +43,12 @@ extension IslandController {
             default: enqueue(.info("Allow Accessibility to split tabs", symbol: "hand.raised.fill", topic: "tile",
                                    opensAccessibility: true), force: true)
             }
+        case "watermark":
+            if parts.count > 1 { Debug.log(watermark.debugState()) } else { toggleWatermark() }
+        case "settings":
+            openSettings(parts.count > 1 ? SettingsTab(rawValue: parts[1]) : nil)
+        case "record":
+            if parts.count > 1, let action = ShortcutAction(rawValue: parts[1]) { beginRecording(action) }
         case "key":
             // key:<virtual key code>[:<characters>] — posted to the island's own event queue.
             guard parts.count > 1, let code = UInt16(parts[1]) else { return }

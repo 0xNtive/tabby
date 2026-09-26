@@ -38,17 +38,30 @@ Switch with the footer's three-icon picker, the status menu's **Mode** submenu, 
 choice is written with `tabby config islandMode '"detailed"'` and applied at once (the island
 keeps the new value until config.json agrees, so a slow or failed CLI never flips it back).
 
-### Shortcuts (`islandHotkeys`, default on)
+### Shortcuts (`islandHotkeys`, default on; `islandShortcuts`)
 
-Global shortcuts use Carbon `RegisterEventHotKey`, which needs no Accessibility permission:
+Global shortcuts use Carbon `RegisterEventHotKey`, which needs no Accessibility permission.
+Every one can be changed or removed in Settings › Shortcuts (click it, press the new keys;
+Delete removes it, Esc cancels). A new shortcut needs ⌃, ⌥ or ⌘ (F-keys excepted) and can't
+collide with another of the island's.
 
-| Shortcut | Action |
+| Default | Action (`islandShortcuts` key) |
 |---|---|
-| ⌃⌥Space | open the island with keyboard focus; again to close |
-| ⌃⌥N | next session that needs you: waiting (oldest first), then your turn and errors (most recent first); press again to cycle |
-| ⌃⌥1 … ⌃⌥9 | focus session N in list order (the status menu shows the numbers) |
-| ⌃⌥G | tile session windows (`tabby tile`) |
-| ⌃⌥M | cycle the mode (the pill says which one while collapsed) |
+| ⌃⌥Space | open the island with keyboard focus; again to close (`toggle`) |
+| ⌃⌥N | next session that needs you: waiting (oldest first), then your turn and errors (most recent first); press again to cycle (`next`) |
+| ⌃⌥1 … ⌃⌥9 | focus session N in list order; the status menu shows the numbers (`jump`: its modifiers apply to all nine digits) |
+| ⌃⌥G | tile session windows, `tabby tile` (`tile`) |
+| ⌃⌥M | cycle the mode; the pill says which one while collapsed (`mode`) |
+| ⌃⌥W | watermark on or off (`watermark`) |
+| ⌃⌥, | open Settings (`settings`) |
+
+`islandShortcuts` holds only what differs from the defaults, as `"ctrl+opt+w"`-style specs
+(`ctrl`, `opt`, `shift`, `cmd`, then a letter, digit, punctuation, `space`, `return`, `tab`,
+an arrow or `f1`–`f12`); `""` turns one off:
+
+```sh
+tabby config islandShortcuts '{"watermark": "cmd+shift+w", "settings": ""}'
+```
 
 With keyboard focus the panel becomes key without activating the island (the terminal keeps
 its menu bar), and a hint line appears in the footer:
@@ -61,6 +74,8 @@ its menu bar), and a hint line appears in the footer:
 | R | rename in place: ↩ saves, esc cancels, an empty name lets AI name it |
 | C / T | color / theme menu for the selected session |
 | M / G | cycle the mode / tile windows |
+| W | watermark on or off |
+| , | open Settings |
 | esc | close and hand focus back to the previous app |
 
 The status menu's **Keyboard Shortcuts** submenu lists all of this and has an **Enable Global
@@ -69,6 +84,50 @@ The keys are physical (ANSI) key codes. macOS also assigns ⌃⌥Space to "Selec
 Input menu"; in testing the island's shortcut took precedence, but if pressing it switches your
 keyboard layout instead, turn that shortcut off in System Settings › Keyboard › Keyboard
 Shortcuts › Input Sources.
+
+### Watermark (`watermark`, default on)
+
+Each Terminal.app session's topic, large and faint, over its window: SF Rounded Heavy, as large
+as fits in three lines without breaking a word, in the session's cursor color. It's a
+transparent, click-through window that never becomes key, ordered directly above the session's
+Terminal window with `order(.above, relativeTo:)`.
+
+- **Which window is which:** the same AppleScript read that fetches tab titles also returns
+  each tab's window id (on current macOS every Terminal tab is its own window, and Terminal's
+  window ids are the window server's numbers). It's three Apple events for all tabs at once,
+  every 6 s, or at once when a session's window isn't known yet (for its first 15 s) or an
+  unknown Terminal window appears on screen (a tab tiling moved into its own window).
+- **Following windows:** `CGWindowListCopyWindowInfo` (numbers, owners and bounds only: no
+  Screen Recording permission) 4× a second while Terminal is in front, once a second
+  otherwise, and at once on clicks, drags, app switches and desktop changes. A click that
+  raises a Terminal window over its watermark puts the watermark back on top within ~20 ms.
+- **Moving and resizing:** the watermark fades out while its window's frame changes and fades
+  back 0.3 s after it settles (and the mouse is up).
+- **Hidden windows:** a background tab, a minimized window or a hidden Terminal hides its
+  watermark. A window on another desktop keeps its watermark there (overlays belong to the
+  desktop they were ordered in, so switching back doesn't blink); a full-screen window gets its
+  watermark on its own desktop.
+- `/tab off` sessions get none.
+
+| Setting | Values (default) |
+|---|---|
+| `watermarkOpacity` | 3–40 percent (18) |
+| `watermarkSize` | `small`, `medium`, `large` (medium): the tallest line is 12, 19 or 28 % of the window |
+| `watermarkColor` | `session` (the tab's cursor color) or `neutral` (the theme's text color) |
+| `watermarkPosition` | `top`, `center`, `bottom` (center) |
+
+Toggle it with ⌃⌥W, W with keyboard focus, the status menu's **Show Watermark**,
+`/tab watermark on|off`, or Settings › Watermark (which also has a live preview).
+
+### Settings
+
+**Settings…** in the status menu (or ⌃⌥, or , with keyboard focus) opens a regular window with
+three panes: **General** (show the island, mode, announcements, open at login, and tabby's own
+settings: theme for every tab, background tint, title marker, tab names, animation and
+Terminal.app titles), **Watermark** and **Shortcuts**. Like the menus, it writes through the CLI
+(`tabby config …`, or the command that repaints every tab, such as `tabby strength subtle`), and
+shows the new value at once. Open at login writes a LaunchAgent that runs the launcher
+(`tabby island`), so it keeps working after updates.
 
 ### Announcements (`islandAnnounce`, default on)
 
@@ -111,9 +170,11 @@ The footer's grid button (and the status menu's **Tile Windows**) offers "Tile A
   accent, `dot`, `cursor`, context, prompts, tty).
 - `~/.claude/tabby/themes.json`: themes with `group`, `dots`, `tints`; parsed again only when
   its modification date or size changes.
-- `~/.claude/tabby/config.json`: `theme`, `islandMode`, `islandAnnounce`, `islandHotkeys`.
-  The island writes only through `<node> <cli> config <key> <json>` (paths from
-  `~/.claude/tabby/island.json`).
+- `~/.claude/tabby/config.json`: `theme`, `islandMode`, `islandAnnounce`, `islandHotkeys`,
+  `islandShortcuts`, `watermark*`, and for Settings `namer`, `strength`, `marker`, `animate`,
+  `terminalTabTitles`. The island writes only through `<node> <cli> …` (paths from
+  `~/.claude/tabby/island.json`); a changed setting shows at once and is held until
+  config.json agrees.
 
 Missing files degrade gracefully: no themes means a fallback palette, no config means the
 defaults, no CLI means settings apply in memory only.
@@ -131,6 +192,9 @@ Screen Recording isn't needed: `--snapshot <dir>` renders the SwiftUI tree with
 - `flat-*.png`: a display without a notch
 - `brand-statusitem.png`, `brand-cat.png`, `brand-swatches.png`: the menu-bar template icon,
   the footer cat at 18/32/96 pt, and every theme swatch by group
+- `settings-<pane>-<light|dark>.png`: each Settings pane (drawn without the window's own
+  background, so the tab bar is transparent)
+- `watermark-*.png`: demo sessions' watermarks over a mock terminal, in each size and position
 
 Core Animation (pings, pops, blinks) isn't captured; snapshots show the resting state.
 
@@ -140,8 +204,10 @@ Core Animation (pings, pops, blinks) isn't captured; snapshots show the resting 
 announcements and tile output to stderr, and accepts commands as `dev.tabby.island.debug`
 distributed notifications (object = command): `state`, `menu` (dump the status menu),
 `about`, `keyboard`, `next`, `mode`, `tile[:n]`, `jump:N`, `rename`,
-`announce:done|waiting|info`, and `key:<keyCode>[:<chars>]` (posted to the island's own event
-queue). Without the variable none of this is installed.
+`announce:done|waiting|info`, `watermark` (toggle), `watermark:state` (each overlay's frame,
+and whether it's directly above its window), `settings[:general|watermark|shortcuts]`,
+`record:<action>`, `toggle-island`, and `key:<keyCode>[:<chars>]` (posted to the island's own
+event queue). Without the variable none of this is installed.
 
 ## Performance
 
@@ -160,6 +226,8 @@ during the expand spring).
   and they end on their own.
 - Hover tracking uses global and local mouse monitors, plus a 10 Hz poll only while the
   pointer is over the island or it's expanded.
+- The watermark's window check costs ~1 ms (4× a second only while Terminal is in front); with
+  four sessions and the watermark on, the island measured 0.6 % while idle.
 
 ## Files
 
@@ -174,7 +242,10 @@ during the expand spring).
 | `Components.swift` | Core Animation views: status dot (pop and sparkle), spinner, bell; menu swatches |
 | `Brand.swift` | the cat's geometry (from `brand/logo.svg`), the template menu-bar icon, the blinking footer cat |
 | `Hotkeys.swift` | Carbon global hotkeys |
+| `Shortcuts.swift` | key combos (parse, display, menu keys), the shortcut actions and their defaults |
+| `Watermark.swift` | watermark settings, drawing, the overlay window and the controller that follows Terminal windows |
+| `Settings.swift` | the Settings window: General, Watermark (with a live preview), Shortcuts (with a recorder) |
 | `Actions.swift` | tabby CLI calls, tab focusing (AppleScript), menus |
-| `TerminalTitles.swift` | reads Terminal/iTerm tab titles for sessions without a tabby record |
+| `TerminalTitles.swift` | reads Terminal/iTerm tab titles (for sessions without a tabby record) and Terminal's window of each tab |
 | `Snapshot.swift` | `--snapshot` renders and demo data |
 | `Debug.swift` | the `TABBY_ISLAND_DEBUG` channel |

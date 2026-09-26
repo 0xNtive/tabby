@@ -144,6 +144,18 @@ test('/tab theme <t> all recolors every live tab and becomes the default', () =>
   assert.match(read('b'), /\x1b\]11;#/);
 });
 
+test('/tab watermark turns the island watermark on and off', () => {
+  const run = (prompt) => as('a', process.pid, () => hook('UserPromptSubmit', { session_id: 'A', prompt })).reason;
+  assert.match(run('/tab watermark off'), /Watermark off/);
+  assert.equal(S.readConfig().watermark, false);
+  assert.match(run('/tab watermark'), /Watermark on.*⌃⌥W toggles it/);
+  assert.equal(S.readConfig().watermark, true);
+  S.writeConfig({ islandShortcuts: { watermark: 'cmd+shift+w' } });
+  assert.match(run('/tab watermark off'), /or ⇧⌘W/);
+  assert.match(run('/tab watermark maybe'), /Watermark: on \| off \(now off\)/);
+  S.writeConfig({ watermark: true, islandShortcuts: {} });
+});
+
 test('/clear keeps the tab identity; exit restores the terminal', () => {
   const b = S.readSession('B');
   clearTty('b');

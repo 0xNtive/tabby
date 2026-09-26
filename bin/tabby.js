@@ -15,7 +15,7 @@ import { runCommand, helpText } from '../lib/commands.js';
 import { handleHook, refreshContext, wantsRename } from '../lib/hooks.js';
 import { runNamer } from '../lib/namer.js';
 import { statusline } from '../lib/statusline.js';
-import { install, uninstall, pluginInstalled, writeExports, ROOT, nodePath } from '../lib/install.js';
+import { install, uninstall, pluginInstalled, writeExports, ROOT, nodePath, LAUNCHER } from '../lib/install.js';
 import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
 import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next } from '../lib/tile.js';
@@ -209,6 +209,7 @@ function doctor() {
     ['Claude theme', getTheme(cfg.theme).mode === claudeMode() ? `${ok(true)} ${claudeTheme()} (matches ${getTheme(cfg.theme).name})` : `${ok(false)} ${claudeTheme()}, but ${getTheme(cfg.theme).name} is ${getTheme(cfg.theme).mode}: Claude's text will be hard to read. Use /theme in Claude or a ${claudeMode()} tabby theme`],
     ['Terminal titles', term === 'apple-terminal' ? (cfg.terminalTabTitles ? `${ok(true)} only the session name (Claude tabs use ${twins().join(', ') || 'a “· tabby” copy of their profile'})` : c(DIM, 'windows show folder, process and args too → tabby terminal-titles on')) : c(DIM, 'n/a')],
     ['animation', cfg.animate === false ? c(DIM, 'off') : `${ok(true)} spinner + blinking bell${tickerPid() ? ' (running)' : ''}`],
+    ['watermark', process.platform !== 'darwin' ? c(DIM, 'n/a (Tabby Island, macOS)') : cfg.watermark === false ? c(DIM, 'off → /tab watermark on') : `${ok(true)} each Terminal.app session's topic over its window${islandUp ? '' : ' (when Tabby Island runs: tabby island)'}`],
     ['sessions', `${[...readRegistry().values()].filter((r) => r.kind === 'interactive').length} running · ${liveSessions().length} tracked`],
     ['state', paths.root],
   ];
@@ -233,6 +234,7 @@ function adopt() {
   console.log(n ? `Adopted ${n} running session${n === 1 ? '' : 's'} (colors now; AI names, status and /tab after a restart — claude --continue keeps the conversation).` : 'Nothing to adopt — every running session is already tracked.');
 }
 
+const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const asq = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
@@ -262,7 +264,7 @@ function island(sub = 'start') {
     if (r.status !== 0) return console.log('Build failed (needs Xcode command line tools: xcode-select --install).');
     if (sub === 'build') return;
   }
-  if (sub === 'login') return islandLogin(app);
+  if (sub === 'login') return islandLogin();
   if (sub === 'accessibility') {
     // Restart it with the flag: the island asks macOS itself, so the permission is Tabby Island's.
     spawnSync('osascript', ['-e', 'quit app "Tabby Island"'], { stdio: 'ignore' });
@@ -273,7 +275,9 @@ function island(sub = 'start') {
   console.log('Tabby Island is running — hover the top-center of your screen.');
 }
 
-function islandLogin(app) {
+// At login, the launcher opens the newest installed island (a version's own folder goes away
+// after an update).
+function islandLogin() {
   const plist = path.join(process.env.HOME, 'Library', 'LaunchAgents', 'dev.tabby.island.plist');
   if (flags.off) {
     spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
@@ -283,7 +287,7 @@ function islandLogin(app) {
   fs.mkdirSync(path.dirname(plist), { recursive: true });
   fs.writeFileSync(
     plist,
-    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>dev.tabby.island</string>\n<key>ProgramArguments</key><array><string>/usr/bin/open</string><string>${app}</string></array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n`
+    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>dev.tabby.island</string>\n<key>ProgramArguments</key><array><string>${xmlEscape(nodePath())}</string><string>${xmlEscape(LAUNCHER)}</string><string>island</string></array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n`
   );
   spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
   console.log(`Tabby Island starts at login (${plist}). Undo: tabby island login --off`);
@@ -313,7 +317,8 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
   tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
   tabby adopt                 color sessions that were started before tabby
-  tabby island [build|stop|login|accessibility]   the macOS session island
+  tabby island [build|stop|login|accessibility]   the macOS session island (Settings: ⌃⌥, or its menu-bar icon)
+  tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use

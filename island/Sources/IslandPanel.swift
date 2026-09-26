@@ -132,25 +132,29 @@ struct IslandActions {
                                      tileMenu: {}, commitRename: {}, cancelRename: {})
 }
 
-/// A setting the user just changed: applied at once, and kept until config.json (written by
-/// the CLI in the background) agrees — or changes to something else, which then wins.
-private struct Pending<Value: Equatable> {
-    private var value: Value?
-    private var baseline: Value?
+/// Settings the user just changed, by config key: applied at once, and kept until config.json
+/// (written by the CLI in the background) agrees, or changes to something else, which then wins.
+private struct PendingConfig {
+    private var entries: [String: (value: ConfigValue, baseline: ConfigValue?)] = [:]
 
-    mutating func set(_ newValue: Value, file: Value) {
-        value = newValue
-        baseline = file
+    mutating func set(_ key: String, _ value: ConfigValue, file: ConfigValue?) {
+        entries[key] = (value, file)
     }
 
-    mutating func resolve(_ file: Value) -> Value {
-        guard let value else { return file }
-        if file == value || file != baseline {
-            self.value = nil
-            baseline = nil
-            return file
+    func value(_ key: String) -> ConfigValue? { entries[key]?.value }
+
+    /// The file's values with the pending ones on top; forgets those the file has caught up with.
+    mutating func resolve(_ file: [String: ConfigValue]) -> [String: ConfigValue] {
+        var out = file
+        for (key, entry) in entries {
+            let current = file[key]
+            if current == entry.value || current != entry.baseline {
+                entries[key] = nil
+            } else {
+                out[key] = entry.value
+            }
         }
-        return value
+        return out
     }
 }
 
@@ -182,10 +186,18 @@ final class IslandController {
 
     // Settings: config.json overlaid with changes the CLI is still writing.
     private(set) var config = IslandConfig()
-    private var pendingMode = Pending<IslandMode>()
-    private var pendingAnnounce = Pending<Bool>()
-    private var pendingHotkeys = Pending<Bool>()
+    private var pending = PendingConfig()
     private var configLoaded = false
+    /// What the Settings window shows.
+    let settingsState = SettingsState()
+    private var settingsWindow: SettingsWindowController?
+    /// Records the next key press as a shortcut (Settings › Shortcuts).
+    private var recordMonitor: Any?
+
+    /// Each Terminal session's topic, large and faint, over its window.
+    let watermark = WatermarkController()
+    /// The strength shown while Settings' slider moves (saved when it's let go).
+    private var watermarkPreview: Double?
 
     // Keyboard focus (⌃⌥Space).
     private var previousApp: NSRunningApplication?
@@ -204,8 +216,12 @@ final class IslandController {
     private let expandDelay = 0.12
     private let collapseDelay = 0.35
 
-    init(store: SessionStore) {
+    /// Snapshot renders: no global shortcuts, no watermark windows.
+    private let inert: Bool
+
+    init(store: SessionStore, inert: Bool = false) {
         self.store = store
+        self.inert = inert
         buildPanel()
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -229,7 +245,16 @@ final class IslandController {
                 MainActor.assumeIsolated { self?.storeChanged(snapshot) }
             }
             .store(in: &cancellables)
+        watermark.onUnknownWindow = { [weak store] in store?.requestTerminalWindows() }
+        settingsState.loginItem = Self.loginItemInstalled
         installDebugChannel()
+    }
+
+    /// Shows or hides the island and remembers it (status menu, Settings).
+    func setShown(_ on: Bool) {
+        if on { show() } else { hide() }
+        UserDefaults.standard.set(isShown, forKey: "showIsland")
+        settingsState.islandShown = isShown
     }
 
     func show() {
@@ -311,7 +336,8 @@ final class IslandController {
 
     private func storeChanged(_ snapshot: StoreSnapshot) {
         guard snapshot.loaded else { return }
-        resolveConfig(snapshot.config)
+        resolveConfig(snapshot)
+        updateWatermark(snapshot)
         detectTransitions(snapshot)
         if let id = ui.renaming, !snapshot.sessions.contains(where: { $0.id == id }) {
             finishRename(commit: false)   // the session ended under the field
@@ -321,16 +347,14 @@ final class IslandController {
         }
     }
 
-    private func resolveConfig(_ file: IslandConfig) {
-        var next = file
-        next.mode = pendingMode.resolve(file.mode)
-        next.announce = pendingAnnounce.resolve(file.announce)
-        next.hotkeys = pendingHotkeys.resolve(file.hotkeys)
+    private func resolveConfig(_ snapshot: StoreSnapshot) {
+        let next = IslandConfig(raw: pending.resolve(snapshot.configRaw))
         let first = !configLoaded
         configLoaded = true
         guard first || next != config else { return }
         let old = config
         config = next
+        settingsState.config = next
         if ui.mode != next.mode {
             if first {
                 ui.mode = next.mode
@@ -340,32 +364,183 @@ final class IslandController {
                 }
             }
         }
-        if first || next.hotkeys != old.hotkeys { updateHotkeys() }
+        if first || next.hotkeys != old.hotkeys || next.shortcuts != old.shortcuts { updateHotkeys() }
         if old.announce, !next.announce {
             announcements.removeAll { $0.kind != .info }
             if ui.announcement?.kind != .info { endAnnouncement() }
         }
+        if first || next.watermark != old.watermark { updateWatermark(snapshot) }
+    }
+
+    /// Applies a setting at once and has the CLI write it: `tabby config <key> <json>`, or
+    /// `command` when the setting needs more than a write (repainting every tab, say).
+    func setSetting(_ key: String, _ value: ConfigValue, command: [String]? = nil) {
+        guard (pending.value(key) ?? store.snapshot.configRaw[key]) != value else { return }
+        pending.set(key, value, file: store.snapshot.configRaw[key])
+        if let command { Actions.runCLI(command) } else { Actions.setConfig(key, json: value.json) }
+        resolveConfig(store.snapshot)
     }
 
     func setMode(_ mode: IslandMode) {
         guard mode != config.mode else { return }
-        pendingMode.set(mode, file: store.snapshot.config.mode)
-        Actions.setConfig("islandMode", json: "\"\(mode.rawValue)\"")
-        resolveConfig(store.snapshot.config)
+        setSetting("islandMode", .string(mode.rawValue))
     }
 
-    func setAnnounce(_ on: Bool) {
-        guard on != config.announce else { return }
-        pendingAnnounce.set(on, file: store.snapshot.config.announce)
-        Actions.setConfig("islandAnnounce", json: on ? "true" : "false")
-        resolveConfig(store.snapshot.config)
+    func setAnnounce(_ on: Bool) { setSetting("islandAnnounce", .bool(on)) }
+    func setHotkeys(_ on: Bool) { setSetting("islandHotkeys", .bool(on)) }
+
+    // Tabby's own settings, as the CLI changes them (every open tab follows at once).
+    func setThemeAll(_ id: String) { setSetting("theme", .string(id), command: ["theme", id, "--all"]) }
+    func setNamer(_ value: String) { setSetting("namer", .string(value), command: ["namer", value]) }
+    func setStrength(_ value: String) { setSetting("strength", .string(value), command: ["strength", value]) }
+    func setMarker(_ value: String) { setSetting("marker", .string(value), command: ["marker", value]) }
+    func setAnimate(_ on: Bool) { setSetting("animate", .bool(on)) }
+    func setTerminalTitles(_ on: Bool) {
+        setSetting("terminalTabTitles", .bool(on), command: ["terminal-titles", on ? "on" : "off"])
     }
 
-    func setHotkeys(_ on: Bool) {
-        guard on != config.hotkeys else { return }
-        pendingHotkeys.set(on, file: store.snapshot.config.hotkeys)
-        Actions.setConfig("islandHotkeys", json: on ? "true" : "false")
-        resolveConfig(store.snapshot.config)
+    // MARK: Watermark
+
+    func setWatermark(_ on: Bool) { setSetting("watermark", .bool(on)) }
+    func setWatermarkOpacity(_ percent: Double) {
+        watermarkPreview = nil
+        setSetting("watermarkOpacity", .number(percent.rounded()))
+        updateWatermark(store.snapshot)
+    }
+    func setWatermarkSize(_ size: WatermarkSize) { setSetting("watermarkSize", .string(size.rawValue)) }
+    func setWatermarkColor(_ color: WatermarkColor) { setSetting("watermarkColor", .string(color.rawValue)) }
+    func setWatermarkPosition(_ position: WatermarkPosition) { setSetting("watermarkPosition", .string(position.rawValue)) }
+
+    /// Shows a strength on every watermark while the slider moves, without saving it yet.
+    func previewWatermarkOpacity(_ percent: Double?) {
+        watermarkPreview = percent
+        updateWatermark(store.snapshot)
+    }
+
+    /// ⌃⌥W: on or off; while collapsed the pill says which.
+    func toggleWatermark() {
+        let on = !config.watermark.enabled
+        setWatermark(on)
+        if !ui.expanded {
+            enqueue(.info(on ? "Watermark on" : "Watermark off", symbol: "textformat.size.larger", topic: "watermark"),
+                    force: true)
+        }
+    }
+
+    private func updateWatermark(_ snapshot: StoreSnapshot) {
+        guard !inert else { return }
+        var settings = config.watermark
+        if let watermarkPreview { settings.opacity = watermarkPreview }
+        watermark.apply(settings)
+        watermark.update(snapshot) { session in
+            settings.tint(for: session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId)
+        }
+    }
+
+    // MARK: Shortcuts
+
+    func setShortcut(_ action: ShortcutAction, _ combo: KeyCombo?) {
+        var shortcuts = config.shortcuts
+        shortcuts[action] = combo
+        setSetting("islandShortcuts", .object(shortcuts.overrides))
+    }
+
+    func restoreDefaultShortcuts() {
+        settingsState.message = nil
+        setSetting("islandShortcuts", .object([:]))
+    }
+
+    func perform(_ action: ShortcutAction) {
+        switch action {
+        case .toggle: toggleKeyboard()
+        case .next: jumpToNextNeedingYou()
+        case .jump: focusSession(at: 0)
+        case .tile: tile(nil)
+        case .mode: cycleMode()
+        case .watermark: toggleWatermark()
+        case .settings: openSettings()
+        }
+    }
+
+    /// Settings › Shortcuts: the next key press becomes `action`'s shortcut. Global shortcuts
+    /// are off meanwhile, so pressing a current one records it instead of running it.
+    func beginRecording(_ action: ShortcutAction) {
+        endRecording()
+        settingsState.message = nil
+        settingsState.recording = action
+        HotkeyCenter.shared.disable()
+        recordMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let consumed = MainActor.assumeIsolated { self?.record(event) ?? false }
+            return consumed ? nil : event
+        }
+    }
+
+    func endRecording() {
+        if let recordMonitor { NSEvent.removeMonitor(recordMonitor) }
+        recordMonitor = nil
+        guard settingsState.recording != nil else { return }
+        settingsState.recording = nil
+        updateHotkeys()
+    }
+
+    private func record(_ event: NSEvent) -> Bool {
+        guard let action = settingsState.recording else { return false }
+        let code = Int(event.keyCode)
+        let modifiers = KeyModifiers(event.modifierFlags)
+        if code == kVK_Escape, modifiers.isEmpty {
+            endRecording()
+            return true
+        }
+        if code == kVK_Delete || code == kVK_ForwardDelete, modifiers.isEmpty {
+            setShortcut(action, nil)
+            endRecording()
+            return true
+        }
+        func refuse(_ message: String) -> Bool {
+            settingsState.message = message
+            NSSound.beep()
+            return true
+        }
+        guard KeyNames.label(for: code) != nil else { return refuse("That key can't be part of a shortcut.") }
+        let combo = KeyCombo(code, modifiers)
+        if action == .jump, !combo.isDigit { return refuse("Press the modifiers with a digit, like ⌃⌥1.") }
+        if modifiers.intersection([.control, .option, .command]).isEmpty, !combo.isFunctionKey {
+            return refuse("Add ⌃, ⌥ or ⌘, so the shortcut doesn't get in the way of typing.")
+        }
+        for other in ShortcutAction.allCases where other != action {
+            if let existing = config.shortcuts[other], action.collides(combo, with: existing, of: other) {
+                return refuse("\(action.display(combo)) is already “\(other.title)”.")
+            }
+        }
+        setShortcut(action, combo)
+        endRecording()
+        return true
+    }
+
+    // MARK: Settings window
+
+    func openSettings(_ tab: SettingsTab? = nil) {
+        if ui.keyboard { endKeyboard(restoreFocus: false) } else { setExpanded(false) }
+        if let tab { settingsState.tab = tab }
+        settingsState.islandShown = isShown
+        settingsState.loginItem = Self.loginItemInstalled
+        let window = settingsWindow ?? SettingsWindowController(island: self, store: store, state: settingsState)
+        settingsWindow = window
+        window.show()
+    }
+
+    private static var loginAgent: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/dev.tabby.island.plist")
+    }
+
+    static var loginItemInstalled: Bool { FileManager.default.fileExists(atPath: loginAgent.path) }
+
+    func setLoginItem(_ on: Bool) {
+        settingsState.loginItem = on
+        Actions.runCLI(on ? ["island", "login"] : ["island", "login", "--off"]) { [weak self] _, _ in
+            self?.settingsState.loginItem = Self.loginItemInstalled
+        }
     }
 
     /// ⌃⌥M: the next density; while collapsed the pill says which one.
@@ -376,21 +551,26 @@ final class IslandController {
     }
 
     private func updateHotkeys() {
+        guard !inert else { return }
         let center = HotkeyCenter.shared
-        guard config.hotkeys else {
+        guard config.hotkeys, settingsState.recording == nil else {
             center.disable()
+            if settingsState.recording == nil { settingsState.unavailable = [] }
             return
         }
-        var bindings: [HotkeyCenter.Binding] = [
-            .init(keyCode: Shortcut.toggle) { [weak self] in self?.toggleKeyboard() },
-            .init(keyCode: Shortcut.next) { [weak self] in self?.jumpToNextNeedingYou() },
-            .init(keyCode: Shortcut.tile) { [weak self] in self?.tile(nil) },
-            .init(keyCode: Shortcut.mode) { [weak self] in self?.cycleMode() },
-        ]
-        for (index, code) in Shortcut.digits.enumerated() {
-            bindings.append(.init(keyCode: code) { [weak self] in self?.focusSession(at: index) })
+        var bindings: [HotkeyCenter.Binding] = []
+        for action in ShortcutAction.allCases {
+            guard let combo = config.shortcuts[action] else { continue }
+            if action == .jump {
+                for (index, code) in KeyNames.jumpDigits.enumerated() {
+                    bindings.append(.init(combo: KeyCombo(code, combo.modifiers)) { [weak self] in self?.focusSession(at: index) })
+                }
+            } else {
+                bindings.append(.init(combo: combo) { [weak self] in self?.perform(action) })
+            }
         }
         center.enable(bindings)
+        settingsState.unavailable = center.unavailable
     }
 
     // MARK: Hover tracking
@@ -733,6 +913,8 @@ final class IslandController {
                 case "t": showSelectionMenu(color: false)
                 case "m": setMode(config.mode.next)
                 case "g": tile(nil)
+                case "w": toggleWatermark()
+                case ",": openSettings()
                 default: break   // swallowed: nothing leaks to the terminal or beeps
                 }
             }
@@ -921,7 +1103,7 @@ final class IslandController {
             "active=\(NSApp.isActive) front=\(front) mode=\(ui.mode.rawValue) selected=\(ui.hoveredRow ?? "-") " +
             "announcement=\(ui.announcement?.title ?? "-") queued=\(announcements.count) " +
             "renaming=\(ui.renaming.map { _ in "\"" + ui.renameText + "\"" } ?? "-") allowsKey=\(panel?.allowsKey ?? false) " +
-            "hotkeys=\(HotkeyCenter.shared.isEnabled) config=\(config)"
+            "hotkeys=\(HotkeyCenter.shared.isEnabled) config=\(config)\n" + watermark.debugState()
     }
 
     func postKey(code: UInt16, characters: String) {

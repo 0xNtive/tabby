@@ -128,6 +128,14 @@ enum Actions {
         }
     }
 
+    /// System Settings › Privacy & Security › Automation (the watermark asks Terminal which
+    /// window shows which session).
+    static func openAutomationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// Brings the session's terminal tab to the front.
     static func focus(_ session: IslandSession) {
         let term = (session.term ?? "").lowercased()

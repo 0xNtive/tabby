@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.9 — 2026-09-26
+
+- **Watermark.** Tabby Island writes each Terminal.app session's topic in large, faint letters across its window, in the session's color.
+  - Clicks and typing go straight through, and the island never takes focus.
+  - It follows the window: it fades while you drag or resize, and comes back when you let go.
+  - Background tabs, minimized windows and other desktops don't show it; full-screen windows get it on their own desktop.
+  - Turn it on or off with ⌃⌥W, `/tab watermark on|off`, or the island's menu. Strength (18% by default), size, color and position are in Settings.
+  - It asks Terminal which window shows which session, so macOS asks once to let Tabby Island control Terminal.
+- **Settings window** (⌃⌥, or the menu-bar icon). It has three panes:
+  - **General:** the island, mode, announcements, open at login, and tabby's own settings (theme for every tab, background tint, title marker, tab names, animation, Terminal.app titles);
+  - **Watermark**, with a live preview;
+  - **Shortcuts.**
+- **Every shortcut can be changed.** Click one in Settings › Shortcuts and press the new keys. Delete removes it; Restore Defaults brings the originals back. New shortcuts: ⌃⌥W watermark and ⌃⌥, Settings; in the island, W and , do the same. They're saved as `islandShortcuts` in config.json.
+- **Open at login** now runs the launcher, so it keeps working after an update. Before, it pointed at one version's folder.
+- **Faster reads of Terminal's tabs.** Titles and windows come in three Apple events for all tabs, instead of a few per tab: about 6× faster, in the island and the CLI.
+
 ## 0.2.8 — 2026-09-26
 
 - **Install in one line:** `curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash`.
