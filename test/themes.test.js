@@ -94,3 +94,52 @@ test('color words', () => {
   assert.equal(parseColor('banana'), null);
   assert.ok(accentHex(findTheme('rose-pine'), 'green'), 'missing keys fall back to nearest hue');
 });
+
+test('Claude Code stays readable: signature themes and auto variety keep >= 80% of its contrast', async () => {
+  const { VARIETY_POOL } = await import('../lib/themes.js');
+  for (const t of THEMES.filter((x) => x.group === 'signature')) {
+    const a = audit(t);
+    assert.ok(a.claudeKeep >= 0.8, `${t.id} keeps ${a.claudeKeep}`);
+  }
+  for (const id of VARIETY_POOL) {
+    const t = findTheme(id);
+    assert.equal(t.mode, 'dark', id);
+    assert.ok(audit(t).claudeFriendly, `${id} keeps ${audit(t).claudeKeep}`);
+  }
+  const zen = audit(findTheme('zenburn'));
+  assert.ok(zen.claudeKeep < 0.6 && !zen.claudeFriendly, 'the audit reports themes where Claude fades');
+});
+
+test('picking a theme of the other mode than Claude warns about Claude\'s own text', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { modeWarning } = await import('../lib/commands.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabby-claude-'));
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  try {
+    assert.equal(modeWarning(findTheme('nord')), '', 'dark tabby theme + Claude default (dark)');
+    assert.match(modeWarning(findTheme('paper')), /white text/);
+    fs.writeFileSync(path.join(dir, '.claude.json'), JSON.stringify({ theme: 'light-daltonized' }));
+    assert.equal(modeWarning(findTheme('paper')), '');
+    assert.match(modeWarning(findTheme('nord')), /black text/);
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = prev;
+  }
+});
+
+test('status line colors stay readable on every theme background', async () => {
+  const { statusline } = await import('../lib/statusline.js');
+  assert.equal(typeof statusline, 'function');
+  const { ensureContrast } = await import('../lib/color.js');
+  for (const t of THEMES) {
+    for (const k of ACCENT_KEYS) {
+      const look = resolveLook({ theme: t.id, accentKey: k }, { strength: 'bold' });
+      for (const warn of ['#e06c75', '#e5c07b', look.cursor]) {
+        assert.ok(contrast(ensureContrast(warn, look.bg, 3), look.bg) >= 3, `${t.id}/${k} ${warn}`);
+      }
+    }
+  }
+});

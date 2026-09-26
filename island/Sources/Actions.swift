@@ -322,6 +322,7 @@ final class MenuFactory: NSObject {
         let groups = store.snapshot.groups.isEmpty
             ? [ThemeGroup(id: "", name: "Themes")]
             : store.snapshot.groups
+        let claude = ClaudeTheme.mode()
         for group in groups {
             let members = group.id.isEmpty ? themes : themes.filter { $0.group == group.id }
             guard !members.isEmpty else { continue }
@@ -331,6 +332,17 @@ final class MenuFactory: NSObject {
                     apply(theme.id)
                 }
                 if !theme.blurb.isEmpty { entry.toolTip = theme.blurb }
+                // Claude Code draws white text in its dark theme and black in its light one, so a
+                // tabby theme of the other mode leaves Claude's own text unreadable.
+                if theme.mode != claude {
+                    let title = NSMutableAttributedString(string: theme.name, attributes: [.font: NSFont.menuFont(ofSize: 0)])
+                    title.append(NSAttributedString(string: "  needs Claude's \(theme.mode) theme", attributes: [
+                        .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
+                        .foregroundColor: NSColor.secondaryLabelColor,
+                    ]))
+                    entry.attributedTitle = title
+                    entry.toolTip = "Claude Code is on its \(claude) theme, so its own text would be unreadable on \(theme.name). Type /theme in Claude to switch, or pick a \(claude) tabby theme."
+                }
                 submenu.addItem(entry)
             }
             let parent = self.submenu(group.name, menu: submenu)
@@ -377,5 +389,18 @@ final class MenuFactory: NSObject {
             .foregroundColor: session.status == .waiting ? Palette.waitingNS : NSColor.secondaryLabelColor,
         ]))
         return title
+    }
+}
+
+
+/// Claude Code's own theme ("dark" unless /theme set something else in ~/.claude.json).
+enum ClaudeTheme {
+    static func mode() -> String {
+        let home = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
+            .map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser
+        guard let data = try? Data(contentsOf: home.appendingPathComponent(".claude.json")),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let theme = json["theme"] as? String else { return "dark" }
+        return theme.hasPrefix("light") ? "light" : "dark"
     }
 }

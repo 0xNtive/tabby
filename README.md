@@ -108,6 +108,8 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 
 - **Contrast stays fixed.** A session's background is its theme's background, shifted toward the session color in OKLCH at the same lightness, so text contrast doesn't move. tabby also never lets a tint make text less readable than the theme itself.
 - **Every theme is WCAG AA or better,** and cursors stay at 3:1 or more. Tests enforce both, and the numbers are in the [contrast audit](docs/contrast.md).
+- **Claude's own UI stays legible.** Claude Code draws its own colored text (dim gray, suggestions, its orange, diffs). 30 themes keep at least 80% of its intended contrast, including all five of tabby's own; they're marked ✓ in the audit, and automatic theme variety only uses them.
+- **Match the mode.** Claude's dark theme (the default) draws white text, and its light theme black. With a light tabby theme, switch Claude to light with `/theme`. tabby warns you if they don't match.
 - **No two open sessions share a color.** A project gets its last color back when that color is free.
 - **57 themes in six groups:**
   - **Signature:** Tabby Dusk, Midnight, Ember, Paper, Mist.

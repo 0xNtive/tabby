@@ -555,7 +555,7 @@
       b.dataset.id = t.id;
       b.dataset.group = t.group;
       b.setAttribute('aria-pressed', String(t.id === state.themeId));
-      b.setAttribute('aria-label', `${t.name}. ${t.contrast.rating}, ${ratio(t.contrast.text)} to 1 contrast${t.calm ? ', calm' : ''}.`);
+      b.setAttribute('aria-label', `${t.name}. ${t.contrast.rating}, ${ratio(t.contrast.text)} to 1 contrast${t.calm ? ', calm' : ''}${t.contrast.claudeFriendly ? ', keeps Claude Code readable' : ''}.`);
       b.style.setProperty('--c-bg', t.bg);
       b.style.setProperty('--c-fg', t.fg);
       const dots = KEYS.filter((k) => t.accents[k]).map((k) => `<i style="--d:${esc(t.accents[k])}"></i>`).join('');
@@ -563,7 +563,7 @@
         `<span class="tcard__top"><span class="tcard__name">${esc(t.name)}</span><svg class="tcard__check" aria-hidden="true"><use href="#i-check"/></svg></span>` +
         `<span class="tcard__id">${esc(t.id)}</span>` +
         `<span class="tcard__dots" aria-hidden="true">${dots}</span>` +
-        `<span class="tcard__foot" aria-hidden="true"><span class="badge">${esc(t.contrast.rating)} · ${ratio(t.contrast.text)}:1</span>${t.calm ? '<span class="badge badge--calm">calm</span>' : ''}</span>`;
+        `<span class="tcard__foot" aria-hidden="true"><span class="badge">${esc(t.contrast.rating)} · ${ratio(t.contrast.text)}:1</span>${t.calm ? '<span class="badge badge--calm">calm</span>' : ''}${t.contrast.claudeFriendly ? '<span class="badge badge--calm" title="Claude Code keeps at least 80% of its contrast on this theme">Claude ✓</span>' : ''}</span>`;
       frag.append(b);
     }
     grid.replaceChildren(frag);
@@ -606,7 +606,7 @@
       $('#pv-name').textContent = t.name;
       const mode = t.mode === 'light' ? 'Light' : 'Dark';
       $('#pv-blurb').textContent = t.blurb || `${mode} theme from the ${state.groups[t.group] || t.group} set`;
-      $('#pv-facts').textContent = `Text ${ratio(t.contrast.text)}:1 (${t.contrast.rating}). Tinted tabs never drop below ${ratio(t.contrast.tintedText)}:1.${t.calm ? ' Tagged calm.' : ''}`;
+      $('#pv-facts').textContent = `Text ${ratio(t.contrast.text)}:1 (${t.contrast.rating}). Tinted tabs never drop below ${ratio(t.contrast.tintedText)}:1. Claude Code's own colors keep ${Math.round(t.contrast.claudeKeep * 100)}% of their contrast here${t.mode === 'light' ? '; set Claude to a light theme with /theme' : ''}.${t.calm ? ' Tagged calm.' : ''}`;
       const cmd = `/tab theme ${t.id} all`;
       $('#pv-cmd').textContent = cmd;
       $('#pv-copy').dataset.copy = cmd;
