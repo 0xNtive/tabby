@@ -40,7 +40,7 @@ Inside Claude Code:
 | a `statusLine`, only if you don't have one | name, color and context meter inside Claude |
 | `~/.claude/commands/tab.md` | the short `/tab`; plugin commands are namespaced as `/tabby:tab` |
 | a 3-line block in `~/.zshrc` / `~/.bashrc` | the `claude --tab --color --theme` flags and the `tabby` command |
-| Terminal.app profiles: show only the custom title in tabs | tabs read `🔵 ◐ Dark Mode Settings`, not `…caffeinate ◂ claude --dangerously-skip-permissions` |
+| Terminal.app: each Claude tab uses a "<profile> · tabby" copy of its profile while it runs | windows and tabs read `🔵 ◐ Dark Mode Settings`, not `api — 🔵 ◐ Dark Mode Settings — caffeinate ◂ claude --dangerously-skip-permissions — 80×24` |
 | `~/.claude/tabby/bin/tabby.mjs` | a launcher that always runs the newest installed copy |
 
 Then `/tabby:setup island` builds the macOS island (about 15 s; needs the Xcode Command Line Tools).
@@ -129,7 +129,7 @@ Tuning options:
 
 | | title | background | tab color | jump to tab | tile |
 |---|---|---|---|---|---|
-| Terminal.app | ✓ | ✓ | emoji marker | ✓ | ✓ (tabs → windows with Accessibility) |
+| Terminal.app | ✓ only the name ([how](#how-it-works)) | ✓ | emoji marker | ✓ | ✓ (tabs → windows with Accessibility) |
 | iTerm2 | ✓ | ✓ | ✓ native, pulses when waiting | ✓ | ✓ |
 | Ghostty, WezTerm, kitty, Alacritty | ✓ | ✓ | emoji marker | – | – |
 | VS Code / Cursor | ✓ with `"terminal.integrated.tabs.title": "${sequence}"` | ✓ | emoji marker | – | – |
@@ -141,7 +141,8 @@ Tuning options:
 - **Names.** A background `claude -p --safe-mode --model haiku` call (thinking off, no hooks, plugins or MCP) returns a 2–4 word title and a one-line summary. It's handed back to Claude via the hook `sessionTitle` field, so `/resume` shows it too. `tabby config namer heuristic` names tabs with no model call.
 - **Animation.** While a session works or waits, one small background process redraws those titles about 6 times a second, then exits a minute after everything is idle.
 - **Status** comes from the hooks, plus Claude's own session registry. **Context** comes from the status line, or else from the transcript.
-- **Exit.** On exit a tab gets its profile colors back (`OSC 110/111/112`); `/clear` keeps its identity.
+- **Terminal.app titles.** Terminal adds the folder, process, arguments and size to every title, and reads its title settings only at launch. So while a session runs, its tab uses a copy of its own profile ("Basic · tabby") with just those title parts turned off. The copy is imported once per profile, which opens and closes a Terminal window for a moment. `tabby terminal-titles off` puts the tabs back and deletes the copies.
+- **Exit.** On exit a tab gets its profile colors back (`OSC 110/111/112`), and in Terminal.app its own profile; `/clear` keeps its identity.
 
 State lives in `~/.claude/tabby`; the log is `~/.claude/tabby/tabby.log`.
 

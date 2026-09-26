@@ -21,7 +21,7 @@ import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next } from '../lib/tile.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY, TERMS_VERSION } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
-import { setTerminalTabTitles } from '../lib/terminal-prefs.js';
+import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, twins } from '../lib/terminal-prefs.js';
 import { runTicker, tickerPid } from '../lib/ticker.js';
 import { claudeTheme, claudeMode } from '../lib/claude-palette.js';
 
@@ -207,12 +207,12 @@ function doctor() {
     ['island', fs.existsSync(islandApp) ? `${ok(true)} built${islandUp ? ', running' : ' (tabby island)'}` : c(DIM, 'not built → tabby island')],
     ['terms', termsAccepted(cfg) ? `${ok(true)} accepted (${TERMS_VERSION})` : `${ok(false)} not accepted → tabby setup`],
     ['Claude theme', getTheme(cfg.theme).mode === claudeMode() ? `${ok(true)} ${claudeTheme()} (matches ${getTheme(cfg.theme).name})` : `${ok(false)} ${claudeTheme()}, but ${getTheme(cfg.theme).name} is ${getTheme(cfg.theme).mode}: Claude's text will be hard to read. Use /theme in Claude or a ${claudeMode()} tabby theme`],
-    ['Terminal tabs', term === 'apple-terminal' ? (cfg.terminalTabTitles ? `${ok(true)} Terminal.app tabs show only the session name` : c(DIM, 'Terminal.app shows process + args too → tabby terminal-titles on')) : c(DIM, 'n/a')],
+    ['Terminal titles', term === 'apple-terminal' ? (cfg.terminalTabTitles ? `${ok(true)} only the session name (Claude tabs use ${twins().join(', ') || 'a “· tabby” copy of their profile'})` : c(DIM, 'windows show folder, process and args too → tabby terminal-titles on')) : c(DIM, 'n/a')],
     ['animation', cfg.animate === false ? c(DIM, 'off') : `${ok(true)} spinner + blinking bell${tickerPid() ? ' (running)' : ''}`],
     ['sessions', `${[...readRegistry().values()].filter((r) => r.kind === 'interactive').length} running · ${liveSessions().length} tracked`],
     ['state', paths.root],
   ];
-  for (const [k, v] of rows) console.log(`  ${c(DIM, pad(k, 14))} ${v}`);
+  for (const [k, v] of rows) console.log(`  ${c(DIM, pad(k, 16))} ${v}`);
 }
 
 // Color sessions that were already running before tabby was installed (colors only —
@@ -308,7 +308,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
   tabby adopt                 color sessions that were started before tabby
   tabby island [build|stop|login]   the macOS session island
-  tabby terminal-titles on|off      Terminal.app tabs show only the session name
+  tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
   tabby doctor                what works in this terminal
@@ -349,7 +349,7 @@ const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-title
 
 function main() {
   const cmd = pos[0];
-  const changes = GATED.has(cmd) || !['hook', '_name', '_after', 'statusline', 'install', 'uninstall', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', undefined].includes(cmd);
+  const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_profile', 'statusline', 'install', 'uninstall', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', undefined].includes(cmd);
   if (changes && !termsAccepted() && !(cmd === 'island' && pos[1] === 'stop')) {
     return console.log('tabby is off until you accept its terms. Run: tabby setup');
   }
@@ -416,6 +416,19 @@ function main() {
       return console.log(ROOT);
     case '_ticker':
       return runTicker();
+    case '_profile':
+      // Background half of the Terminal.app title profiles (see lib/terminal-prefs.js).
+      try {
+        if (pos[1] === 'all') switchOpenTabs();
+        else if (pos[1] === 'restore') restoreProfile(pos[2]);
+        else if (pos[1] === 'use') {
+          const rec = readSession(pos[2]);
+          if (rec && !rec.disabled && useTwin(rec.tty) === 'switched') applySession(readSession(pos[2]), readConfig(), { colors: true, title: true });
+        }
+      } catch (e) {
+        log('profile error', pos[1], e.stack || e.message);
+      }
+      return;
     case 'focus': {
       const n = Number(pos[1]);
       const rec = sessionQuery ? findSession(sessionQuery) : Number.isInteger(n) && n > 0 ? mergedSessions({ withContext: false })[n - 1] : pos[1] ? findSession(pos[1]) : null;

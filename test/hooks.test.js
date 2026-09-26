@@ -10,6 +10,7 @@ process.env.HOME = tmp; // setup writes ~/.zshrc: keep it inside the sandbox
 process.env.TABBY_HOME = path.join(tmp, 'tabby');
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, 'claude');
 process.env.TERM_PROGRAM = 'Apple_Terminal';
+process.env.TABBY_NO_TERMINAL_PROFILES = '1'; // never switch the real Terminal's profiles
 process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
 delete process.env.TMUX;
 delete process.env.TABBY_OFF;
