@@ -1,6 +1,6 @@
 {
   "name": "claude-tabby",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Every Claude Code tab, at a glance: AI tab names, calm colors, live status, 57 themes, /tab commands, window tiling and a macOS session island.",
   "keywords": [
     "claude",

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { heuristicTitle, cleanAiTitle, parseNamerOutput } from '../lib/namer.js';
 import { isTabCommand, tabArgs } from '../lib/commands.js';
 import { isSetupCommand, setupArgs } from '../lib/setup.js';
-import { grid, cells } from '../lib/tile.js';
+import { grid, cells, landed } from '../lib/tile.js';
 import { frameTitle } from '../lib/ticker.js';
 import { DEFAULT_CONFIG } from '../lib/state.js';
 
@@ -62,4 +62,11 @@ test('title animation frames', () => {
   assert.ok(frames.every((f) => f.endsWith('Auth')));
   const waiting = [0, 4].map((t) => frameTitle({ ...rec, status: 'waiting' }, cfg, t));
   assert.ok(waiting[0].includes('🔔') && !waiting[1].includes('🔔'), 'the bell blinks');
+});
+
+test('a tiled window counts as placed despite character-cell snapping', () => {
+  assert.ok(landed('6,39,502,894', [6, 39, 502, 894]));
+  assert.ok(landed('6, 39, 489, 880', [6, 39, 502, 894]), 'Terminal rounds the size down to whole cells');
+  assert.ok(!landed('0,33,1512,982', [6, 39, 502, 894]), 'a window left full screen is not placed');
+  assert.ok(!landed('', [6, 39, 502, 894]));
 });
