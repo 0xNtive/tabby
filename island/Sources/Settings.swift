@@ -95,7 +95,7 @@ struct SettingsView: View {
             Group {
                 switch state.tab {
                 case .general: GeneralPane(island: island, store: store, state: state)
-                case .watermark: WatermarkPane(island: island, store: store, state: state)
+                case .watermark: WatermarkPane(island: island, store: store, state: state, permissions: island.permissions)
                 case .shortcuts: ShortcutsPane(island: island, state: state)
                 case .permissions: PermissionsPane(island: island, permissions: island.permissions)
                 }
@@ -203,6 +203,7 @@ struct WatermarkPane: View {
     let island: IslandController
     @ObservedObject var store: SessionStore
     @ObservedObject var state: SettingsState
+    @ObservedObject var permissions: PermissionCenter
     /// The slider's value while it's held (saved on release).
     @State private var draft: Double?
 
@@ -264,12 +265,17 @@ struct WatermarkPane: View {
             }
             .disabled(!settings.enabled)
             Section {
-                if store.snapshot.automationDenied {
+                let access = permissions.status(of: .terminal)
+                if access == .notAsked || access == .denied {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("macOS hasn't let Tabby Island control Terminal, so it can't tell which window shows which session.")
+                        Text("Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
                         Spacer(minLength: 8)
-                        Button("Open Settings") { PermissionCenter.openAutomationPane() }
+                        if access == .denied {
+                            Button("Ask Again") { permissions.askAgain(.terminal) }
+                        } else {
+                            Button("Allow") { permissions.requestAutomation(.terminal) }
+                        }
                     }
                 }
                 Text(footnote(config))
@@ -278,6 +284,8 @@ struct WatermarkPane: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { permissions.startWatching() }
+        .onDisappear { permissions.stopWatching() }
     }
 
     /// The first Terminal session, so the preview shows a real topic in its real colors.

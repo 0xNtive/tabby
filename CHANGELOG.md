@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.11 — 2026-09-26
+
+- **No surprise permission prompts.** The island talks to Terminal (tab titles, the watermark's windows) only once macOS allows it. Before, the first background read could pop up macOS's "control Terminal" prompt at launch, in the middle of the setup window. Now every prompt follows a click: Allow in the setup window, Settings › Permissions, the Watermark pane, or clicking a session.
+- Once Terminal is allowed, the island reads its tabs right away, so watermarks appear within a second.
+
 ## 0.2.10 — 2026-09-26
 
 - **A setup window, like installing a Mac app.** It's in tabby's colors and has three steps:
