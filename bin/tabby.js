@@ -23,6 +23,7 @@ import { termsAccepted, acceptTerms, TERMS_SUMMARY, TERMS_VERSION } from '../lib
 import { runSetup } from '../lib/setup.js';
 import { setTerminalTabTitles } from '../lib/terminal-prefs.js';
 import { runTicker, tickerPid } from '../lib/ticker.js';
+import { claudeTheme, claudeMode } from '../lib/claude-palette.js';
 
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
@@ -205,6 +206,7 @@ function doctor() {
     ['theme', `${getTheme(cfg.theme).name} · ${cfg.auto} mode · ${cfg.strength} tint · ${cfg.marker} markers`],
     ['island', fs.existsSync(islandApp) ? `${ok(true)} built${islandUp ? ', running' : ' (tabby island)'}` : c(DIM, 'not built → tabby island')],
     ['terms', termsAccepted(cfg) ? `${ok(true)} accepted (${TERMS_VERSION})` : `${ok(false)} not accepted → tabby setup`],
+    ['Claude theme', getTheme(cfg.theme).mode === claudeMode() ? `${ok(true)} ${claudeTheme()} (matches ${getTheme(cfg.theme).name})` : `${ok(false)} ${claudeTheme()}, but ${getTheme(cfg.theme).name} is ${getTheme(cfg.theme).mode}: Claude's text will be hard to read. Use /theme in Claude or a ${claudeMode()} tabby theme`],
     ['Terminal tabs', term === 'apple-terminal' ? (cfg.terminalTabTitles ? `${ok(true)} Terminal.app tabs show only the session name` : c(DIM, 'Terminal.app shows process + args too → tabby terminal-titles on')) : c(DIM, 'n/a')],
     ['animation', cfg.animate === false ? c(DIM, 'off') : `${ok(true)} spinner + blinking bell${tickerPid() ? ' (running)' : ''}`],
     ['sessions', `${[...readRegistry().values()].filter((r) => r.kind === 'interactive').length} running · ${liveSessions().length} tracked`],

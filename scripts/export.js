@@ -17,7 +17,7 @@ const out = (rel, text) => {
 
 const rows = THEMES.map((t) => ({ t, a: audit(t) }));
 const line = ({ t, a }) =>
-  `| ${t.name} | \`${t.id}\` | ${t.mode} | ${a.text}:1 | ${a.rating}${a.harsh ? ' · very high' : ''} | ${a.tintedText}:1 | ${a.minAccent}:1 | ${a.lowAccents.join(', ') || '—'} |`;
+  `| ${t.name} | \`${t.id}\` | ${t.mode} | ${a.text}:1 | ${a.rating}${a.harsh ? ' · very high' : ''} | ${a.tintedText}:1 | ${Math.round(a.claudeKeep * 100)}%${a.claudeFriendly ? ' ✓' : ''} | ${a.claudeWorst}:1 ${a.claudeRole} | ${a.minAccent}:1 | ${a.lowAccents.join(', ') || '—'} |`;
 
 const md = [
   '# Theme contrast audit',
@@ -31,12 +31,18 @@ const md = [
   '  tabby darkens them automatically wherever they carry information (the cursor, ≥ 3:1) and lightens',
   '  island dots to ≥ 4:1 on black. Title markers are emoji and unaffected.',
   '- **Very high** (> 15:1) is flagged because maximum contrast can itself cause glare for some people.',
+  '- **Claude UI** — Claude Code draws its own colored text (dim gray, suggestions, its orange, diff words)',
+  '  in its dark palette on dark themes and its light palette on light ones. Those palettes are designed for a',
+  '  black or white background, so lighter dark themes lose some of that contrast. The column shows how much',
+  '  Claude keeps on this theme (worst role over every tint); ✓ marks themes that keep at least 80%, which',
+  '  are the ones tabby\'s automatic theme variety picks from. Match Claude\'s theme (/theme) to the tabby',
+  '  theme\'s mode: Claude\'s dark theme draws white text, which is unreadable on a light theme.',
   '',
   ...Object.entries(GROUPS).flatMap(([id, label]) => [
     `## ${label}`,
     '',
-    '| Theme | id | mode | text | rating | tinted text | min accent | pale accents |',
-    '|---|---|---|---|---|---|---|---|',
+    '| Theme | id | mode | text | rating | tinted text | Claude UI kept | Claude worst | min accent | pale accents |',
+    '|---|---|---|---|---|---|---|---|---|---|',
     ...rows.filter((r) => r.t.group === id).map(line),
     '',
   ]),

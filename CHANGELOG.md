@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.2 — 2026-09-26
+
+- **Contrast re-check, now including Claude Code's own UI.** Claude draws colored text (dim gray, suggestions, its orange, diff words) from its dark or light palette, designed for a black or white background.
+  - The audit now scores every theme on how much of that contrast it keeps; 30 of 57 keep at least 80% (✓).
+  - Tabby Dusk and Ember are slightly darker so they keep 84%, up from 78%.
+  - Automatic theme variety now only picks Claude-friendly dark themes.
+- **Mismatch warning:** picking a light tabby theme while Claude runs its dark theme (white text), or the reverse, warns in `/tab`, `tabby doctor` and the island's theme menu.
+- **Status line:** the context meter's colors (accent, amber, red) now keep at least 3:1 contrast on every theme's background, including light ones.
+- **Website:** theme cards show a "Claude ✓" badge.
+
 ## 0.2.1 — 2026-09-26
 
 - **Tiling fixed:**
