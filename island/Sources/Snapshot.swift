@@ -8,7 +8,7 @@ import SwiftUI
 ///   keyboard focus, announcements);
 /// - `demo-*.png`: the same states with demo sessions that cover every status;
 /// - `flat-*.png`: a display without a notch;
-/// - `brand-*.png`: the menu-bar icon, the footer cat and the theme swatches.
+/// - `brand-*.png`: the menu-bar icon, the cat and the theme swatches.
 @MainActor
 enum Snapshotter {
     private struct State {

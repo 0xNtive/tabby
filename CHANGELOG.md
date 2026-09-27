@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.12 — 2026-09-27
+
+- **The island's controls moved to the top,** right under the notch: the session count, the mode picker, tiling, the theme for every tab and the Settings cog. The island grows downward, and rows open up as you hover them, so a bar at the bottom moved while you reached for it. The top never moves, and it's where the pointer comes in.
+- The keyboard hint still shows at the bottom while the island has keyboard focus.
+
 ## 0.2.11 — 2026-09-26
 
 - **No surprise permission prompts.** The island talks to Terminal (tab titles, the watermark's windows) only once macOS allows it. Before, the first background read could pop up macOS's "control Terminal" prompt at launch, in the middle of the setup window. Now every prompt follows a click: Allow in the setup window, Settings › Permissions, the Watermark pane, or clicking a session.

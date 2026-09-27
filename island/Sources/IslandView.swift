@@ -196,6 +196,13 @@ struct IslandRootView: View {
     private func expandedBody(_ geometry: IslandGeometry) -> some View {
         let sessions = store.listSessions
         return VStack(spacing: 0) {
+            // The controls sit right under the notch: the island grows downward, so the top
+            // never moves while rows open up below or the list changes.
+            toolbar(count: sessions.count)
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+                .padding(.horizontal, 18)
             if sessions.isEmpty {
                 VStack(spacing: 6) {
                     Image(systemName: "moon.zzz")
@@ -226,11 +233,16 @@ struct IslandRootView: View {
                     Color.clear.preference(key: ViewportKey.self, value: proxy.frame(in: .named(IslandSpace.name)))
                 })
             }
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 1)
-                .padding(.horizontal, 18)
-            footer(count: sessions.count)
+            if ui.keyboard || ui.renaming != nil {
+                KeyboardHint(renaming: ui.renaming != nil)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    .transition(.opacity)
+            } else {
+                // Clear of the rounded bottom corners.
+                Color.clear.frame(height: 6)
+            }
         }
     }
 
@@ -267,26 +279,19 @@ struct IslandRootView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: Footer
+    // MARK: Toolbar
 
-    private func footer(count: Int) -> some View {
-        VStack(spacing: 0) {
-            if ui.keyboard || ui.renaming != nil {
-                KeyboardHint(renaming: ui.renaming != nil)
-                    .padding(.top, 10)
-                    .transition(.opacity)
+    private func toolbar(count: Int) -> some View {
+        HStack(spacing: 8) {
+            brand(count: count)
+            Spacer(minLength: 8)
+            // The theme's name gives way first when a narrow mode is short of room.
+            ViewThatFits(in: .horizontal) {
+                controls(themeName: true)
+                controls(themeName: false)
             }
-            HStack(spacing: 8) {
-                brand(count: count)
-                Spacer(minLength: 8)
-                // The theme's name gives way first when a narrow mode is short of room.
-                ViewThatFits(in: .horizontal) {
-                    controls(themeName: true)
-                    controls(themeName: false)
-                }
-            }
-            .frame(height: 48)
         }
+        .frame(height: 44)
         .padding(.horizontal, 18)
     }
 
@@ -404,7 +409,7 @@ struct AnnouncementLabel: View {
     }
 }
 
-// MARK: - Footer pieces
+// MARK: - Toolbar pieces
 
 /// Minimal · Standard · Detailed as three icons; the selection slides between them.
 struct ModePicker: View {
