@@ -100,7 +100,7 @@ A Dynamic-Island-style overlay at the top center of your Mac.
 - **Actions:** click a row to jump to that terminal tab; right-click it to rename, recolor or re-theme.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through; it follows the window as you move it, and fades while you drag.
-- **Settings** (the cog in the island's footer, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, theme for every tab, the watermark's strength, size, color and position, every shortcut, and the permissions.
+- **Settings** (the cog at the top of the open island, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, theme for every tab, the watermark's strength, size, color and position, every shortcut, and the permissions.
 - **Shortcuts,** all changeable in Settings › Shortcuts:
 
   | Shortcut | Action |

@@ -21,11 +21,13 @@ the version in `package.json`, so the About panel shows tabby's version.
   Working dots ping, waiting dots get a blinking amber ring, errors a red ring. The right
   ear shows a bell and the waiting count, else a spinner and the busy count, else the
   session count.
-- **Expanded (hover, or ⌃⌥Space):** the list, ordered needs-you → error → working → your
-  turn. Click a row to focus its terminal tab; right-click or hover "…" to rename, recolor or
-  re-theme. The footer has the cat, the "tabby" wordmark and the session count, then the
-  mode picker, the tile button, the theme-for-all-tabs button (just its icon when a narrow
-  mode is short of room) and the Settings cog.
+- **Expanded (hover, or ⌃⌥Space):** a bar right under the notch, then the list, ordered
+  needs-you → error → working → your turn. The bar has the cat, the "tabby" wordmark and the
+  session count, then the mode picker, the tile button, the theme-for-all-tabs button (just
+  its icon when a narrow mode is short of room) and the Settings cog. It's at the top because
+  the island grows downward: rows open up on hover and the list changes, but the top never
+  moves, so the controls stay where the pointer comes in. Click a row to focus its terminal
+  tab; right-click or hover "…" to rename, recolor or re-theme.
 
 ### Modes (`islandMode` in `~/.claude/tabby/config.json`)
 
@@ -35,7 +37,7 @@ the version in `package.json`, so the About panel shows tabby's version.
 | Standard (default) | title, project · model · time, context bar; hovering a row adds the summary, note, last prompt and status line |
 | Detailed | everything, always: title and a status chip ("working 4m", "your turn", "needs you · permission"), project · model · time, context bar with "452k / 1M tokens · $3.20", summary (2 lines), note, last prompt (1 line); rows get separators |
 
-Switch with the footer's three-icon picker, the status menu's **Mode** submenu, or ⌃⌥M. The
+Switch with the top bar's three-icon picker, the status menu's **Mode** submenu, or ⌃⌥M. The
 choice is written with `tabby config islandMode '"detailed"'` and applied at once (the island
 keeps the new value until config.json agrees, so a slow or failed CLI never flips it back).
 
@@ -65,7 +67,7 @@ tabby config islandShortcuts '{"watermark": "cmd+shift+w", "settings": ""}'
 ```
 
 With keyboard focus the panel becomes key without activating the island (the terminal keeps
-its menu bar), and a hint line appears in the footer:
+its menu bar), and a hint line appears at the bottom:
 
 | Key | Action |
 |---|---|
@@ -145,7 +147,7 @@ Permissions…** in the status menu opens it too.
 
 ### Settings
 
-**Settings…** in the status menu (or the cog in the expanded island's footer, ⌃⌥, or , with
+**Settings…** in the status menu (or the cog in the open island's top bar, ⌃⌥, or , with
 keyboard focus) opens a regular window with four panes: **General** (show the island, mode,
 announcements, open at login, and tabby's own settings: theme for every tab, background tint,
 title marker, tab names, animation and Terminal.app titles), **Watermark**, **Shortcuts** and
@@ -174,7 +176,7 @@ blinks are skipped).
 - The bell rings when the waiting count rises and wiggles gently every 6 s while anything
   waits.
 - Rows fade and slide in with a small stagger; percentages and counts roll their digits.
-- The footer cat blinks every 6–10 s (one Core Animation keyframe loop with random gaps),
+- The top bar's cat blinks every 6–10 s (one Core Animation keyframe loop with random gaps),
   only while expanded.
 
 ### Themes and tiling
@@ -185,7 +187,7 @@ chip (theme background plus four `dots`) and a checkmark on the current theme. T
 uses `dots` swatches. Everything drawn on the black island uses `dot ?? accent`; a missing
 `dot` is computed like tabby's `onBlack` (OKLCH lightness raised until 4:1 on #000).
 
-The footer's grid button (and the status menu's **Tile Windows**) offers "Tile All Sessions
+The top bar's grid button (and the status menu's **Tile Windows**) offers "Tile All Sessions
 (N)" and 2 · 3 · 4 · 6 · 8 windows, running `tabby tile [n]`.
 
 ## Data it reads
@@ -216,7 +218,7 @@ Screen Recording isn't needed: `--snapshot <dir>` renders the SwiftUI tree with
   your turn, notes and summaries
 - `flat-*.png`: a display without a notch
 - `brand-statusitem.png`, `brand-cat.png`, `brand-swatches.png`: the menu-bar template icon,
-  the footer cat at 18/32/96 pt, and every theme swatch by group
+  the top bar's cat at 18/32/96 pt, and every theme swatch by group
 - `settings-<pane>-<light|dark>.png`: each Settings pane (drawn without the window's own
   background, so the tab bar is transparent)
 - `watermark-*.png`: demo sessions' watermarks over a mock terminal, in each size and position
@@ -263,12 +265,12 @@ during the expand spring).
 |---|---|
 | `TabbyIslandApp.swift` | entry point, `--dump`, status item, status menu, About panel |
 | `IslandPanel.swift` | the non-activating panel, geometry, UI state, the controller (hover, expand/collapse, keyboard focus, inline rename, announcements, settings, hotkey wiring, tiling) |
-| `IslandView.swift` | root view: header ears, announcement label, list, footer (brand, mode picker, tile, theme), keyboard hint |
+| `IslandView.swift` | root view: header ears, announcement label, list, top bar (brand, mode picker, tile, theme), keyboard hint |
 | `SessionRows.swift` | the row in all three modes, status chip, context bar, rename field, entrance stagger |
 | `SessionStore.swift` | the 1 s poller and the loader that joins the registry, tabby records, transcripts, themes and config |
 | `Models.swift` | data types, modes, announcements, palette, OKLab/contrast math, formatting |
 | `Components.swift` | Core Animation views: status dot (pop and sparkle), spinner, bell; menu swatches |
-| `Brand.swift` | the cat's geometry (from `brand/logo.svg`), the template menu-bar icon, the blinking footer cat |
+| `Brand.swift` | the cat's geometry (from `brand/logo.svg`), the template menu-bar icon, the blinking cat in the top bar |
 | `Hotkeys.swift` | Carbon global hotkeys |
 | `Shortcuts.swift` | key combos (parse, display, menu keys), the shortcut actions and their defaults |
 | `Watermark.swift` | watermark settings, drawing, the overlay window and the controller that follows Terminal windows |

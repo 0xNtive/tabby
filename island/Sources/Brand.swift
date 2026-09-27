@@ -105,7 +105,7 @@ enum Brand {
 // MARK: - Full-color cat (Core Animation, so the blink costs no CPU)
 
 struct CatMark: NSViewRepresentable {
-    /// Blink every 6–10 s. Only the expanded footer shows the cat, so it only blinks then.
+    /// Blink every 6–10 s. Only the open island (and the setup window) shows the cat, so it only blinks then.
     var blinks: Bool
 
     func makeNSView(context: Context) -> CatMarkView { CatMarkView(frame: .zero) }
