@@ -140,11 +140,13 @@ function ago(ms) {
   return `${Math.round(s / 86400)}d`;
 }
 
-function meter(pct, accent, width = 8) {
-  if (pct == null) return ' '.repeat(width + 5);
-  const filled = Math.round((Math.min(100, pct) / 100) * width);
-  const col = pct >= 90 ? '#e06c75' : pct >= 70 ? '#e5c07b' : accent;
-  return `${c(ansiFg(col), '▰'.repeat(filled))}${c(DIM, '▱'.repeat(width - filled))} ${String(pct).padStart(3)}%`;
+// Context used, as a number (a bar reads as progress): "46% ctx", amber from 70 %, red from 90 %.
+function contextUsed(pct) {
+  if (pct == null) return ' '.repeat(8);
+  const p = Math.round(Math.min(100, Math.max(0, pct)));
+  const col = p >= 90 ? '#e06c75' : p >= 70 ? '#e5c07b' : null;
+  const text = `${String(p).padStart(3)}%`;
+  return `${col ? c(ansiFg(col), text) : text} ${c(DIM, 'ctx')}`;
 }
 
 const pad = (s, n) => {
@@ -165,7 +167,7 @@ function printLs() {
     const title = s.title || s.claudeName || s.project;
     const swatch = s.bg ? c(ansiBg(s.bg) + ansiFg(accent), ' ● ') : c(ansiFg(accent), ' ● ');
     const status = s.status === 'waiting' ? c(ansiFg('#e5c07b'), pad(words.waiting, 10)) : c(DIM, pad(words[s.status] || s.status || '', 10));
-    const line = `${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(s.project, 12))} ${meter(s.context?.usedPct, accent)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
+    const line = `${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(s.project, 12))} ${contextUsed(s.context?.usedPct)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
     console.log(line);
     const about = s.note || s.summary || (s.prompts || []).at(-1);
     if (about) console.log(`      ${c(DIM, pad(about, 96))}`);
@@ -200,7 +202,7 @@ function doctor() {
     ['claude', (claude.stdout || '').trim() || c(ansiFg('#e06c75'), 'not found on PATH')],
     ['plugin', pluginInstalled() ? `${ok(true)} installed (hooks + /tab)` : `${ok(false)} not installed → tabby install  (or: claude --plugin-dir ${ROOT})`],
     ['tab titles', settings.env?.CLAUDE_CODE_DISABLE_TERMINAL_TITLE === '1' ? `${ok(true)} tabby owns titles (color marker + status)` : `${c(DIM, '–')} Claude owns titles (names sync, no color marker)`],
-    ['statusline', /statusline/.test(settings.statusLine?.command || '') && /tabby/.test(settings.statusLine?.command || '') ? `${ok(true)} tab name + context meter` : c(DIM, settings.statusLine ? 'your own statusLine (kept)' : 'off')],
+    ['statusline', /statusline/.test(settings.statusLine?.command || '') && /tabby/.test(settings.statusLine?.command || '') ? `${ok(true)} tab name + context %` : c(DIM, settings.statusLine ? 'your own statusLine (kept)' : 'off')],
     ['shell flags', ['.zshrc', '.bashrc'].some((f) => (fs.existsSync(path.join(process.env.HOME, f)) ? fs.readFileSync(path.join(process.env.HOME, f), 'utf8') : '').includes('>>> tabby')) ? `${ok(true)} claude --tab/--color/--theme` : c(DIM, 'off')],
     ['naming', `${cfg.namer}${cfg.namer === 'ai' ? ` (${cfg.namerModel} via your Claude login)` : ''}`],
     ['theme', `${getTheme(cfg.theme).name} · ${cfg.auto} mode · ${cfg.strength} tint · ${cfg.marker} markers`],

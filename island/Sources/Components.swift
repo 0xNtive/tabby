@@ -42,6 +42,8 @@ final class PulseDotView: NSView {
     private let halo = CALayer()
     private let dot = CALayer()
     private let ring = CALayer()
+    /// Working: an arc in the session's color turning around the dot.
+    private let arc = CAShapeLayer()
     private var config: Config?
 
     override init(frame frameRect: NSRect) {
@@ -49,7 +51,10 @@ final class PulseDotView: NSView {
         wantsLayer = true
         layer?.masksToBounds = false
         stack.actions = noImplicitActions
-        for sublayer in [halo, dot, ring] {
+        arc.fillColor = nil
+        arc.lineCap = .round
+        arc.strokeEnd = 0.7
+        for sublayer in [halo, dot, ring, arc] {
             sublayer.actions = noImplicitActions
             stack.addSublayer(sublayer)
         }
@@ -81,35 +86,35 @@ final class PulseDotView: NSView {
         CATransaction.setDisableActions(true)
         halo.removeAllAnimations()
         ring.removeAllAnimations()
+        arc.removeAllAnimations()
         dot.backgroundColor = color
-        dot.opacity = next.status == .ended ? 0.45 : 1
+        // Bright and moving: working. Dim and still: your turn.
+        switch next.status {
+        case .ended: dot.opacity = 0.45
+        case .idle, .unknown: dot.opacity = 0.5
+        default: dot.opacity = 1
+        }
         halo.backgroundColor = color
         halo.opacity = 0
         halo.transform = CATransform3DIdentity
         ring.backgroundColor = nil
         ring.borderWidth = 1.6
         ring.opacity = 0
+        arc.strokeColor = color
+        arc.opacity = 0
 
         switch next.status {
         case .busy:
-            if next.reduceMotion {
-                halo.opacity = 0.28
-                halo.transform = CATransform3DMakeScale(1.6, 1.6, 1)
-            } else {
-                let grow = CABasicAnimation(keyPath: "transform.scale")
-                grow.fromValue = 1.0
-                grow.toValue = 2.1
-                let fade = CABasicAnimation(keyPath: "opacity")
-                fade.fromValue = 0.5
-                fade.toValue = 0.0
-                let ping = CAAnimationGroup()
-                ping.animations = [grow, fade]
-                ping.duration = 1.7
-                ping.repeatCount = .infinity
-                ping.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                // De-sync neighbouring dots so the island doesn't blink in unison.
-                ping.beginTime = CACurrentMediaTime() + Double.random(in: 0...0.9)
-                halo.add(ping, forKey: "ping")
+            arc.opacity = 1
+            if !next.reduceMotion {
+                let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+                spin.fromValue = 0
+                spin.toValue = -2 * Double.pi
+                spin.duration = 1.1
+                spin.repeatCount = .infinity
+                // De-sync neighbouring dots so the island doesn't turn in unison.
+                spin.beginTime = CACurrentMediaTime() - Double.random(in: 0...1.1)
+                arc.add(spin, forKey: "spin")
             }
         case .waiting:
             ring.borderColor = Palette.waitingNS.cgColor
@@ -156,6 +161,14 @@ final class PulseDotView: NSView {
         ring.bounds = CGRect(x: 0, y: 0, width: ringSize, height: ringSize)
         ring.position = center
         ring.cornerRadius = ringSize / 2
+        // The arc clears the dot by about a third of its size, and stays inside the dot's cell.
+        let width: CGFloat = size < 8 ? 1.4 : 1.6
+        let radius = size / 2 + max(2, size * 0.3)
+        let side = 2 * radius + width
+        arc.lineWidth = width
+        arc.bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        arc.position = center
+        arc.path = CGPath(ellipseIn: arc.bounds.insetBy(dx: width / 2, dy: width / 2), transform: nil)
         CATransaction.commit()
     }
 

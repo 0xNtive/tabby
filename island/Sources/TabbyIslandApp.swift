@@ -45,6 +45,12 @@ struct TabbyIslandApp {
             row["tty"] = session.tty
             row["term"] = session.term
             row["windowId"] = session.windowId
+            row["typicalTurn"] = session.typicalTurn.map { ($0 * 10).rounded() / 10 }
+            row["workElapsed"] = session.workElapsed(now: Date()).map { $0.rounded() }
+            row["progress"] = session.progress(now: Date()).map { guess in
+                "\(guess.fraction.map { "\(Int(($0 * 100).rounded()))% · " } ?? "")\(guess.caption)"
+            }
+            row["tasks"] = session.tasks.map { "\($0.done)/\($0.total) done\($0.current.map { ", now: \($0)" } ?? "")" }
             row["lastPrompt"] = session.lastPrompt
             row["summary"] = session.summary
             if let pct = session.contextPct { row["contextPct"] = (pct * 10).rounded() / 10 }

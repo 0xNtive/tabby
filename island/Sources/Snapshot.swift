@@ -403,7 +403,7 @@ enum DemoData {
                                  lastPrompt: prompt, context: context, model: model, tty: nil, term: "apple-terminal",
                                  startedAt: ago(started), activityAt: ago(activity), hasRecord: true)
         }
-        snapshot.sessions = [
+        var sessions = [
             session(1, "Refactor auth middleware", "api", "blue", .waiting, waitingFor: "permission",
                     used: 342_000, cost: 1.42,
                     summary: "Splitting session handling out of the auth middleware; the new tests pass locally.",
@@ -421,6 +421,14 @@ enum DemoData {
             session(5, "Benchmark the tokenizer", "tok", "teal", .error, used: nil, cost: nil,
                     summary: "The benchmark crashed on the 1 GB fixture (out of memory).", started: 30, activity: 6),
         ]
+        // Working sessions: one follows Claude's task list, one its usual turn length.
+        sessions[1].turnStartedAt = ago(8)
+        sessions[1].tasks = TaskProgress(total: 5, done: 2, active: 1, current: "Porting the invoice webhooks to v3")
+        sessions[1].typicalTurn = 360
+        sessions[3].turnStartedAt = ago(2)
+        sessions[3].typicalTurn = 360
+        sessions[0].turnStartedAt = ago(4)
+        snapshot.sessions = sessions
         return snapshot
     }
 }

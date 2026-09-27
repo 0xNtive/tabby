@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.13 — 2026-09-27
+
+- **Working or idle, at a glance.** A working session's dot now turns inside a ring of its own color, a session waiting for your next prompt rests dimmed, and one that needs you keeps its amber ring. Every row says it in words too: "Working 3m", "Your turn", "Needs you" or "Error", each in its own color, in all three modes.
+- **Progress, not context, gets the bar.** A working session shows how far along it probably is, and how long it has left:
+  - "2 of 5 tasks · ~3m left" when Claude keeps a task list; Detailed mode (and hovering in Standard) shows the task it's on;
+  - otherwise "~2m left · usually 6m", from how long that session's turns take;
+  - "Longer than usual (6m)" once it runs past that.
+- **How the estimate is made:**
+  - tabby's hooks now time every turn, leaving out time spent waiting on you (a permission, a question), and keep the last 24;
+  - until they've timed three, past turns come from the transcript's timestamps, read once and then only as it grows;
+  - a brand-new session starts from every session's median.
+- **Context used is a percentage** with a small ring: amber from 70%, red from 90%, with tokens and cost beside it in Detailed mode. Claude's status line and `tabby ls` show it as a number too, instead of a bar.
+
 ## 0.2.12 — 2026-09-27
 
 - **The island's controls moved to the top,** right under the notch: the session count, the mode picker, tiling, the theme for every tab and the Settings cog. The island grows downward, and rows open up as you hover them, so a bar at the bottom moved while you reached for it. The top never moves, and it's where the pointer comes in.

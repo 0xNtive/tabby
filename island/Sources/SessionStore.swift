@@ -139,11 +139,20 @@ final class SnapshotLoader: @unchecked Sendable {
         var modelId: String?
         var marketingName: String?
         var lastPrompt: String?
+        var tasks: TaskProgress?
+    }
+
+    /// A transcript's finished turns, read once from up to 16 MB back, then only as it grows.
+    private struct TurnScan {
+        var offset: UInt64
+        var clock = TranscriptTurns.Clock()
     }
 
     private let fm = FileManager.default
     private let home = FileManager.default.homeDirectoryForCurrentUser
     private var transcripts: [String: TranscriptInfo] = [:]
+    private var turnScans: [String: TurnScan] = [:]
+    private let turnScanBytes: UInt64 = 16 * 1024 * 1024
     private var heads: [String: (modelId: String?, marketing: String?)] = [:]
     private var processes: [Int: (tty: String?, term: String?)] = [:]
     private var themeCache: (stamp: FileStamp, themes: ThemeLoad)?
@@ -200,6 +209,10 @@ final class SnapshotLoader: @unchecked Sendable {
             }
         }
 
+        // Turn lengths from every session tabby has seen: a new session's estimates start from these.
+        let allTurns = recordsById.values.flatMap { ($0["turns"] as? [Any])?.compactMap { num($0) } ?? [] }
+        let everyonesTypical = ProgressGuess.typical(Array(allTurns.suffix(200)), minimum: 5)
+
         let registryDir = claudeDir.appendingPathComponent("sessions", isDirectory: true)
         let registryNames = try? fm.contentsOfDirectory(atPath: registryDir.path)
         let terminalTitles = titleReader.current()
@@ -226,7 +239,7 @@ final class SnapshotLoader: @unchecked Sendable {
             }
             sessions.append(makeSession(entry: entry, record: record, pid: pid, sessionId: sessionId,
                                         terminalTitles: terminalTitles, terminalWindows: terminalWindows,
-                                        needs: &needs, usedTranscripts: &usedTranscripts))
+                                        typical: everyonesTypical, needs: &needs, usedTranscripts: &usedTranscripts))
         }
 
         // Claude Code builds without the registry: trust live tabby records instead.
@@ -237,7 +250,7 @@ final class SnapshotLoader: @unchecked Sendable {
                 seenPids.insert(pid)
                 sessions.append(makeSession(entry: nil, record: record, pid: pid, sessionId: sessionId,
                                             terminalTitles: terminalTitles, terminalWindows: terminalWindows,
-                                            needs: &needs, usedTranscripts: &usedTranscripts))
+                                            typical: everyonesTypical, needs: &needs, usedTranscripts: &usedTranscripts))
             }
         }
 
@@ -251,6 +264,7 @@ final class SnapshotLoader: @unchecked Sendable {
         titleReader.refreshIfNeeded(terminal: needs.terminalTitles || needs.terminalWindows, iTerm: needs.iTerm,
                                     every: needs.terminalTitles || needs.iTerm ? 3 : 6, urgent: urgent)
         transcripts = transcripts.filter { usedTranscripts.contains($0.key) }
+        turnScans = turnScans.filter { usedTranscripts.contains($0.key) }
         heads = heads.filter { usedTranscripts.contains($0.key) }
         processes = processes.filter { seenPids.contains($0.key) }
         return sessions
@@ -270,7 +284,8 @@ final class SnapshotLoader: @unchecked Sendable {
 
     private func makeSession(entry: [String: Any]?, record: [String: Any]?, pid: Int, sessionId: String?,
                              terminalTitles: [String: String], terminalWindows: [String: Int],
-                             needs: inout TitleNeeds, usedTranscripts: inout Set<String>) -> IslandSession {
+                             typical everyones: TimeInterval?, needs: inout TitleNeeds,
+                             usedTranscripts: inout Set<String>) -> IslandSession {
         let cwd = str(record?["cwd"]) ?? str(entry?["cwd"]) ?? ""
         let project = str(record?["project"]) ?? (cwd.isEmpty ? "session" : URL(fileURLWithPath: cwd).lastPathComponent)
 
@@ -297,10 +312,18 @@ final class SnapshotLoader: @unchecked Sendable {
         let nowMs = Date().timeIntervalSince1970 * 1000
         let hasUsage = context?.usedPct != nil || context?.usedTokens != nil
         let stale = context?.at.map { nowMs - $0 > 60_000 } ?? true
-        if !hasUsage || stale || lastPrompt == nil || model == nil,
+        var tasks: TaskProgress?
+        var transcriptTurns: [Double] = []
+        // A working session's transcript is read for Claude's task list too (at most every 5 s).
+        if !hasUsage || stale || lastPrompt == nil || model == nil || status == .busy,
            let path = transcriptPath(record: record, cwd: cwd, sessionId: sessionId) {
             usedTranscripts.insert(path)
             if let info = transcriptInfo(path) {
+                if status == .busy {
+                    tasks = info.tasks
+                    // Until tabby's hooks have timed a few of this session's turns.
+                    if ((record?["turns"] as? [Any])?.count ?? 0) < 3 { transcriptTurns = pastTurns(path, size: info.size) }
+                }
                 if !hasUsage || stale, let tokens = info.tokens {
                     let oneMillion = (info.modelId?.contains("[1m]") ?? false) || tokens > 200_000
                     let window = oneMillion ? 1_000_000 : 200_000
@@ -364,7 +387,15 @@ final class SnapshotLoader: @unchecked Sendable {
                 ?? num(record?["statusAt"]) ?? num(record?["updatedAt"]),
             hasRecord: record != nil,
             windowId: windowId,
-            disabled: bool(record?["disabled"]) ?? false
+            disabled: bool(record?["disabled"]) ?? false,
+            turnStartedAt: num(record?["turnStartedAt"]),
+            turnWaitMs: num(record?["turnWaitMs"]) ?? 0,
+            waitingSince: num(record?["waitingSince"]),
+            // Timed by tabby's hooks, else read from the transcript, else every session's.
+            typicalTurn: ProgressGuess.typical((record?["turns"] as? [Any])?.compactMap { num($0) } ?? [])
+                ?? ProgressGuess.typical(transcriptTurns) ?? everyones,
+            lastTurnMs: num(record?["lastTurnMs"]),
+            tasks: tasks
         )
     }
 
@@ -433,6 +464,7 @@ final class SnapshotLoader: @unchecked Sendable {
 
         var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
         if startsMidFile, !lines.isEmpty { lines.removeFirst() }
+        info.tasks = TaskParser.parse(lines)
         for line in lines.reversed() {
             if info.tokens != nil && info.lastPrompt != nil { break }
             if line.contains("\"isSidechain\":true") { continue }
@@ -454,6 +486,43 @@ final class SnapshotLoader: @unchecked Sendable {
                 info.lastPrompt = userText(message["content"])
             }
         }
+    }
+
+    /// This session's finished turn lengths (ms), from its transcript. The first call reads up to
+    /// 16 MB back; later ones read only what was written since.
+    private func pastTurns(_ path: String, size: UInt64) -> [Double] {
+        var scan = turnScans[path] ?? TurnScan(offset: size > turnScanBytes ? size - turnScanBytes : 0)
+        let midFile = turnScans[path] == nil && scan.offset > 0
+        if size < scan.offset { scan = TurnScan(offset: 0) }   // rewritten
+        guard size > scan.offset, let handle = FileHandle(forReadingAtPath: path) else {
+            turnScans[path] = scan
+            return scan.clock.durations
+        }
+        defer { try? handle.close() }
+        try? handle.seek(toOffset: scan.offset)
+        let data = (try? handle.read(upToCount: Int(min(size - scan.offset, turnScanBytes)))) ?? Data()
+        // Only whole lines: the rest is read next time.
+        guard let lastNewline = data.lastIndex(of: UInt8(ascii: "\n")) else {
+            turnScans[path] = scan
+            return scan.clock.durations
+        }
+        let text = String(decoding: data[..<lastNewline], as: UTF8.self)
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+        if midFile, !lines.isEmpty { lines.removeFirst() }
+        for line in lines {
+            scan.clock.feed(line, isPrompt: isPromptLine(line))
+        }
+        scan.offset += UInt64(lastNewline - data.startIndex + 1)
+        turnScans[path] = scan
+        return scan.clock.durations
+    }
+
+    /// A line where you typed a prompt (not a tool result, a command or a note from Claude Code).
+    private func isPromptLine(_ line: Substring) -> Bool {
+        guard line.contains("\"type\":\"user\""), !line.contains("\"tool_result\""), !line.contains("\"isMeta\":true"),
+              let object = parseLine(line), str(object["type"]) == "user",
+              let message = object["message"] as? [String: Any] else { return false }
+        return userText(message["content"]) != nil
     }
 
     /// Latest `"modelId":"…"` and `"marketingName":"…"` values in a chunk of JSONL.

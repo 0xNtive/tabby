@@ -85,5 +85,64 @@ let top = WatermarkView.layout("Top", tint: .white, settings: { var s = settings
 let bottom = WatermarkView.layout("Top", tint: .white, settings: { var s = settings; s.position = .bottom; return s }(), in: CGRect(x: 0, y: 0, width: 760, height: 460), topInset: 44)!
 check(top.rect.minY < bottom.rect.minY, "top above bottom")
 
+// Claude's task list
+func line(_ blocks: String) -> String {
+    #"{"type":"assistant","timestamp":"2026-09-27T10:00:00.000Z","message":{"content":["# + blocks + #"]}}"#
+}
+let create = { (subject: String) in line(#"{"type":"tool_use","name":"TaskCreate","input":{"subject":""# + subject + #""}}"#) }
+let update = { (id: String, status: String) in line(#"{"type":"tool_use","name":"TaskUpdate","input":{"taskId":""# + id + #"","status":""# + status + #""}}"#) }
+var transcript = [create("Write the parser"), create("Wire it up"), create("Test it"), update("1", "completed"), update("2", "in_progress")]
+check(TaskParser.parse(transcript) == TaskProgress(total: 3, done: 1, active: 1, current: "Wire it up"), "task list: \(String(describing: TaskParser.parse(transcript)))")
+transcript += [update("2", "completed"), update("3", "completed")]
+check(TaskParser.parse(transcript)?.open == false, "all done")
+transcript += [create("A new plan")]
+check(TaskParser.parse(transcript) == TaskProgress(total: 1, done: 0, active: 0, current: nil), "a new plan starts a new list")
+check(TaskParser.parse([update("7", "in_progress")])?.total == 1, "a task created before what was read")
+let todo = line(#"{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"A","activeForm":"Doing A","status":"completed"},{"content":"B","activeForm":"Doing B","status":"in_progress"},{"content":"C","status":"pending"}]}}"#)
+check(TaskParser.parse([todo]) == TaskProgress(total: 3, done: 1, active: 1, current: "Doing B"), "TodoWrite")
+check(TaskParser.parse(["{\"type\":\"user\"}"]) == nil, "no list")
+
+// The estimate
+let fromTasks = ProgressGuess.make(elapsed: 480, typical: 360, tasks: TaskProgress(total: 5, done: 2, active: 1, current: nil))!
+check(abs(fromTasks.fraction! - 0.5) < 0.001 && fromTasks.caption == "2 of 5 tasks · ~8m left", "tasks: \(fromTasks)")
+let early = ProgressGuess.make(elapsed: 30, typical: 360, tasks: TaskProgress(total: 5, done: 0, active: 1, current: nil))!
+check(early.caption == "0 of 5 tasks" && early.remaining == nil, "no ETA before a task is done: \(early)")
+let fromTime = ProgressGuess.make(elapsed: 120, typical: 360, tasks: nil)!
+check(fromTime.caption == "~4m left · usually 6m" && abs(fromTime.fraction! - 0.3) < 0.001, "time: \(fromTime)")
+let late = ProgressGuess.make(elapsed: 720, typical: 360, tasks: nil)!
+check(late.remaining == nil && late.fraction! > 0.9 && late.fraction! < 0.98 && late.caption == "Longer than usual (6m)", "late: \(late)")
+check(ProgressGuess.make(elapsed: 120, typical: nil, tasks: nil) == nil, "nothing to go on")
+check(ProgressGuess.typical([60_000, 120_000]) == nil, "too few turns")
+check(ProgressGuess.typical([60_000, 600_000, 120_000]) == 120, "median")
+check(Fmt.left(45) == "<1m left" && Fmt.left(150) == "~3m left" && Fmt.left(7_200) == "~2h left", "left")
+check(Fmt.worked(59) == nil && Fmt.worked(150) == "2m" && Fmt.worked(3_900) == "1h 5m", "worked")
+
+// Past turns from a transcript
+let turnLines = [
+    #"{"type":"user","timestamp":"2026-09-27T10:00:00.000Z","message":{"content":"go"}}"#,
+    #"{"type":"assistant","timestamp":"2026-09-27T10:01:30.000Z"}"#,
+    #"{"type":"assistant","timestamp":"2026-09-27T10:03:00.500Z"}"#,
+    #"{"type":"user","timestamp":"2026-09-27T10:10:00.000Z","message":{"content":"again"}}"#,
+    #"{"type":"assistant","timestamp":"2026-09-27T10:11:00Z"}"#,
+    #"{"type":"user","timestamp":"2026-09-27T10:20:00.000Z","message":{"content":"still running"}}"#,
+    #"{"type":"assistant","timestamp":"2026-09-27T10:25:00.000Z"}"#,
+]
+let turns = TranscriptTurns.durations(turnLines) { $0.contains("\"type\":\"user\"") }
+check(turns == [180_500, 60_000], "turns: \(turns)")
+
+// A working session's elapsed time leaves out waits
+var working = IslandSession(id: "w", sessionId: "w", pid: 1, cwd: "", project: "p", registryName: nil, title: "t",
+                            titleSource: nil, summary: nil, note: nil, theme: nil, accentKey: nil, accentHex: nil,
+                            dotHex: nil, cursorHex: nil, status: .busy, waitingFor: nil, lastPrompt: nil, context: nil,
+                            model: nil, tty: nil, term: nil, startedAt: 0, activityAt: nil, hasRecord: true)
+let nowDate = Date()
+working.turnStartedAt = nowDate.timeIntervalSince1970 * 1000 - 300_000
+working.turnWaitMs = 60_000
+check(abs((working.workElapsed(now: nowDate) ?? 0) - 240) < 0.5, "elapsed without waits")
+working.typicalTurn = 480
+check(working.progress(now: nowDate)?.caption == "~4m left · usually 8m", "session progress: \(String(describing: working.progress(now: nowDate)))")
+working.status = .idle
+check(working.progress(now: nowDate) == nil, "no estimate on your turn")
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

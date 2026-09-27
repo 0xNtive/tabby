@@ -124,6 +124,27 @@ test('waiting → working → your turn status markers', () => {
   assert.match(read('a'), /✳ Auth refactor\x07$/);
 });
 
+test('turns are timed without the time spent waiting on you', () => {
+  as('a', process.pid, () => hook('UserPromptSubmit', { session_id: 'A', prompt: 'add retries to the webhook handler' }));
+  const started = S.readSession('A');
+  assert.equal(started.status, 'busy');
+  assert.ok(Math.abs(started.turnStartedAt - Date.now()) < 2000, 'turn start recorded');
+  // Pretend the turn began 5 minutes ago and spent 2 of them on a permission prompt.
+  S.patchSession('A', { status: 'waiting', turnStartedAt: Date.now() - 300_000, turnWaitMs: 60_000, waitingSince: Date.now() - 60_000 });
+  as('a', process.pid, () => hook('PostToolUse', { session_id: 'A', tool_name: 'Bash' })); // prompt answered
+  assert.ok(!S.readSession('A').waitingSince, 'waiting over');
+  assert.ok(S.readSession('A').turnWaitMs >= 119_000, 'both waits counted');
+  as('a', process.pid, () => hook('Stop', { session_id: 'A' }));
+  const done = S.readSession('A');
+  assert.equal(done.turnStartedAt, null);
+  assert.ok(done.lastTurnMs > 175_000 && done.lastTurnMs < 185_000, `about 3 minutes of work, got ${done.lastTurnMs}`);
+  assert.equal(done.turns.at(-1), done.lastTurnMs);
+  // A turn with no recorded start (tabby installed mid-turn) adds nothing.
+  as('a', process.pid, () => hook('Stop', { session_id: 'A' }));
+  assert.equal(S.readSession('A').turns.length, done.turns.length);
+  assert.equal(H.turnDuration({ turnStartedAt: Date.now() - 800 }), null, 'trivial turns are ignored');
+});
+
 test('a second live session gets a different color and marker', () => {
   clearTty('b');
   as('b', process.ppid, () => hook('SessionStart', { session_id: 'B', source: 'startup', cwd: '/work/web' }));
