@@ -44,7 +44,7 @@ Setup changes only these, backs up `settings.json` first, and `tabby uninstall` 
 | What | Why |
 |---|---|
 | `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` | tabby draws the title (color marker, animated status) instead of Claude |
-| a `statusLine`, only if you don't have one | name, color and context meter inside Claude |
+| a `statusLine`, only if you don't have one | name, color and context used inside Claude |
 | `~/.claude/commands/tab.md` | the short `/tab`; plugin commands are namespaced as `/tabby:tab` |
 | a 3-line block in `~/.zshrc` / `~/.bashrc` | the `claude --tab --color --theme` flags and the `tabby` command |
 | Terminal.app: each Claude tab uses a "<profile> · tabby" copy of its profile while it runs | windows and tabs read `🔵 ◐ Dark Mode Settings`, not `api — 🔵 ◐ Dark Mode Settings — caffeinate ◂ claude --dangerously-skip-permissions — 80×24` |
@@ -95,8 +95,8 @@ tabby doctor          # what works in this terminal
 
 A Dynamic-Island-style overlay at the top center of your Mac.
 
-- **Collapsed:** one dot per session. Working dots ping and waiting ones ring; a short announcement pops up when a session finishes or needs you.
-- **Hover to expand:** every session's name, status and context meter.
+- **Collapsed:** one dot per session. A working session's dot turns inside a ring of its color, one that needs you rings amber, and one waiting for your next prompt rests, dimmed. A short announcement pops up when a session finishes or needs you.
+- **Hover to expand:** every session's name and status ("Working 3m", "Your turn", "Needs you"), context used as a percentage, and for the ones working, an estimate of how far along they are: "2 of 5 tasks · ~3m left" from Claude's task list, or "~2m left · usually 6m" from how long that session's turns take.
 - **Actions:** click a row to jump to that terminal tab; right-click it to rename, recolor or re-theme.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through; it follows the window as you move it, and fades while you drag.

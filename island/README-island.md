@@ -18,7 +18,7 @@ the version in `package.json`, so the About panel shows tabby's version.
 ## What it shows
 
 - **Collapsed:** one dot per session in start order (colored with the session's `dot`).
-  Working dots ping, waiting dots get a blinking amber ring, errors a red ring. The right
+  Working dots turn inside a ring of their color, waiting dots get a blinking amber ring, errors a red ring, and dots on your turn rest dimmed. The right
   ear shows a bell and the waiting count, else a spinner and the busy count, else the
   session count.
 - **Expanded (hover, or ⌃⌥Space):** a bar right under the notch, then the list, ordered
@@ -33,9 +33,27 @@ the version in `package.json`, so the About panel shows tabby's version.
 
 | Mode | Each session shows |
 |---|---|
-| Minimal | one 30 pt line: dot, title, context % |
-| Standard (default) | title, project · model · time, context bar; hovering a row adds the summary, note, last prompt and status line |
-| Detailed | everything, always: title and a status chip ("working 4m", "your turn", "needs you · permission"), project · model · time, context bar with "452k / 1M tokens · $3.20", summary (2 lines), note, last prompt (1 line); rows get separators |
+| Minimal | one 30 pt line: dot, title, status ("Working 3m", "Your turn", "Needs you", "Error"), context % |
+| Standard (default) | title and a status chip, project · model · when it finished or asked, context %, and for a working session its progress estimate; hovering a row adds the task Claude is on, the summary, note and last prompt |
+| Detailed | everything, always: the status chip with what it needs ("Needs you · permission"), context % with "452k / 1M tokens · $3.20", the progress estimate and current task, summary (2 lines), note, last prompt (1 line); rows get separators |
+
+### Status at a glance
+
+- **Dots:** a working session's dot turns inside a ring of its own color; waiting on you: a
+  blinking amber ring; an error: a red ring; your turn: the dot rests, dimmed. The same dots lead
+  each row.
+- **Status chip:** "Working 3m" (white; the time is work only, waits on you left out),
+  "Your turn" (green), "Needs you" (amber), "Error" (red).
+- **Progress estimate** (working sessions): a thin bar in the session's color with
+  - "2 of 5 tasks · ~3m left" when Claude keeps a task list (TaskCreate/TaskUpdate, or TodoWrite),
+    read from the transcript's tail: the time left is the time per finished task so far;
+  - otherwise "~2m left · usually 6m": the median length of this session's turns (tabby's hooks
+    time each one, waits on you left out; before they've timed three, the transcript's
+    timestamps, read once from up to 16 MB back and then as it grows; before that, every
+    session's median). Past the usual length it says "Longer than usual (6m)" and the bar creeps,
+    never filling.
+- **Context used** is a percentage with a small ring, not a bar (a bar reads as progress):
+  amber from 70 %, red from 90 %. Claude's status line and `tabby ls` show it as a number too.
 
 Switch with the top bar's three-icon picker, the status menu's **Mode** submenu, or ⌃⌥M. The
 choice is written with `tabby config islandMode '"detailed"'` and applied at once (the island
@@ -225,7 +243,7 @@ Screen Recording isn't needed: `--snapshot <dir>` renders the SwiftUI tree with
 - `onboarding-*.png`: each page of the setup window (permissions part-way: one allowed, one
   asking, one not asked yet), and `onboarding-done-ready.png` with everything allowed
 
-Core Animation (pings, pops, blinks) isn't captured; snapshots show the resting state.
+Core Animation (the working rings turning, pops, blinks) isn't captured; snapshots show the resting state.
 
 ## Debugging
 
@@ -246,7 +264,7 @@ MacBook Pro with 3 busy sessions: 0.1–0.3% collapsed, about 0.2% expanded (a b
 during the expand spring).
 
 - Everything that loops is Core Animation, which the render server plays without waking the
-  app: the busy ping, the waiting ring, the spinner, the bell wiggle, the cat's blink. (A
+  app: the working ring, the waiting ring, the spinner, the bell wiggle, the cat's blink. (A
   SwiftUI `ProgressView` in the pill once cost ~4.5% CPU.)
 - No SwiftUI timers or `TimelineView` run while collapsed. Rows use a 15 s `TimelineView`
   for relative times, but rows only exist while expanded.
@@ -266,7 +284,8 @@ during the expand spring).
 | `TabbyIslandApp.swift` | entry point, `--dump`, status item, status menu, About panel |
 | `IslandPanel.swift` | the non-activating panel, geometry, UI state, the controller (hover, expand/collapse, keyboard focus, inline rename, announcements, settings, hotkey wiring, tiling) |
 | `IslandView.swift` | root view: header ears, announcement label, list, top bar (brand, mode picker, tile, theme), keyboard hint |
-| `SessionRows.swift` | the row in all three modes, status chip, context bar, rename field, entrance stagger |
+| `SessionRows.swift` | the row in all three modes, status label, context gauge, progress line, rename field, entrance stagger |
+| `Progress.swift` | Claude's task list from the transcript, past turn lengths, and the progress estimate |
 | `SessionStore.swift` | the 1 s poller and the loader that joins the registry, tabby records, transcripts, themes and config |
 | `Models.swift` | data types, modes, announcements, palette, OKLab/contrast math, formatting |
 | `Components.swift` | Core Animation views: status dot (pop and sparkle), spinner, bell; menu swatches |

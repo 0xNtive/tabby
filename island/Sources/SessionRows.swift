@@ -51,52 +51,60 @@ struct SessionRow: View {
         }
     }
 
-    // MARK: Minimal: dot, title, percentage (30 pt)
+    // MARK: Minimal: dot, title, status, context (30 pt)
 
     private var minimal: some View {
-        HStack(spacing: 10) {
-            PulseDot(hex: session.dotHex, status: session.status, dotSize: 8, reduceMotion: reduceMotion)
-                .frame(width: 16, height: 16)
-            if let renameText {
-                RenameField(text: renameText, size: 12.5, onCommit: onRenameCommit, onCancel: onRenameCancel)
-            } else {
-                Text(session.title)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.94))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            HStack(spacing: 10) {
+                PulseDot(hex: session.dotHex, status: session.status, dotSize: 8, reduceMotion: reduceMotion)
+                    .frame(width: 16, height: 16)
+                if let renameText {
+                    RenameField(text: renameText, size: 12.5, onCommit: onRenameCommit, onCancel: onRenameCancel)
+                } else {
+                    Text(session.title)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(session.status.isYourTurn ? 0.8 : 0.96))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Spacer(minLength: 6)
+                if hovered && renameText == nil { menuButton(size: 16).transition(.opacity) }
+                StatusLabel(session: session, now: context.date, chip: false)
+                ContextGauge(pct: session.contextPct, reduceMotion: reduceMotion)
+                    .frame(width: 46, alignment: .trailing)
             }
-            Spacer(minLength: 6)
-            if hovered && renameText == nil { menuButton(size: 16).transition(.opacity) }
-            // No bar in this mode, so the number carries the bar's warning colors.
-            Percent(pct: session.contextPct, reduceMotion: reduceMotion, tinted: true)
-                .frame(width: 34, alignment: .trailing)
+            .frame(height: 16)
         }
-        .frame(height: 16)
     }
 
-    // MARK: Standard: title, project · model · ago, context bar; hover for the rest
+    // MARK: Standard: title and status, project · model, context; progress while working
 
     private var standard: some View {
         HStack(alignment: .top, spacing: 10) {
             PulseDot(hex: session.dotHex, status: session.status, dotSize: 9, reduceMotion: reduceMotion)
                 .frame(width: 18, height: 18)
-            VStack(alignment: .leading, spacing: 4) {
-                titleLine(chip: false)
-                TimelineView(.periodic(from: .now, by: 15)) { context in
-                    secondaryLine(now: context.date)
-                }
-                ContextBar(pct: session.contextPct, accent: dot, reduceMotion: reduceMotion)
-                    .padding(.top, 2)
-                if hovered {
-                    VStack(alignment: .leading, spacing: 5) {
-                        summaryBlock(lines: 4)
-                        noteBlock
-                        promptBlock(lines: 2)
-                        statusLine
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                VStack(alignment: .leading, spacing: 4) {
+                    titleLine(now: context.date, detail: false)
+                    HStack(spacing: 8) {
+                        secondaryLine(now: context.date)
+                        Spacer(minLength: 6)
+                        ContextGauge(pct: session.contextPct, label: "context", reduceMotion: reduceMotion)
                     }
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    if let guess = session.progress(now: context.date) {
+                        ProgressLine(guess: guess, accent: dot, reduceMotion: reduceMotion)
+                            .padding(.top, 2)
+                    }
+                    if hovered {
+                        VStack(alignment: .leading, spacing: 5) {
+                            currentTask
+                            summaryBlock(lines: 4)
+                            noteBlock
+                            promptBlock(lines: 2)
+                        }
+                        .padding(.top, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
             }
         }
@@ -108,15 +116,21 @@ struct SessionRow: View {
         HStack(alignment: .top, spacing: 10) {
             PulseDot(hex: session.dotHex, status: session.status, dotSize: 9, reduceMotion: reduceMotion)
                 .frame(width: 18, height: 18)
-            TimelineView(.periodic(from: .now, by: 15)) { context in
+            TimelineView(.periodic(from: .now, by: 5)) { context in
                 VStack(alignment: .leading, spacing: 5) {
-                    titleLine(chip: true, now: context.date)
-                    secondaryLine(now: context.date)
-                    if session.contextPct != nil || session.usageLine != nil {
-                        ContextBar(pct: session.contextPct, accent: dot, caption: session.usageLine ?? "",
-                                   reduceMotion: reduceMotion)
+                    titleLine(now: context.date, detail: true)
+                    HStack(spacing: 8) {
+                        secondaryLine(now: context.date)
+                            .layoutPriority(-1)
+                        Spacer(minLength: 6)
+                        ContextGauge(pct: session.contextPct, label: "context", caption: session.usageLine,
+                                     reduceMotion: reduceMotion)
+                    }
+                    if let guess = session.progress(now: context.date) {
+                        ProgressLine(guess: guess, accent: dot, reduceMotion: reduceMotion)
                             .padding(.vertical, 2)
                     }
+                    currentTask
                     if session.summary != nil || session.note != nil || session.lastPrompt != nil {
                         VStack(alignment: .leading, spacing: 4) {
                             summaryBlock(lines: 2)
@@ -131,33 +145,56 @@ struct SessionRow: View {
 
     // MARK: Pieces
 
-    private func titleLine(chip: Bool, now: Date = Date()) -> some View {
+    private func titleLine(now: Date, detail: Bool) -> some View {
         HStack(spacing: 8) {
             if let renameText {
                 RenameField(text: renameText, size: 13, onCommit: onRenameCommit, onCancel: onRenameCancel)
             } else {
                 Text(session.title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(session.status.isYourTurn ? 0.84 : 1))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
             }
-            if chip { StatusChip(session: session, now: now) }
             Spacer(minLength: 4)
             if hovered && renameText == nil { menuButton(size: 18).transition(.opacity) }
+            StatusLabel(session: session, now: now, detail: detail)
         }
         .frame(height: 18)
     }
 
+    /// project · model, then when it finished or asked.
     private func secondaryLine(now: Date) -> some View {
-        Text([session.project, session.model, Fmt.ago(session.activityAt, now: now)]
+        let when: String?
+        switch session.status {
+        case .idle, .unknown: when = Fmt.ago(session.activityAt, now: now).map { "done \($0)" }
+        case .waiting: when = Fmt.ago(session.activityAt, now: now).map { "asked \($0)" }
+        case .error: when = Fmt.ago(session.activityAt, now: now)
+        default: when = nil
+        }
+        return Text([session.project, session.model, when]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · "))
             .font(.system(size: 11))
             .foregroundStyle(.white.opacity(0.58))
             .lineLimit(1)
+    }
+
+    /// The task Claude is on, from its task list.
+    @ViewBuilder private var currentTask: some View {
+        if session.status == .busy, let task = session.tasks?.current {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.system(size: 9.5, weight: .semibold))
+                Text(task)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.78))
+        }
     }
 
     @ViewBuilder private func summaryBlock(lines: Int) -> some View {
@@ -192,24 +229,6 @@ struct SessionRow: View {
                 .lineLimit(lines)
                 .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var statusLine: some View {
-        HStack(spacing: 5) {
-            Image(systemName: session.status.symbol)
-            Text([session.statusDetail, session.usageLine].compactMap { $0 }.joined(separator: " · "))
-        }
-        .font(.system(size: 10.5, weight: .medium))
-        .foregroundStyle(statusColor)
-        .lineLimit(1)
-    }
-
-    private var statusColor: Color {
-        switch session.status {
-        case .waiting: return Palette.waiting
-        case .error: return Palette.danger
-        default: return Color.white.opacity(0.58)
         }
     }
 
@@ -255,92 +274,147 @@ struct RenameField: View {
     }
 }
 
-// MARK: - Status chip ("working 4m", "your turn", "needs you · permission")
+// MARK: - Status label ("Working 3m", "Your turn", "Needs you · permission", "Error")
 
-struct StatusChip: View {
+/// What a session is doing, in words and a color of its own: white while working, green on
+/// your turn, amber when it needs you, red on an error.
+struct StatusLabel: View {
     let session: IslandSession
     let now: Date
+    /// "Needs you · permission" rather than "Needs you".
+    var detail = false
+    /// A tinted capsule; plain colored text in the one-line mode.
+    var chip = true
 
     var body: some View {
-        let (text, color) = label
-        Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .frame(height: 17)
-            .background(Capsule().fill(color.opacity(0.15)))
-            .fixedSize()
-            .accessibilityLabel(text)
+        let (text, color, symbol) = label
+        HStack(spacing: 4) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 8.5, weight: .heavy))
+            }
+            Text(text)
+                .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+        }
+        .foregroundStyle(color)
+        .lineLimit(1)
+        .padding(.horizontal, chip ? 7 : 0)
+        .frame(height: 18)
+        .background(Capsule().fill(color.opacity(chip ? 0.14 : 0)))
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 
-    private var label: (String, Color) {
+    private var label: (String, Color, String?) {
         switch session.status {
         case .busy:
-            let elapsed = Fmt.elapsed(session.activityAt, now: now)
-            return (elapsed.map { "working \($0)" } ?? "working", Color.white.opacity(0.75))
+            let worked = session.workElapsed(now: now).flatMap(Fmt.worked)
+            return (worked.map { "Working \($0)" } ?? "Working", Color.white.opacity(0.9), nil)
         case .waiting:
-            let what = session.waitingFor.map { Fmt.oneLine($0.lowercased(), max: 24) }
-            return (what.map { "needs you · \($0)" } ?? "needs you", Palette.waiting)
+            let what = detail ? session.waitingFor.map { Fmt.oneLine($0.lowercased(), max: 24) } : nil
+            return (what.map { "Needs you · \($0)" } ?? "Needs you", Palette.waiting, "bell.fill")
         case .idle, .unknown:
-            return ("your turn", Palette.done)
+            return ("Your turn", Palette.done, "checkmark")
         case .error:
-            return ("error", Palette.danger)
+            return ("Error", Palette.danger, "exclamationmark.triangle.fill")
         case .new:
-            return ("new", Color.white.opacity(0.75))
+            return ("New", Color.white.opacity(0.7), nil)
         case .ended:
-            return ("ended", Color.white.opacity(0.55))
+            return ("Ended", Color.white.opacity(0.5), nil)
         }
     }
 }
 
-// MARK: - Context bar
+// MARK: - Context gauge
 
-struct ContextBar: View {
+/// How much of the context window is used: a small ring and a percentage. It isn't progress,
+/// so it isn't a bar. Amber from 70 %, red from 90 %.
+struct ContextGauge: View {
     let pct: Double?
+    /// "context" after the percentage, where there's room.
+    var label: String? = nil
+    /// Detailed mode: "452k / 1M tokens · $3.20".
+    var caption: String? = nil
+    let reduceMotion: Bool
+
+    var body: some View {
+        if pct != nil { gauge }
+    }
+
+    private var gauge: some View {
+        HStack(spacing: 5) {
+            ZStack {
+                Circle().stroke(Color.white.opacity(0.16), lineWidth: 2)
+                if let pct {
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(max(pct, 0), 100) / 100))
+                        .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: 10, height: 10)
+            Percent(pct: pct, reduceMotion: reduceMotion, tinted: true)
+            if let label, pct != nil {
+                Text(label)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            if let caption, !caption.isEmpty {
+                Text("·").foregroundStyle(.white.opacity(0.35))
+                Text(caption)
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .help(pct.map { "Context window \(Int($0.rounded()))% used" } ?? "Context usage unknown")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(pct.map { "Context \(Int($0.rounded())) percent used" } ?? "Context usage unknown")
+    }
+
+    private var color: Color {
+        guard let pct else { return .white.opacity(0.35) }
+        if pct >= 90 { return Palette.danger }
+        if pct >= 70 { return Palette.warn }
+        return .white.opacity(0.7)
+    }
+}
+
+// MARK: - Progress line
+
+/// A working session's guesstimate: a thin bar in its color, and "2 of 5 tasks · ~3m left" or
+/// "~2m left · usually 4m".
+struct ProgressLine: View {
+    let guess: ProgressGuess
     let accent: Color
-    /// Detailed mode: "452k / 1M tokens · $3.20" after the percentage.
-    var caption: String?
     let reduceMotion: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.1))
-                    if let pct {
+            if let fraction = guess.fraction {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.1))
                         Capsule()
-                            .fill(color(for: pct))
-                            .frame(width: max(4, proxy.size.width * CGFloat(min(max(pct, 0), 100) / 100)))
+                            .fill(accent)
+                            .frame(width: max(4, proxy.size.width * CGFloat(min(max(fraction, 0), 1))))
                     }
                 }
+                .frame(height: 4)
+                .frame(minWidth: 60)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: fraction)
             }
-            .frame(height: 4)
-            .frame(minWidth: 60)
-            if let caption, !caption.isEmpty {
-                HStack(spacing: 5) {
-                    Percent(pct: pct, reduceMotion: reduceMotion)
-                    Text("·").foregroundStyle(.white.opacity(0.4))
-                    Text(caption)
-                        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.62))
-                }
+            Text(guess.caption)
+                .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.66))
                 .lineLimit(1)
                 .fixedSize()
-            } else {
-                Percent(pct: pct, reduceMotion: reduceMotion)
-                    .frame(width: 34, alignment: .trailing)
-            }
         }
         .frame(height: 13)
-        .accessibilityElement()
-        .accessibilityLabel(pct.map { "Context \(Int($0.rounded())) percent used" } ?? "Context usage unknown")
-    }
-
-    private func color(for pct: Double) -> Color {
-        if pct >= 90 { return Palette.danger }
-        if pct >= 70 { return Palette.warn }
-        return accent
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Estimated progress: \(guess.caption)")
     }
 }
 

@@ -357,9 +357,32 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     var windowId: Int? = nil
     /// `/tab off`: tabby leaves this tab alone.
     var disabled = false
+    /// When this turn began (ms since 1970), and how much of it went to waiting on you.
+    var turnStartedAt: Double? = nil
+    var turnWaitMs: Double = 0
+    var waitingSince: Double? = nil
+    /// How long this session's turns usually take (seconds), and how long the last one took (ms).
+    var typicalTurn: TimeInterval? = nil
+    var lastTurnMs: Double? = nil
+    /// Claude's task list, while it works through one.
+    var tasks: TaskProgress? = nil
 
     /// What the tabby CLI accepts for `--session`.
     var cliTarget: String { sessionId ?? String(pid) }
+
+    /// Seconds of work in the current turn (time waiting on you left out); nil unless working.
+    func workElapsed(now: Date) -> TimeInterval? {
+        guard status == .busy || status == .waiting, let start = turnStartedAt ?? activityAt else { return nil }
+        let nowMs = now.timeIntervalSince1970 * 1000
+        let waited = turnWaitMs + (waitingSince.map { max(0, nowMs - $0) } ?? 0)
+        return max(0, (nowMs - start - waited) / 1000)
+    }
+
+    /// The guesstimate for a working session: progress and time left.
+    func progress(now: Date) -> ProgressGuess? {
+        guard status == .busy, let elapsed = workElapsed(now: now) else { return nil }
+        return ProgressGuess.make(elapsed: elapsed, typical: typicalTurn, tasks: tasks)
+    }
 
     var contextPct: Double? {
         if let pct = context?.usedPct { return pct }
