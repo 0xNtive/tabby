@@ -9,7 +9,7 @@ tabby is a Claude Code plugin: every session's terminal tab gets an AI-written n
 - **Never accept the terms for them.** Show the summary, ask, and continue only after an explicit yes.
 - No `sudo`, nothing outside their home folder. The installer only touches what `tabby uninstall` reverts.
 - Give every Bash call a **10-minute timeout**: the installer may download Node.js and the island.
-- `tabby` isn't a command in your shell yet. Once installed, run it as `sh ~/.claude/tabby/bin/tabby …` (written `T` below).
+- `tabby` isn't a command in your shell yet. Once installed, run it as `sh "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby/bin/tabby" …` (written `T` below).
 - Don't edit their Claude settings, shell files or Terminal profiles by hand. The installer does it and backs up `settings.json` first.
 
 ## 1. Look at the machine
@@ -44,12 +44,12 @@ Only after they said yes (`--yes` records their acceptance):
 curl -fsSL https://claude-tabby.vercel.app/install | bash -s -- --yes
 ```
 
-It finds Claude Code and Node.js 18+, downloading a private Node.js if there's none. It adds the plugin, runs the one-time setup and, on a Mac, installs Tabby Island into `~/Applications` and opens its setup window. It ends with a `tabby doctor` report. If it fails, read `~/.claude/tabby/install.log` and use **Troubleshooting** below.
+It finds Claude Code and Node.js 18+, downloading a private Node.js if there's none. It adds the plugin, runs the one-time setup and, on a Mac, installs Tabby Island into `~/Applications` and opens its setup window. It ends with a `tabby doctor` report. If it fails, read `${CLAUDE_CONFIG_DIR:-~/.claude}/tabby/install.log` and use **Troubleshooting** below.
 
 ## 4. Check and fix
 
 ```sh
-sh ~/.claude/tabby/bin/tabby doctor --json
+sh "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby/bin/tabby" doctor --json
 ```
 
 It returns `{ ok, next, checks: [{ id, title, status, detail, fix }] }`, with status `ok | warn | fail | info | skip`. For each `fail`, then each `warn`, that has a `fix`:
@@ -89,7 +89,7 @@ Tell them, briefly:
 
 | What you see | Why | What to do |
 |---|---|---|
-| `Claude Code isn't installed (or not where a terminal can find it)` | The `claude` command isn't on PATH in a plain shell | Look for it: `ls ~/.local/bin/claude ~/.claude/local/claude /opt/homebrew/bin/claude`. If it's there, run the installer with that folder on PATH: `PATH="$HOME/.local/bin:$PATH" bash -c 'curl -fsSL https://claude-tabby.vercel.app/install \| bash -s -- --yes'` |
+| `Claude Code isn't installed (or not where a terminal can find it)` | The installer looked on PATH, in `~/.local/bin`, `~/.claude/local` and Homebrew's folders | Find it (`command -v claude`, or ask where they installed Claude Code), then run the installer with it: see *Claude somewhere else* below |
 | `Couldn't download Node.js` | Offline, proxy or firewall | `brew install node`, or the installer from https://nodejs.org, then run the installer again |
 | `The plugin didn't install` | No network to GitHub, or git broken | The log shows Claude's own error. Ask them to type `/plugin marketplace add 0xNtive/tabby`, then `/plugin install tabby@tabby` in Claude, then run the installer again |
 | `Tabby Island could not be installed` | The download from github.com failed, and there are no Xcode Command Line Tools to build it | Check that `curl -sI https://github.com` works. Or `xcode-select --install` (they confirm a dialog; takes a few minutes), then `T island install` |
@@ -99,4 +99,11 @@ Tell them, briefly:
 | Colors look wrong or text is hard to read | Light theme on a dark Claude, or the reverse | Follow the `theme` check's fix |
 | Anything else | | Read `~/.claude/tabby/install.log` and `~/.claude/tabby/tabby.log`. Running the installer again is safe: it repairs in place |
 
-To remove everything: `T uninstall`. It restores `settings.json` from its backup, removes the plugin, the island, the login item, the shell lines and the private Node.js, and keeps names and colors in `~/.claude/tabby` in case they come back.
+
+**Claude somewhere else.** With the path to their `claude`:
+
+```sh
+curl -fsSL https://claude-tabby.vercel.app/install | CLAUDE_BIN=/path/to/claude bash -s -- --yes
+```
+
+To remove everything: `T uninstall`. It undoes its own changes to `settings.json` (a backup from before setup is kept), removes the plugin, the island, the login item, the shell lines and the private Node.js, and keeps names and colors in `~/.claude/tabby` in case they come back.

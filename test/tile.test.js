@@ -142,7 +142,8 @@ test('tabby new: the command, the terminal and where the window goes', () => {
   assert.match(L.launchScript('apple-terminal', 'claude', [1, 2, 3, 4]), /set bounds of front window to \{1, 2, 3, 4\}/);
   assert.match(L.launchScript('iterm2', 'say "hi"', null), /write text "say \\"hi\\""/);
   const folders = [{ name: 'tabby', path: '/w/tabby' }, { name: 'wildcat', path: '/w/wildcat' }];
-  assert.deepEqual(L.resolveFolder('wild', folders), { dir: '/w/wildcat' });
+  assert.deepEqual(L.resolveFolder('wild', folders), { dir: '/w/wildcat', loose: true });
+  assert.match(L.newSession({ dir: 'wild', dangerous: true, dryRun: true, folders }), /only partly matches/, 'no skipping permissions on a guess');
   assert.deepEqual(L.resolveFolder(tmp, folders), { dir: tmp });
   assert.match(L.resolveFolder('nothing-like-it', folders).error, /No folder/);
   assert.match(L.resolveFolder('/no/such/dir', folders).error, /No such folder/);

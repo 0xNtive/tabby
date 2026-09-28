@@ -10,11 +10,13 @@
 
 _TABBY_HOME="${TABBY_HOME:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby}"
 
-tabby() { sh "$_TABBY_HOME/bin/tabby" "$@"; }
+# `function name {`, not `name() {`: an alias named claude (claude='claude --dangerously-…', or
+# Claude's old ~/.claude/local/claude) would otherwise make this a syntax error.
+function tabby { sh "$_TABBY_HOME/bin/tabby" "$@"; }
 
-claude() {
+function claude {
   local -a _tabby_args
-  local _tabby_color="" _tabby_theme="" _tabby_off="" _tabby_load=""
+  local _tabby_color="${TABBY_COLOR:-}" _tabby_theme="${TABBY_THEME:-}" _tabby_off="${TABBY_OFF:-}" _tabby_load=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --color|--tab-color) _tabby_color="${2:-}"; shift; [ $# -gt 0 ] && shift ;;

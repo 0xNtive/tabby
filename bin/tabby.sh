@@ -34,6 +34,10 @@ find_node() {
     "$HOME"/.nvm/versions/node/v*/bin/node "$HOME"/.local/share/fnm/node-versions/v*/installation/bin/node \
     /usr/bin/node; do
     if [ -n "$n" ] && new_enough "$n"; then
+      # Remember the real binary, not a version manager's shim (which can switch to an old Node
+      # per project): if it goes away, the search runs again.
+      real=$("$n" -p 'process.execPath' 2> /dev/null)
+      [ -n "$real" ] && [ -x "$real" ] && n="$real"
       mkdir -p "$home" 2> /dev/null && printf '%s\n' "$n" > "$home/node-path" 2> /dev/null
       echo "$n"
       return 0

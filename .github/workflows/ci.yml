@@ -68,3 +68,24 @@ jobs:
           if [ "$RUNNER_OS" = macOS ]; then test -d "$HOME/Applications/Tabby Island.app"; fi
           sh "$T" uninstall
           test ! -e "$HOME/.claude/tabby/node"
+      # What a person does: the script through a pipe, answering the terms prompt on the terminal.
+      - name: Piped install answering the prompt (macOS)
+        if: runner.os == 'macOS'
+        env:
+          TABBY_MARKETPLACE: ${{ github.workspace }}
+          TABBY_NO_TERMINAL_PROFILES: '1'
+          TABBY_ISLAND_SANDBOX: '1'
+          TABBY_ISLAND_URL: file://${{ runner.temp }}/TabbyIsland.zip
+        run: |
+          export HOME="$(mktemp -d)"
+          cat > "$RUNNER_TEMP/terms.exp" <<'EXP'
+          set timeout 300
+          spawn bash -c "cat install.sh | bash"
+          expect "Accept the tabby terms?"
+          sleep 1
+          send "y\r"
+          expect "Done."
+          expect eof
+          EXP
+          expect "$RUNNER_TEMP/terms.exp"
+          grep -q termsAccepted "$HOME/.claude/tabby/config.json"
