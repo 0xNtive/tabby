@@ -267,7 +267,7 @@ private struct PermissionsPage: View {
                 Text(permissions.nothingNeeded ? "No permissions needed" : "A few permissions")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                 Spacer()
-                if !permissions.nothingNeeded && !permissions.allGranted {
+                if !permissions.nothingNeeded && permissions.canAskAll {
                     Button("Allow All") { permissions.requestAll() }
                         .buttonStyle(MarmaladeButtonStyle(compact: true))
                         .accessibilityHint("Asks macOS for each permission below, one after another")
@@ -297,7 +297,8 @@ private struct PermissionsPage: View {
                                    hint: "Click Allow in the dialog macOS shows.",
                                    allow: { permissions.requestAutomation(.terminal) },
                                    askAgain: { permissions.askAgain(.terminal) },
-                                   openSettings: PermissionCenter.openAutomationPane)
+                                   openSettings: PermissionCenter.openAutomationPane,
+                                   deniedHint: PermissionCenter.deniedHint(.terminal))
                 }
                 if permissions.isNeeded(.iTerm) {
                     PermissionCard(symbol: "terminal", title: "Control iTerm2",
@@ -306,7 +307,8 @@ private struct PermissionsPage: View {
                                    hint: "Click Allow in the dialog macOS shows.",
                                    allow: { permissions.requestAutomation(.iTerm) },
                                    askAgain: { permissions.askAgain(.iTerm) },
-                                   openSettings: PermissionCenter.openAutomationPane)
+                                   openSettings: PermissionCenter.openAutomationPane,
+                                   deniedHint: PermissionCenter.deniedHint(.iTerm))
                 }
                 if permissions.isNeeded(.systemEvents) {
                     PermissionCard(symbol: "rectangle.split.2x1.fill", title: "Control System Events",
@@ -315,7 +317,8 @@ private struct PermissionsPage: View {
                                    hint: "Click Allow in the dialog macOS shows.",
                                    allow: { permissions.requestAutomation(.systemEvents) },
                                    askAgain: { permissions.askAgain(.systemEvents) },
-                                   openSettings: PermissionCenter.openAutomationPane)
+                                   openSettings: PermissionCenter.openAutomationPane,
+                                   deniedHint: PermissionCenter.deniedHint(.systemEvents))
                 }
                 LoginCard(on: state.loginItem) { island.setLoginItem($0) }
             }
@@ -335,6 +338,8 @@ private struct PermissionCard: View {
     let allow: () -> Void
     let askAgain: () -> Void
     let openSettings: () -> Void
+    /// Where to switch it on after a "Don't Allow" (Automation cards): shown then, with Open Settings.
+    var deniedHint: String? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -342,11 +347,12 @@ private struct PermissionCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
-                Text(status == .waiting ? hint : detail)
+                Text(status == .waiting ? hint : status == .denied ? deniedHint ?? detail : detail)
                     .font(.system(size: 12.5))
-                    .foregroundStyle(status == .waiting ? OnboardingStyle.foam.opacity(0.9) : OnboardingStyle.foamSoft)
+                    .foregroundStyle(status == .waiting || (status == .denied && deniedHint != nil)
+                                     ? OnboardingStyle.foam.opacity(0.9) : OnboardingStyle.foamSoft)
                     .fixedSize(horizontal: false, vertical: true)
-                if status == .waiting || status == .denied {
+                if status == .waiting || (status == .denied && deniedHint == nil) {
                     Button("Open System Settings", action: openSettings)
                         .buttonStyle(.plain)
                         .font(.system(size: 12, weight: .medium))
@@ -386,7 +392,7 @@ private struct PermissionCard: View {
                 Text("Not allowed")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(OnboardingStyle.warning)
-                Button("Ask Again", action: askAgain)
+                Button(deniedHint == nil ? "Ask Again" : "Open Settings", action: askAgain)
                     .buttonStyle(MarmaladeButtonStyle(compact: true))
             }
         case .notAsked, .unknown:

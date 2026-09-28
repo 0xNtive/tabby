@@ -209,25 +209,33 @@ struct RecentFolder: Identifiable, Equatable, Sendable {
 
 enum QuickLaunchFilter {
     /// Folders matching what's typed, best first: a name that starts with it, then a name that
-    /// contains it, then a path that does (each keeps the frecency order). A typed path that
-    /// exists comes first. Empty: everything, in frecency order.
+    /// contains it, then a path that does (each keeps the frecency order). A typed path comes
+    /// first: the recent folder it names, or else any folder that exists there. A trailing slash
+    /// doesn't matter. Empty: everything, in frecency order.
     static func apply(_ query: String, to folders: [RecentFolder], home: String = NSHomeDirectory(),
                       isDirectory: (String) -> Bool = QuickLaunchFilter.isDirectory) -> [RecentFolder] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return folders }
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return folders }
+        let q = trimmed.count > 1 && trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
         var out: [RecentFolder] = []
+        var rest = folders
         if q.hasPrefix("/") || q.hasPrefix("~") {
             let path = q.hasPrefix("~") ? home + q.dropFirst() : q
-            let clean = path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
-            if isDirectory(clean), !folders.contains(where: { $0.path == clean }) {
-                let display = clean.hasPrefix(home + "/") ? "~" + clean.dropFirst(home.count) : clean
-                out.append(RecentFolder(path: clean, name: (clean as NSString).lastPathComponent, display: display, typed: true))
+            if let known = folders.first(where: { $0.path == path }) {
+                out.append(known)
+                rest.removeAll { $0.path == path }
+            } else if isDirectory(path) {
+                let display = path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+                out.append(RecentFolder(path: path, name: (path as NSString).lastPathComponent, display: display, typed: true))
             }
         }
         let lower = q.lowercased()
-        let starts = folders.filter { $0.name.lowercased().hasPrefix(lower) }
-        let contains = folders.filter { !$0.name.lowercased().hasPrefix(lower) && $0.name.lowercased().contains(lower) }
-        let inPath = folders.filter { !$0.name.lowercased().contains(lower) && $0.display.lowercased().contains(lower) }
+        let starts = rest.filter { $0.name.lowercased().hasPrefix(lower) }
+        let contains = rest.filter { !$0.name.lowercased().hasPrefix(lower) && $0.name.lowercased().contains(lower) }
+        let inPath = rest.filter {
+            !$0.name.lowercased().contains(lower)
+                && ($0.display.lowercased().contains(lower) || $0.path.lowercased().contains(lower))
+        }
         return out + starts + contains + inPath
     }
 

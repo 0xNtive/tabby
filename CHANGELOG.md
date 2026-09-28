@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.2 — 2026-09-28
+
+Tabby Island fixes from the adversarial review:
+
+- **End Session can't be double-clicked through.** The red button in the confirmation waits a moment (longer than a double-click) before it takes a click, and looks dimmed until then.
+- **Focus mode:**
+  - covers stop below Terminal's tab bar, so tabs stay visible and clickable (it now knows which windows have tabs);
+  - a full-screen window under the notch is recognized;
+  - subagents that finished, hit an API error or were interrupted no longer show as running;
+  - spinners only tick while a cover can be seen;
+  - clicking a cover opens the session that window shows now, and only real session windows count as "the one you're typing in".
+- **Nothing keeps running after Settings closes.** The Focus preview's spinner and the once-a-second permission check used to run on after the window closed. The status file is only written when something changes.
+- **Permissions:**
+  - "Ask Again" for Terminal, iTerm2 or System Events no longer resets every other Automation permission. It opens System Settings › Automation at the right switch.
+  - "Allow All" only shows while there's something it can ask.
+  - Background checks keep going, so a terminal opened later is noticed.
+- **Quick launch** finds a recent folder typed as a full path (or with a trailing slash), and lists up to 200 folders.
+- **A failed End Session is announced** in the island, not just shown in a card that can disappear.
+- **The island follows `CLAUDE_CONFIG_DIR`** (setup records it), for sessions, its status file and updates.
+
 ## 0.3.1 — 2026-09-28
 
 **Update from wherever you are.** When a new version is out, Tabby Island shows an **Update** button (also in its menu-bar menu and Settings › General › Updates), a new Claude session mentions it once a day, and `/tab update` or `tabby update` get it from Claude or a terminal. An update gets the plugin, refreshes the parts of setup you have (nothing you turned off comes back) and the island, which restarts on the new version. `tabby update --check` only looks. The check asks github.com for the latest release at most every 6 hours and sends nothing about you; `tabby config updateCheck false` turns it off.

@@ -136,7 +136,8 @@ final class QuickLaunchController: NSObject, NSWindowDelegate {
         guard Date().timeIntervalSince(loadedAt) > 2 else { return }
         loadedAt = Date()
         model.loading = model.folders.isEmpty
-        Actions.runCLI(["new", "--list", "--json"]) { [weak self] status, output in
+        // Every recent folder the panel can filter, not just the first 20 `--list` shows.
+        Actions.runCLI(["new", "--list", "--json", "--limit=200"]) { [weak self] status, output in
             guard let self else { return }
             self.model.loading = false
             if status == 0 { self.model.folders = RecentFolder.parse(output) }

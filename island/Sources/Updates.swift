@@ -48,9 +48,8 @@ final class UpdateCenter: ObservableObject {
         self.phase = phase
     }
 
-    private var dir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/tabby", isDirectory: true)
-    }
+    private var dir: URL { ClaudePaths.tabby }
+    private var logHint: String { "See \(ClaudePaths.display(dir.appendingPathComponent("update.log")))" }
 
     // MARK: Lifecycle
 
@@ -188,10 +187,10 @@ final class UpdateCenter: ObservableObject {
         guard let state = readState() else { return }
         switch state.state {
         case "running":
-            if Date().timeIntervalSince(started) > 900 { finish(.failed("The update is taking too long. See ~/.claude/tabby/update.log")) }
+            if Date().timeIntervalSince(started) > 900 { finish(.failed("The update is taking too long. \(logHint)")) }
             else if let message = state.message, phase != .updating(message) { phase = .updating(message) }
         case "failed":
-            finish(.failed(state.message ?? "The update failed. See ~/.claude/tabby/update.log"))
+            finish(.failed(state.message ?? "The update failed. \(logHint)"))
         default:
             finish(.idle)
             readCheck()
@@ -236,8 +235,7 @@ final class UpdateCenter: ObservableObject {
 
     /// The tabby the CLI runs (the newest installed plugin), from its island.json root.
     private static func installedVersion() -> String? {
-        let tabby = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/tabby")
-        guard let data = try? Data(contentsOf: tabby.appendingPathComponent("island.json")),
+        guard let data = try? Data(contentsOf: ClaudePaths.tabby.appendingPathComponent("island.json")),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let root = json["root"] as? String,
               let pkg = try? Data(contentsOf: URL(fileURLWithPath: root).appendingPathComponent("package.json")),

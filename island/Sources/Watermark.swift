@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 // MARK: - Settings
 
@@ -291,6 +292,8 @@ final class WatermarkController {
     private var overlays: [Int: Overlay] = [:]
     /// Every Terminal window the store knows (session tabs or not), and those already asked about.
     private var knownWindows = Set<Int>()
+    /// Whether each window showed a tab bar, at the bounds it had when asked.
+    private var tabBarCache: [Int: (bounds: CGRect, tabs: Bool)] = [:]
     private var askedAbout = Set<Int>()
     private var terminalPid: (pid: Int?, at: Date) = (nil, .distantPast)
     private var timer: Timer?
@@ -324,6 +327,11 @@ final class WatermarkController {
                 : nil
             guard settings.enabled || cover != nil else { continue }
             next[id] = Target(text: session.title, tint: color(session), status: session.status, cover: cover)
+        }
+        if snapshot.terminalWindowIds != knownWindows {
+            // A tab joined or left a window: covers measure the tab bar again.
+            tabBarCache.removeAll()
+            for overlay in overlays.values where overlay.presentation == .cover && overlay.shown { overlay.bounds = nil }
         }
         knownWindows = snapshot.terminalWindowIds
         guard next != targets else { return }
@@ -388,7 +396,7 @@ final class WatermarkController {
             let covered = target.cover != nil &&
                 FocusRule.covers(status: target.status, windowIsFront: id == frontTerminalWindow, terminalActive: terminalActive)
             let wanted: Presentation = covered ? .cover : settings.enabled ? .watermark : .none
-            if wanted != overlay.presentation { present(overlay, wanted, target: target, reduceMotion: reduceMotion) }
+            if wanted != overlay.presentation { present(overlay, wanted, id: id, target: target, reduceMotion: reduceMotion) }
             guard let window = overlay.current else { continue }
             let mine = windows[window.windowNumber]
             guard let seen = windows[id] else {
@@ -438,15 +446,17 @@ final class WatermarkController {
             overlays[id] = nil
         }
         noticeUnknownWindows(windows)
-        animate(overlays.values.contains { $0.presentation == .cover && $0.shown }, still: reduceMotion)
+        animate(overlays.values.contains(where: Self.coverVisible), still: reduceMotion)
 
         schedule(after: settling ? 0.1 : (terminalActive ? 0.25 : 1.0))
     }
 
-    /// Terminal's frontmost window on this desktop (the one you'd type into).
+    /// Terminal's frontmost session window on this desktop (the one you'd type into). Only
+    /// windows that show a tab count: a sheet or Terminal's own Settings in front leaves the window
+    /// under it as the one you're in.
     private func frontTerminalWindow(_ windows: [Int: WindowServer.Entry]) -> Int? {
         guard let pid = terminalProcess() else { return nil }
-        return windows.filter { $0.value.pid == pid }.min { $0.value.index < $1.value.index }?.key
+        return windows.filter { $0.value.pid == pid && knownWindows.contains($0.key) }.min { $0.value.index < $1.value.index }?.key
     }
 
     private func terminalProcess() -> Int? {
@@ -459,7 +469,7 @@ final class WatermarkController {
 
     /// Switches what's over a window (watermark ↔ cover ↔ nothing). The new one shows at once
     /// if the window's on screen (else when it comes back).
-    private func present(_ overlay: Overlay, _ next: Presentation, target: Target, reduceMotion: Bool) {
+    private func present(_ overlay: Overlay, _ next: Presentation, id: Int, target: Target, reduceMotion: Bool) {
         if let old = overlay.current, overlay.shown || old.isVisible {
             if overlay.presentation == .cover {
                 // Lifting the cover: out of the mouse's way at once, then a quick fade.
@@ -491,7 +501,8 @@ final class WatermarkController {
             cover.cover.content = content
             cover.ignoresMouseEvents = false
             cover.cover.onClick = { [weak self] in
-                self?.onCoverClick?(content.sessionId)
+                // The session this window shows now (another can take its place while covered).
+                self?.onCoverClick?(self?.targets[id]?.cover?.sessionId ?? content.sessionId)
                 self?.poke(after: 0.3)
             }
         }
@@ -525,8 +536,8 @@ final class WatermarkController {
         var frame = WindowServer.cocoaFrame(bounds)
         if overlay.presentation == .cover {
             // Only the content: the title bar (and tab bar) stay yours to click.
-            let fullScreen = NSScreen.screens.contains { $0.frame == frame }
-            let inset = (fullScreen ? 0 : TerminalChrome.titleBar) + (inTabGroup(id, bounds: bounds) ? TerminalChrome.tabBar : 0)
+            let fullScreen = TerminalChrome.isFullScreen(frame, screens: NSScreen.screens.map { ($0.frame, $0.safeAreaInsets.top) })
+            let inset = (fullScreen ? 0 : TerminalChrome.titleBar) + (showsTabBar(id, bounds: bounds) ? TerminalChrome.tabBar : 0)
             frame.size.height = max(0, frame.height - inset)
             overlay.cover.cover.cornerRadius = fullScreen ? 0 : TerminalChrome.cornerRadius
         }
@@ -538,12 +549,50 @@ final class WatermarkController {
         fade(overlay, in: true, reduceMotion: reduceMotion)
     }
 
-    /// Another of Terminal's windows (a tab in the background) has exactly this frame: they're
-    /// tabs of one window, which shows a tab bar.
-    private func inTabGroup(_ id: Int, bounds: CGRect) -> Bool {
-        let others = knownWindows.subtracting([id]).map { NSNumber(value: CGWindowID($0)) }
-        guard !others.isEmpty,
-              let list = CGWindowListCreateDescriptionFromArray(others as CFArray) as? [[String: Any]] else { return false }
+    /// Whether Terminal's window `id` (at `bounds`) shows a tab bar, so a cover stays below it.
+    /// Accessibility sees the tab bar itself (an AXTabGroup in the window) once the island is
+    /// allowed it; before that, another Terminal window with exactly this frame is taken for a
+    /// tab of the same window (reliable until a tab group is moved).
+    private func showsTabBar(_ id: Int, bounds: CGRect) -> Bool {
+        if let cached = tabBarCache[id], cached.bounds == bounds { return cached.tabs }
+        let seen = AXIsProcessTrusted() ? terminalProcess().flatMap { Self.axShowsTabBar(pid: $0, bounds: bounds) } : nil
+        let tabs = seen ?? sameFrameWindow(id, bounds: bounds)
+        tabBarCache[id] = (bounds, tabs)
+        return tabs
+    }
+
+    /// Terminal's window at `bounds` (top-left origin), asked through Accessibility; nil when
+    /// no window there answers.
+    nonisolated static func axShowsTabBar(pid: Int, bounds: CGRect) -> Bool? {
+        let app = AXUIElementCreateApplication(pid_t(pid))
+        AXUIElementSetMessagingTimeout(app, 0.2)
+        func value(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+            var out: CFTypeRef?
+            return AXUIElementCopyAttributeValue(element, name as CFString, &out) == .success ? out : nil
+        }
+        guard let windows = value(app, kAXWindowsAttribute) as? [AXUIElement] else { return nil }
+        for window in windows {
+            var origin = CGPoint.zero
+            var size = CGSize.zero
+            guard let position = value(window, kAXPositionAttribute), let extent = value(window, kAXSizeAttribute),
+                  CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(extent) == AXValueGetTypeID(),
+                  AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+                  AXValueGetValue(extent as! AXValue, .cgSize, &size),
+                  abs(origin.x - bounds.minX) < 2, abs(origin.y - bounds.minY) < 2,
+                  abs(size.width - bounds.width) < 2, abs(size.height - bounds.height) < 2 else { continue }
+            let children = value(window, kAXChildrenAttribute) as? [AXUIElement] ?? []
+            return children.contains { value($0, kAXRoleAttribute) as? String == kAXTabGroupRole as String }
+        }
+        return nil
+    }
+
+    /// Another of Terminal's windows (a tab in the background) has exactly this frame. The window
+    /// server takes the ids as raw CGWindowID values, not NSNumbers.
+    private func sameFrameWindow(_ id: Int, bounds: CGRect) -> Bool {
+        var values = knownWindows.subtracting([id]).map { UnsafeRawPointer(bitPattern: UInt(CGWindowID($0))) }
+        guard !values.isEmpty else { return false }
+        let array = values.withUnsafeMutableBufferPointer { CFArrayCreate(nil, $0.baseAddress, $0.count, nil) }
+        guard let array, let list = CGWindowListCreateDescriptionFromArray(array) as? [[String: Any]] else { return false }
         return list.contains { info in
             var rect = CGRect.zero
             guard let dictionary = info[kCGWindowBounds as String] as? NSDictionary,
@@ -576,6 +625,11 @@ final class WatermarkController {
 
     // MARK: Focus mode's spinners
 
+    /// A cover someone could see: shown, and not on another desktop or buried under windows.
+    private static func coverVisible(_ overlay: Overlay) -> Bool {
+        overlay.presentation == .cover && overlay.shown && overlay.coverWindow?.occlusionState.contains(.visible) == true
+    }
+
     /// One timer for every cover, only while one shows: 10 frames a second, or a once-a-second
     /// clock with still spinners under Reduce Motion.
     private func animate(_ on: Bool, still: Bool = false) {
@@ -591,7 +645,7 @@ final class WatermarkController {
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                for overlay in self.overlays.values where overlay.presentation == .cover && overlay.shown {
+                for overlay in self.overlays.values where Self.coverVisible(overlay) {
                     overlay.cover.cover.still = self.animationStill
                     overlay.cover.cover.advance()
                 }

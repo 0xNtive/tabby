@@ -76,6 +76,20 @@ enum TerminalChrome {
         return measured > 12 && measured < 80 ? measured : 32
     }()
 
+    /// A window filling a screen: exactly its frame, or on a display with a notch, all of it
+    /// below the notch (where macOS puts full-screen windows there). `screens`: each screen's
+    /// frame and its safe-area top inset.
+    static func isFullScreen(_ frame: CGRect, screens: [(frame: CGRect, topInset: CGFloat)]) -> Bool {
+        screens.contains { screen in
+            if frame == screen.frame { return true }
+            guard screen.topInset > 0 else { return false }
+            var below = screen.frame
+            below.size.height -= screen.topInset
+            return abs(frame.minX - below.minX) < 1 && abs(frame.minY - below.minY) < 1
+                && abs(frame.width - below.width) < 1 && abs(frame.height - below.height) < 1
+        }
+    }
+
     /// Bottom corners of a window, so the cover doesn't poke past them.
     static var cornerRadius: CGFloat {
         ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 ? 16 : 10

@@ -183,6 +183,29 @@ let agentResumed = agentDone + [
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":"one more thing"},"type":"user"}"#,
 ]
 check(SubagentScanner.state(ofLines: agentResumed).running, "sent another message: running again")
+// Endings seen in real transcripts that aren't `end_turn` but are finished
+let apiError = agentWorking + [
+    #"{"isSidechain":true,"isApiErrorMessage":true,"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"API Error: rate limited"}],"stop_reason":"stop_sequence"},"type":"assistant"}"#,
+]
+check(!SubagentScanner.state(ofLines: apiError).running, "died on an API error: finished")
+let interrupted = agentWorking + [
+    #"{"isSidechain":true,"message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]},"type":"user"}"#,
+]
+check(!SubagentScanner.state(ofLines: interrupted).running, "interrupted: finished")
+let notified = agentDone + [
+    #"{"isSidechain":true,"message":{"role":"user","content":"[SYSTEM NOTIFICATION - NOT USER INPUT]\nA background task finished."},"type":"user"}"#,
+]
+check(!SubagentScanner.state(ofLines: notified).running, "a notification after the final answer: still finished")
+let oldFinal = agentWorking + [
+    #"{"isSidechain":true,"version":"2.1.268","message":{"role":"assistant","content":[{"type":"text","text":"Done."}],"stop_reason":null},"type":"assistant"}"#,
+]
+check(SubagentScanner.state(ofLines: oldFinal, quiet: 5).running, "no stop reason, just written: maybe mid-turn")
+check(!SubagentScanner.state(ofLines: oldFinal, quiet: 90).running, "no stop reason (before 2.1.279), quiet 90 s: finished")
+let midTurn = agentWorking + [
+    #"{"isSidechain":true,"version":"2.1.283","message":{"role":"assistant","content":[{"type":"text","text":"Now the big file."}],"stop_reason":null},"type":"assistant"}"#,
+]
+check(SubagentScanner.state(ofLines: midTurn, quiet: 180).running, "mid-turn text (2.1.283), a long tool input on the way: running")
+check(!SubagentScanner.state(ofLines: midTurn, quiet: 700).running, "mid-turn text quiet for 10 minutes: finished")
 
 // Subagents on disk: <transcript>/subagents/agent-<id>.jsonl + .meta.json
 let focusDir = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-focus-\(getpid())")
@@ -234,6 +257,14 @@ MainActor.assumeIsolated {
     _ = NSApplication.shared
     check(TerminalChrome.titleBar >= 22 && TerminalChrome.titleBar <= 40, "title bar \(TerminalChrome.titleBar)")
     check(TerminalChrome.tabBar >= 20 && TerminalChrome.tabBar <= 48, "tab bar \(TerminalChrome.tabBar)")
+    // Full screen, including below the notch of a built-in display (1512×982, 32 pt safe area)
+    let notched = (frame: CGRect(x: 0, y: 0, width: 1512, height: 982), topInset: CGFloat(32))
+    let plain = (frame: CGRect(x: 1512, y: 0, width: 2560, height: 1440), topInset: CGFloat(0))
+    check(TerminalChrome.isFullScreen(CGRect(x: 0, y: 0, width: 1512, height: 950), screens: [notched, plain]), "full screen below the notch")
+    check(TerminalChrome.isFullScreen(CGRect(x: 0, y: 0, width: 1512, height: 982), screens: [notched]), "full screen over the whole notched display")
+    check(TerminalChrome.isFullScreen(CGRect(x: 1512, y: 0, width: 2560, height: 1440), screens: [notched, plain]), "full screen on a plain display")
+    check(!TerminalChrome.isFullScreen(CGRect(x: 0, y: 0, width: 1512, height: 900), screens: [notched, plain]), "a tall window isn't full screen")
+    check(!TerminalChrome.isFullScreen(CGRect(x: 1512, y: 0, width: 2560, height: 1408), screens: [notched, plain]), "no notch, no allowance")
 }
 // The hover dropdown's words
 var asking = working
@@ -296,6 +327,14 @@ check(SessionEndGuard.isClaude(command: "node", arguments: ["node", "/x/node_mod
 check(!SessionEndGuard.isClaude(command: "node", arguments: ["node", "server.js", "claude"]), "node with a claude argument later")
 check(!SessionEndGuard.isClaude(command: "claude-helper", arguments: ["claude-helper"]), "other binaries")
 check(SessionEndGuard.procStartDates("Sat Sep  6 20:07:51 2026").count == 2, "padded day parses")
+
+// The confirmation ignores the second click of a double-click on "End Session…"
+let shown = Date(timeIntervalSince1970: 1_000)
+check(!SessionEndGuard.confirmAccepts(shownAt: shown, now: shown.addingTimeInterval(0.15), doubleClickInterval: 0.5), "double-click's second click: ignored")
+check(!SessionEndGuard.confirmAccepts(shownAt: shown, now: shown.addingTimeInterval(0.55), doubleClickInterval: 0.5), "still within the double-click window: ignored")
+check(SessionEndGuard.confirmAccepts(shownAt: shown, now: shown.addingTimeInterval(0.7), doubleClickInterval: 0.5), "a deliberate click after it appears: ends")
+check(!SessionEndGuard.confirmAccepts(shownAt: shown, now: shown.addingTimeInterval(0.9), doubleClickInterval: 1.0), "a slow double-click setting is respected")
+check(!SessionEndGuard.confirmAccepts(shownAt: nil, now: shown, doubleClickInterval: 0.5), "no confirmation shown: never")
 // Screens for Claude sessions (Settings › Windows), as lib/screens.js decides
 let laptop = ScreenInfo(key: "LAPTOP", name: "Built-in", frame: CGRect(x: -1512, y: 0, width: 1512, height: 982), hasNotch: true)
 let mainScreen = ScreenInfo(key: "MAIN", name: "HP", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), isPrimary: true)
@@ -343,6 +382,12 @@ check(QuickLaunchFilter.apply("lab", to: folders).map(\.name) == ["cat-tools"], 
 let typed = QuickLaunchFilter.apply("~/new-app", to: folders, home: "/Users/me", isDirectory: { $0 == "/Users/me/new-app" })
 check(typed.first?.path == "/Users/me/new-app" && typed.first?.typed == true && typed.first?.display == "~/new-app", "a typed path: \(typed)")
 check(QuickLaunchFilter.apply("/nope", to: folders, isDirectory: { _ in false }).isEmpty, "a path that doesn't exist")
+let absolute = QuickLaunchFilter.apply("/w/tabby", to: folders, isDirectory: { _ in true })
+check(absolute.first?.name == "tabby" && absolute.first?.typed == false && absolute.filter { $0.name == "tabby" }.count == 1,
+      "a recent folder typed as an absolute path: that folder, once: \(absolute.map(\.path))")
+let slashed = QuickLaunchFilter.apply("~/w/tabby/", to: folders, home: "", isDirectory: { _ in true })
+check(slashed.first?.path == "/w/tabby" && slashed.first?.typed == false, "~ path with a trailing slash: \(slashed.map(\.path))")
+check(QuickLaunchFilter.apply("tabby/", to: folders).first?.name == "tabby", "a name with a trailing slash")
 check(QuickLaunchFilter.arguments(for: folders[1], name: "  Fix it ", skipPermissions: true) == ["new", "/w/tabby", "--name", "Fix it", "--dangerous"],
       "launch args")
 check(QuickLaunchFilter.arguments(for: folders[1], name: "", skipPermissions: false) == ["new", "/w/tabby"], "plain launch")

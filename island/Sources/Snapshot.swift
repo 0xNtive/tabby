@@ -92,6 +92,13 @@ enum Snapshotter {
             ui.mode = .standard
             ui.hoveredRow = working(list)?.id
         },
+        State(name: "end-confirm-arming", detail: { detail, list in
+            detail.freeze(open: working(list)?.id, confirming: working(list)?.id, armed: false)
+        }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = working(list)?.id
+        },
         State(name: "end-ending", detail: { detail, list in
             detail.freeze(open: working(list)?.id, ending: Set([working(list)?.id].compactMap { $0 }))
         }) { ui, list in
@@ -222,9 +229,11 @@ enum Snapshotter {
         let ready = PermissionCenter(accessibility: .allowed, automation: [.terminal: .allowed, .systemEvents: .allowed])
         let iTerm = PermissionCenter(accessibility: .notAsked, automation: [.iTerm: .notAsked], usesTerminal: false, usesITerm: true)
         let none = PermissionCenter(accessibility: .notAsked, automation: [:], usesTerminal: false, usesITerm: false)
+        let denied = PermissionCenter(accessibility: .allowed, automation: [.terminal: .denied, .systemEvents: .allowed])
         let pages: [(OnboardingPage, PermissionCenter, String)] = [
             (.welcome, island.permissions, "welcome"), (.permissions, island.permissions, "permissions"),
             (.permissions, iTerm, "permissions-iterm"), (.permissions, none, "permissions-none"),
+            (.permissions, denied, "permissions-denied"),
             (.done, island.permissions, "done"), (.done, ready, "done-ready"),
         ]
         for (page, permissions, name) in pages {

@@ -34,8 +34,12 @@ struct FocusAgent: Equatable, Sendable {
 /// Finds a session's running subagents. Claude Code writes each one's transcript to
 /// `<session transcript without .jsonl>/subagents/agent-<id>.jsonl`, with the call's
 /// description and type in `agent-<id>.meta.json`. A subagent runs until its transcript ends
-/// with a final answer (an assistant message that stopped with `end_turn` and calls no tool).
-/// The parent's own transcript can't tell: a background agent's tool result arrives at once.
+/// with a final answer (an assistant message that stopped with `end_turn` and calls no tool),
+/// an API error, or "[Request interrupted by user]". System notifications delivered after the
+/// end don't count. An answer with no stop reason is text written mid-turn, or a final answer
+/// from Claude Code before 2.1.279: it counts as finished once the transcript has been quiet a
+/// while. The parent's own transcript can't tell: a background agent's tool result arrives at
+/// once.
 ///
 /// Used from the store's loader queue only; files are re-read only when they change.
 final class SubagentScanner: @unchecked Sendable {
@@ -43,6 +47,8 @@ final class SubagentScanner: @unchecked Sendable {
         var size: UInt64
         var mtime: Date
         var running: Bool
+        /// Its last answer had no stop reason: finished once the file is quiet this long.
+        var finishesWhenQuiet: TimeInterval?
         var tool: String?
         var label: String?
         var kind: String?
@@ -76,16 +82,17 @@ final class SubagentScanner: @unchecked Sendable {
             if let cached = cache[path], cached.size == size, cached.mtime == mtime {
                 entry = cached
             } else {
-                let state = Self.state(ofTail: Self.tail(path, size: size))
+                let state = Self.analyze(Self.lines(ofTail: Self.tail(path, size: size)))
                 let meta = cache[path].map { ($0.label, $0.kind) } ?? Self.meta(path)
                 let started = cache[path]?.startedAt
                     ?? ((attributes[.creationDate] as? Date) ?? mtime).timeIntervalSince1970
-                entry = Entry(size: size, mtime: mtime, running: state.running, tool: state.tool,
-                              label: meta.0, kind: meta.1, startedAt: started, seenAt: now)
+                entry = Entry(size: size, mtime: mtime, running: state.running, finishesWhenQuiet: state.finishesWhenQuiet,
+                              tool: state.tool, label: meta.0, kind: meta.1, startedAt: started, seenAt: now)
             }
             entry.seenAt = now
             cache[path] = entry
-            guard entry.running else { continue }
+            let quietDone = entry.finishesWhenQuiet.map { now.timeIntervalSince(mtime) >= $0 } ?? false
+            guard entry.running, !quietDone else { continue }
             agents.append(FocusAgent(id: String(name.dropFirst(6).dropLast(6)), label: entry.label ?? "Subagent",
                                      kind: entry.kind, tool: entry.tool, startedAt: entry.startedAt))
         }
@@ -93,28 +100,72 @@ final class SubagentScanner: @unchecked Sendable {
         return agents.sorted { $0.startedAt < $1.startedAt }
     }
 
-    /// Whether a transcript's last lines are still going, and the last tool it called.
-    static func state<Lines: Sequence>(ofLines lines: Lines) -> (running: Bool, tool: String?) where Lines.Element: StringProtocol {
+    /// Whether a transcript's last lines are still going, and the last tool it called. `quiet`:
+    /// how long the file has gone unchanged.
+    static func state<Lines: Sequence>(ofLines lines: Lines, quiet: TimeInterval = 0) -> (running: Bool, tool: String?)
+    where Lines.Element: StringProtocol {
+        let result = analyze(lines)
+        let quietDone = result.finishesWhenQuiet.map { quiet >= $0 } ?? false
+        return (result.running && !quietDone, result.running && !quietDone ? result.tool : nil)
+    }
+
+    /// `finishesWhenQuiet`: it ends with an answer that has no stop reason, which is final only if
+    /// nothing follows for this long.
+    static func analyze<Lines: Sequence>(_ lines: Lines) -> (running: Bool, tool: String?, finishesWhenQuiet: TimeInterval?)
+    where Lines.Element: StringProtocol {
         var running: Bool?
+        var threshold: TimeInterval?
         for line in Array(lines).reversed() {
             guard line.contains("\"message\""),
                   let object = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
                   let type = object["type"] as? String, type == "assistant" || type == "user",
                   let message = object["message"] as? [String: Any] else { continue }
-            let tool = type == "assistant" ? lastToolName(message) : nil
             if running == nil {
-                if type == "assistant", tool == nil, message["stop_reason"] as? String == "end_turn" { return (false, nil) }
+                if type == "user" {
+                    let text = userText(message)
+                    // Delivered after it finished (or while it works): not a turn of its own.
+                    if text.hasPrefix("[SYSTEM NOTIFICATION") || text.contains("<task-notification>") { continue }
+                    if text.hasPrefix("[Request interrupted by user") { return (false, nil, nil) }
+                } else {
+                    if object["isApiErrorMessage"] as? Bool == true || message["model"] as? String == "<synthetic>" {
+                        return (false, nil, nil)
+                    }
+                    if lastToolName(message) == nil {
+                        switch message["stop_reason"] as? String {
+                        case "end_turn"?, "stop_sequence"?: return (false, nil, nil)
+                        case nil: threshold = quietThreshold(version: object["version"] as? String)
+                        default: break
+                        }
+                    }
+                }
                 running = true
             }
-            if let tool { return (true, tool) }
+            if type == "assistant", let tool = lastToolName(message) { return (true, tool, threshold) }
         }
-        return (running ?? true, nil)
+        return (running ?? true, nil, threshold)
     }
 
-    private static func state(ofTail tail: (text: String, midFile: Bool)) -> (running: Bool, tool: String?) {
+    /// Before 2.1.279, Claude Code wrote some final answers with no stop reason; since then that
+    /// shape is always text written mid-turn, and a long tool call can follow it minutes later.
+    static func quietThreshold(version: String?) -> TimeInterval {
+        let parts = (version ?? "").split(separator: ".").map { Int($0) ?? 0 }
+        let old = parts.count == 3 && (parts[0], parts[1], parts[2]) < (2, 1, 279)
+        return old ? 60 : 600
+    }
+
+    private static func userText(_ message: [String: Any]) -> String {
+        if let text = message["content"] as? String { return text }
+        guard let blocks = message["content"] as? [Any] else { return "" }
+        for case let block as [String: Any] in blocks where block["type"] as? String == "text" {
+            if let text = block["text"] as? String { return text }
+        }
+        return ""
+    }
+
+    private static func lines(ofTail tail: (text: String, midFile: Bool)) -> [Substring] {
         var lines = tail.text.split(separator: "\n", omittingEmptySubsequences: true)
         if tail.midFile, !lines.isEmpty { lines.removeFirst() }
-        return state(ofLines: lines)
+        return lines
     }
 
     private static func lastToolName(_ message: [String: Any]) -> String? {

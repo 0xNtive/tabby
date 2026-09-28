@@ -172,8 +172,8 @@ final class SnapshotLoader: @unchecked Sendable {
         titleReader.requestUrgent()
     }
 
-    private var claudeDir: URL { home.appendingPathComponent(".claude", isDirectory: true) }
-    private var tabbyDir: URL { claudeDir.appendingPathComponent("tabby", isDirectory: true) }
+    private var claudeDir: URL { ClaudePaths.dir }
+    private var tabbyDir: URL { ClaudePaths.tabby }
 
     func load() -> StoreSnapshot {
         var snapshot = StoreSnapshot()
