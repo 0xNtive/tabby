@@ -46,9 +46,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes=$(awk -v v="${TAG#v}" 'index($0, "## " v " ") == 1 {f=1; next} /^## / && f {exit} f' CHANGELOG.md)
+          install='**Install:** paste `Install tabby for me: run curl -fsSL https://claude-tabby.vercel.app/install.md and follow it.` into Claude Code, or run `curl -fsSL https://claude-tabby.vercel.app/install | bash`. `TabbyIsland.zip` is what the installer downloads (it checks the .sha256). It isn'"'"'t notarized, so a copy downloaded through a browser is blocked by Gatekeeper: use the installer, or `tabby island install`.'
+          notes=$(printf '%s\n\n---\n%s\n' "${notes:-See CHANGELOG.md}" "$install")
           files=(island/build/TabbyIsland.zip island/build/TabbyIsland.zip.sha256)
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
           else
-            gh release create "$TAG" "${files[@]}" --title "tabby ${TAG#v}" --notes "${notes:-See CHANGELOG.md}"
+            gh release create "$TAG" "${files[@]}" --title "tabby ${TAG#v}" --notes "$notes"
           fi
