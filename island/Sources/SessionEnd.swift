@@ -70,9 +70,7 @@ enum SessionEnder {
     // MARK: The process
 
     nonisolated static var registryDirectory: URL {
-        let base = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"].map { URL(fileURLWithPath: $0) }
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
-        return base.appendingPathComponent("sessions", isDirectory: true)
+        ClaudePaths.dir.appendingPathComponent("sessions", isDirectory: true)
     }
 
     /// What's true of `pid` right now, plus what Claude's registry says about it.

@@ -393,9 +393,7 @@ final class MenuFactory: NSObject {
 /// Claude Code's own theme ("dark" unless /theme set something else in ~/.claude.json).
 enum ClaudeTheme {
     static func mode() -> String {
-        let home = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
-            .map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser
-        guard let data = try? Data(contentsOf: home.appendingPathComponent(".claude.json")),
+        guard let data = try? Data(contentsOf: ClaudePaths.settingsFile),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let theme = json["theme"] as? String else { return "dark" }
         return theme.hasPrefix("light") ? "light" : "dark"

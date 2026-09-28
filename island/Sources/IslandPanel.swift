@@ -269,6 +269,12 @@ final class IslandController {
         permissions.onTerminalAllowed = { [weak store] in store?.requestTerminalWindows() }
         permissions.sessionTerms = { [weak store] in Set(store?.snapshot.sessions.compactMap(\.term) ?? []) }
         if !inert { permissions.startBackgroundChecks() }
+        if !inert {
+            SessionDetailModel.shared.announceFailure = { [weak self] text in
+                self?.enqueue(Announcement(kind: .info, title: text, symbol: "exclamationmark.triangle.fill", topic: "end-session",
+                                           detail: text), force: true)
+            }
+        }
         updates.announce = { [weak self] text, symbol in
             self?.enqueue(Announcement(kind: .info, title: text, symbol: symbol, topic: "update"), force: true)
         }

@@ -23,11 +23,17 @@ final class SessionDetailModel: ObservableObject {
 
     @Published private(set) var openRow: String?
     @Published private(set) var confirming: String?
+    /// The confirmation's End Session button takes clicks (a moment after it appears).
+    @Published private(set) var confirmArmed = false
+    private var confirmShownAt: Date?
+    private var armWork: DispatchWorkItem?
     @Published private(set) var ending: Set<String> = []
     @Published private(set) var failure: Failure?
     /// A line under the list after a session ends ("Ended “Auth refactor”").
     @Published private(set) var notice: Notice?
     var reduceMotion = false
+    /// Says a failure in the island too: the card that shows it can close before you see it.
+    var announceFailure: ((String) -> Void)?
 
     static let openDelay: TimeInterval = 0.25
     static let closeGrace: TimeInterval = 0.2
@@ -78,6 +84,18 @@ final class SessionDetailModel: ObservableObject {
             confirming = session.id
             failure = nil
         }
+        confirmShownAt = Date()
+        confirmArmed = false
+        armWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.confirming == session.id else { return }
+                withAnimation(.easeOut(duration: 0.15)) { self.confirmArmed = true }
+            }
+        }
+        armWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + SessionEndGuard.armDelay(doubleClickInterval: NSEvent.doubleClickInterval),
+                                      execute: work)
     }
 
     func cancelEnd() {
@@ -88,9 +106,11 @@ final class SessionDetailModel: ObservableObject {
         withAnimation(animation) { failure = nil }
     }
 
-    /// Only from the confirmation's "End Session" button.
+    /// Only from the confirmation's "End Session" button, once it's been up a moment.
     func end(_ session: IslandSession, store: SessionStore?) {
-        guard confirming == session.id, !ending.contains(session.id) else { return }
+        guard confirming == session.id, !ending.contains(session.id),
+              SessionEndGuard.confirmAccepts(shownAt: confirmShownAt, now: Date(), doubleClickInterval: NSEvent.doubleClickInterval)
+        else { return }
         withAnimation(animation) {
             confirming = nil
             ending.insert(session.id)
@@ -109,6 +129,7 @@ final class SessionDetailModel: ObservableObject {
                     self.say("“\(session.title)” had already ended.", ok: true)
                 case .failed(let message):
                     self.failure = Failure(id: session.id, message: message)
+                    self.announceFailure?("Couldn't end “\(session.title)”: \(message)")
                 }
             }
             store?.refresh()
@@ -130,9 +151,10 @@ final class SessionDetailModel: ObservableObject {
 
     /// Snapshot renders: a fixed state, no timers.
     func freeze(open: String?, confirming: String? = nil, ending: Set<String> = [], failure: Failure? = nil,
-                notice: Notice? = nil) {
+                notice: Notice? = nil, armed: Bool = true) {
         openRow = open
         self.confirming = confirming
+        confirmArmed = armed
         self.ending = ending
         self.failure = failure
         self.notice = notice
@@ -357,6 +379,9 @@ struct SessionDetailCard: View {
                 DetailButton(title: "Cancel", symbol: nil, role: .normal) { model.cancelEnd() }
                     .keyboardShortcut(.cancelAction)
                 DetailButton(title: "End Session", symbol: nil, role: .destructive) { model.end(session, store: Actions.store) }
+                    // Takes the click (so it can't fall through to the row) but acts only once armed.
+                    .opacity(model.confirmArmed ? 1 : 0.45)
+                    .accessibilityHint(model.confirmArmed ? "" : "Available in a moment")
             }
             .padding(.top, 2)
         }

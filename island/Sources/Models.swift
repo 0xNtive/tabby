@@ -43,6 +43,37 @@ enum SessionStatus: String, Equatable, Sendable {
     var isYourTurn: Bool { self == .idle || self == .unknown }
 }
 
+// MARK: - Where Claude keeps its files
+
+/// Claude Code's folder: ~/.claude, or the one tabby's setup recorded because CLAUDE_CONFIG_DIR
+/// points elsewhere (`defaults write dev.tabby.island claudeDir <path>`). The island starts from
+/// launchd or Finder, without your shell's variables, so it can't read that one itself.
+enum ClaudePaths {
+    private static var custom: String? {
+        if let saved = UserDefaults.standard.string(forKey: "claudeDir"), !saved.isEmpty { return saved }
+        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !env.isEmpty { return env }
+        return nil
+    }
+
+    static var dir: URL {
+        if let custom { return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true) }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude", isDirectory: true)
+    }
+
+    /// tabby's state: <Claude folder>/tabby.
+    static var tabby: URL { dir.appendingPathComponent("tabby", isDirectory: true) }
+
+    /// Claude's own settings (its theme): ~/.claude.json, or .claude.json inside a custom folder.
+    static var settingsFile: URL {
+        custom == nil
+            ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
+            : dir.appendingPathComponent(".claude.json")
+    }
+
+    /// For messages: "~/.claude/tabby/update.log".
+    static func display(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
+}
+
 // MARK: - Island settings (the island's keys in ~/.claude/tabby/config.json)
 
 /// How much the expanded island shows per session (`islandMode`).
@@ -763,6 +794,18 @@ enum SessionDetailCopy {
 /// that terminal? Anything uncertain refuses. Ending the wrong process is far worse than leaving
 /// one running.
 enum SessionEndGuard {
+    /// The confirmation's End Session button ignores clicks this long after it appears: the
+    /// second click of a double-click on "End Session…" can land right where it shows up.
+    static func armDelay(doubleClickInterval: TimeInterval) -> TimeInterval {
+        max(0.6, doubleClickInterval + 0.1)
+    }
+
+    /// Whether a click on End Session counts: only once the confirmation has been up a moment.
+    static func confirmAccepts(shownAt: Date?, now: Date, doubleClickInterval: TimeInterval) -> Bool {
+        guard let shownAt else { return false }
+        return now.timeIntervalSince(shownAt) >= armDelay(doubleClickInterval: doubleClickInterval)
+    }
+
     struct Observed: Equatable, Sendable {
         /// Running, and not a zombie.
         var running: Bool

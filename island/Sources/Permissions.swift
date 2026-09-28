@@ -64,6 +64,8 @@ final class PermissionCenter: ObservableObject {
 
     private var timer: Timer?
     private var background: Timer?
+    /// What the status file says now (it's rewritten only when this changes).
+    private var reported: [String: String]?
     private var watchers = 0
     private var accessibilityRequested = false
     private var asking = Set<Target>()
@@ -103,26 +105,36 @@ final class PermissionCenter: ObservableObject {
 
     func status(of target: Target) -> Status { automation[target] ?? .unknown }
 
-    /// A check at launch, then every 20 s in the background until everything needed is allowed
-    /// (so `tabby doctor` sees a switch flipped in System Settings with no window open).
+    /// A check at launch, then in the background: every 20 s while something needed is missing,
+    /// every minute once all is allowed (which terminals are in use can change: Terminal opened
+    /// after login, a first iTerm2 session). So `tabby doctor` sees a switch flipped in System
+    /// Settings with no window open. The status file is only written when something changed.
     func startBackgroundChecks() {
         guard !fixed else { return }
         refresh()
-        guard background == nil else { return }
-        let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
+        scheduleBackgroundCheck()
+    }
+
+    private func scheduleBackgroundCheck() {
+        background?.invalidate()
+        let interval: TimeInterval = allGranted && accessibility != .unknown ? 60 : 20
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                if self.allGranted, self.accessibility != .unknown {
-                    self.background?.invalidate()
-                    self.background = nil
-                } else if self.watchers == 0 {
-                    self.refresh()
-                }
+                if self.watchers == 0 { self.refresh() }
+                self.scheduleBackgroundCheck()
             }
         }
-        timer.tolerance = 5
+        timer.tolerance = interval / 4
         RunLoop.main.add(timer, forMode: .common)
         background = timer
+    }
+
+    /// Something "Allow All" can still ask for. A "Don't Allow" isn't: macOS won't ask again,
+    /// so that one is switched on in System Settings (the card's Open Settings).
+    var canAskAll: Bool {
+        (accessibilityNeeded && (accessibility == .notAsked || accessibility == .unknown))
+            || neededTargets.contains { status(of: $0) == .notAsked || status(of: $0) == .unknown }
     }
 
     // MARK: Watching
@@ -180,7 +192,8 @@ final class PermissionCenter: ObservableObject {
         if let status { Self.remember(target, status == .allowed) }
     }
 
-    /// Writes the statuses for `tabby doctor` ("notNeeded" for what this Mac isn't asked for).
+    /// Writes the statuses for `tabby doctor` ("notNeeded" for what this Mac isn't asked for),
+    /// only when they changed.
     private func report() {
         guard !fixed else { return }
         var permissions: [String: String] = [
@@ -189,6 +202,8 @@ final class PermissionCenter: ObservableObject {
         for target in Target.allCases {
             permissions[target.key] = isNeeded(target) ? Self.word(status(of: target)) : "notNeeded"
         }
+        guard permissions != reported else { return }
+        reported = permissions
         IslandReport.write(["permissions": permissions])
     }
 
@@ -247,12 +262,12 @@ final class PermissionCenter: ObservableObject {
     /// answer), then Accessibility last, since that one opens System Settings.
     func requestAll() {
         guard !fixed else { return }
-        let targets = neededTargets.filter { status(of: $0) != .allowed && status(of: $0) != .denied && !asking.contains($0) }
+        let targets = neededTargets.filter { (status(of: $0) == .notAsked || status(of: $0) == .unknown) && !asking.contains($0) }
         for target in targets {
             asking.insert(target)
             automation[target] = .waiting
         }
-        let wantsAccessibility = accessibilityNeeded && !AXIsProcessTrusted()
+        let wantsAccessibility = accessibilityNeeded && !AXIsProcessTrusted() && (accessibility == .notAsked || accessibility == .unknown)
         queue.async { [weak self] in
             var results: [(Target, Status)] = []
             for target in targets {
@@ -275,10 +290,18 @@ final class PermissionCenter: ObservableObject {
         }
     }
 
-    /// Denied once, macOS won't ask again: forget the island's Automation answers, then ask.
+    /// Denied once, macOS won't ask again by itself. Each app has its own switch under Tabby
+    /// Island in System Settings › Privacy & Security › Automation: open it there. (Resetting the
+    /// island's Automation answers would also take back the ones you allowed.) The statuses are
+    /// watched while a window shows them, so the card turns Allowed when you flip the switch.
     func askAgain(_ target: Target) {
-        Self.resetEntries("AppleEvents")
-        requestAutomation(target)
+        guard !fixed else { return }
+        Self.openAutomationPane()
+    }
+
+    /// For the card or row of a denied app: where its switch is.
+    static func deniedHint(_ target: Target) -> String {
+        "Switch on “\(target.name)” under Tabby Island in System Settings › Privacy & Security › Automation."
     }
 
     static func openAccessibilityPane() {
@@ -363,8 +386,7 @@ final class PermissionCenter: ObservableObject {
 /// permissions, whether you quit it), for `tabby doctor` and SessionStart. Merged, never replaced.
 enum IslandReport {
     static var url: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/tabby/island-status.json")
+        ClaudePaths.tabby.appendingPathComponent("island-status.json")
     }
 
     static func write(_ patch: [String: Any]) {

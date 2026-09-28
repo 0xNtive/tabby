@@ -56,12 +56,26 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.setFrameAutosaveName("TabbySettings")
     }
 
+    /// Permission statuses are watched while this window is open (its panes' onDisappear doesn't
+    /// run when the window closes, so watching belongs to the window).
+    private var watching = false
+
     func show() {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
+        if !watching, let island {
+            watching = true
+            island.permissions.startWatching()
+        }
     }
 
-    func windowWillClose(_ notification: Notification) { island?.endRecording() }
+    func windowWillClose(_ notification: Notification) {
+        island?.endRecording()
+        if watching {
+            watching = false
+            island?.permissions.stopWatching()
+        }
+    }
     func windowDidResignKey(_ notification: Notification) { island?.endRecording() }
 }
 
@@ -312,10 +326,12 @@ struct WatermarkPane: View {
                 if access == .notAsked || access == .denied {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
+                        Text(access == .denied
+                             ? "Tabby Island isn't allowed to control Terminal, so it can't tell which window shows which session. \(PermissionCenter.deniedHint(.terminal))"
+                             : "Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
                         Spacer(minLength: 8)
                         if access == .denied {
-                            Button("Ask Again") { permissions.askAgain(.terminal) }
+                            Button("Open Settings") { permissions.askAgain(.terminal) }
                         } else {
                             Button("Allow") { permissions.requestAutomation(.terminal) }
                         }
@@ -327,8 +343,6 @@ struct WatermarkPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { permissions.startWatching() }
-        .onDisappear { permissions.stopWatching() }
     }
 
     /// The first Terminal session, so the preview shows a real topic in its real colors.
@@ -453,10 +467,12 @@ struct FocusPane: View {
                 if access == .notAsked || access == .denied {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
+                        Text(access == .denied
+                             ? "Tabby Island isn't allowed to control Terminal, so it can't tell which window shows which session. \(PermissionCenter.deniedHint(.terminal))"
+                             : "Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
                         Spacer(minLength: 8)
                         if access == .denied {
-                            Button("Ask Again") { permissions.askAgain(.terminal) }
+                            Button("Open Settings") { permissions.askAgain(.terminal) }
                         } else {
                             Button("Allow") { permissions.requestAutomation(.terminal) }
                         }
@@ -468,8 +484,6 @@ struct FocusPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { permissions.startWatching() }
-        .onDisappear { permissions.stopWatching() }
     }
 
     /// A working session in its own colors (the first Terminal one, else a demo), with agents.
@@ -536,6 +550,7 @@ final class FocusMockView: NSView {
     var animates = true
     var scaledFrom: CGFloat? { didSet { needsLayout = true } }
     private var timer: Timer?
+    private var observers: [NSObjectProtocol] = []
     private static let titleBar: CGFloat = 26
 
     override init(frame: NSRect) {
@@ -559,9 +574,28 @@ final class FocusMockView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        if let window {
+            // The Settings window is kept when closed, with this view still in it: follow it.
+            for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.willCloseNotification] {
+                observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
+                    let closing = note.name == NSWindow.willCloseNotification
+                    MainActor.assumeIsolated { self?.updateTimer(closing: closing) }
+                })
+            }
+        }
+        updateTimer(closing: false)
+    }
+
+    /// Spins only while its window is open and can be seen.
+    private func updateTimer(closing: Bool) {
+        let visible = !closing && window?.isVisible == true && window?.occlusionState.contains(.visible) == true
+        let wanted = visible && animates && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        guard wanted != (timer != nil) else { return }
         timer?.invalidate()
         timer = nil
-        guard window != nil, animates, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        guard wanted else { return }
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.cover.advance() }
         }
@@ -609,19 +643,22 @@ struct PermissionsPane: View {
                               status: permissions.status(of: .terminal),
                               allow: { permissions.requestAutomation(.terminal) },
                               askAgain: { permissions.askAgain(.terminal) },
-                              openSettings: PermissionCenter.openAutomationPane)
+                              openSettings: PermissionCenter.openAutomationPane,
+                              deniedHint: PermissionCenter.deniedHint(.terminal))
                 PermissionRow(title: "Control iTerm2",
                               detail: "Jump to a session's tab in iTerm2 and read its tab titles.",
                               status: permissions.status(of: .iTerm),
                               allow: { permissions.requestAutomation(.iTerm) },
                               askAgain: { permissions.askAgain(.iTerm) },
-                              openSettings: PermissionCenter.openAutomationPane)
+                              openSettings: PermissionCenter.openAutomationPane,
+                              deniedHint: PermissionCenter.deniedHint(.iTerm))
                 PermissionRow(title: "Control System Events",
                               detail: "Tiling clicks Terminal's “Move Tab to New Window” for you.",
                               status: permissions.status(of: .systemEvents),
                               allow: { permissions.requestAutomation(.systemEvents) },
                               askAgain: { permissions.askAgain(.systemEvents) },
-                              openSettings: PermissionCenter.openAutomationPane)
+                              openSettings: PermissionCenter.openAutomationPane,
+                              deniedHint: PermissionCenter.deniedHint(.systemEvents))
             } header: {
                 Text("macOS permissions")
             } footer: {
@@ -638,8 +675,6 @@ struct PermissionsPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { permissions.startWatching() }
-        .onDisappear { permissions.stopWatching() }
     }
 }
 
@@ -650,6 +685,8 @@ struct PermissionRow: View {
     let allow: () -> Void
     let askAgain: () -> Void
     let openSettings: () -> Void
+    /// Where to switch it on after a "Don't Allow" (Automation rows).
+    var deniedHint: String? = nil
 
     var body: some View {
         LabeledContent {
@@ -663,10 +700,7 @@ struct PermissionRow: View {
                     Button("Open System Settings", action: openSettings)
                 }
             case .denied:
-                HStack(spacing: 8) {
-                    Button("Ask Again", action: askAgain)
-                    Button("Open System Settings", action: openSettings)
-                }
+                Button(deniedHint == nil ? "Ask Again" : "Open Settings", action: askAgain)
             case .notAsked, .unknown:
                 Button("Allow", action: allow)
                     .buttonStyle(.borderedProminent)
@@ -674,9 +708,9 @@ struct PermissionRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                Text(detail)
+                Text(status == .denied ? deniedHint ?? detail : detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(status == .denied && deniedHint != nil ? Color.orange : .secondary)
             }
         }
     }
