@@ -102,6 +102,8 @@ struct IslandConfig: Equatable, Sendable {
     var shortcuts = ShortcutAction.defaults
     /// Each session's topic behind its Terminal window (`watermark`, `watermarkOpacity`, …).
     var watermark = WatermarkSettings()
+    /// Terminal windows you're not in show only their topic while Claude works (`focusMode`).
+    var focusMode = false
 
     // tabby's own settings (Settings › General).
     /// The theme for every tab (`theme`); nil means tabby's default.
@@ -129,6 +131,7 @@ struct IslandConfig: Equatable, Sendable {
             }
         }
         watermark = WatermarkSettings(raw: raw)
+        focusMode = raw["focusMode"]?.bool ?? false
         theme = raw["theme"]?.string
         namer = raw["namer"]?.string ?? "ai"
         strength = raw["strength"]?.string ?? "medium"
@@ -366,6 +369,11 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     var lastTurnMs: Double? = nil
     /// Claude's task list, while it works through one.
     var tasks: TaskProgress? = nil
+    /// The tab's colors as tabby paints them (`bg`, `fg`), for focus mode's cover.
+    var bgHex: String? = nil
+    var fgHex: String? = nil
+    /// Claude's subagents running in this session (read only while focus mode is on).
+    var agents: [FocusAgent] = []
 
     /// What the tabby CLI accepts for `--session`.
     var cliTarget: String { sessionId ?? String(pid) }

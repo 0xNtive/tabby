@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - State
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, watermark, shortcuts, permissions
+    case general, watermark, focus, shortcuts, permissions
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -13,6 +13,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .watermark: return "textformat"
+        case .focus: return "eye.slash"
         case .shortcuts: return "keyboard"
         case .permissions: return "checkmark.shield"
         }
@@ -96,6 +97,7 @@ struct SettingsView: View {
                 switch state.tab {
                 case .general: GeneralPane(island: island, store: store, state: state)
                 case .watermark: WatermarkPane(island: island, store: store, state: state, permissions: island.permissions)
+                case .focus: FocusPane(island: island, store: store, state: state, permissions: island.permissions)
                 case .shortcuts: ShortcutsPane(island: island, state: state)
                 case .permissions: PermissionsPane(island: island, permissions: island.permissions)
                 }
@@ -366,6 +368,178 @@ final class TerminalMockView: NSView {
             (line as NSString).draw(at: NSPoint(x: 14, y: Self.titleBar + 12 + CGFloat(index) * 17), withAttributes: [
                 .font: font, .foregroundColor: foreground.withAlphaComponent(index == 2 ? 0.95 : 0.72),
             ])
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor(white: 0.5, alpha: 0.35).setStroke()
+        shape.lineWidth = 1
+        shape.stroke()
+    }
+}
+
+// MARK: - Focus mode
+
+struct FocusPane: View {
+    let island: IslandController
+    @ObservedObject var store: SessionStore
+    @ObservedObject var state: SettingsState
+    @ObservedObject var permissions: PermissionCenter
+
+    var body: some View {
+        let on = state.config.focusMode
+        return Form {
+            Section {
+                Toggle(isOn: setting(on) { island.setFocusMode($0) }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Focus mode")
+                        Text("While Claude works, Terminal windows you're not in show only their topic and what's running. What Claude writes stays out of sight until it's time to look.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                FocusPreview(content: FocusPane.sample(store))
+                    .frame(height: 232)
+                    .opacity(on ? 1 : 0.45)
+                    .accessibilityLabel("Preview of a covered Terminal window")
+            }
+            Section("A window opens") {
+                FocusReason(symbol: "bell.fill", text: "When Claude needs you: a question or a permission")
+                FocusReason(symbol: "checkmark.circle", text: "When it's your turn: Claude is done")
+                FocusReason(symbol: "cursorarrow.click", text: "When you click it, or switch to it: the window you type in is never covered")
+            }
+            .disabled(!on)
+            Section {
+                let access = permissions.status(of: .terminal)
+                if access == .notAsked || access == .denied {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text("Tabby Island isn't allowed to control Terminal yet, so it can't tell which window shows which session.")
+                        Spacer(minLength: 8)
+                        if access == .denied {
+                            Button("Ask Again") { permissions.askAgain(.terminal) }
+                        } else {
+                            Button("Allow") { permissions.requestAutomation(.terminal) }
+                        }
+                    }
+                }
+                Text("Works with Terminal.app, like the watermark. In Claude: /tab focus-mode on or off.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { permissions.startWatching() }
+        .onDisappear { permissions.stopWatching() }
+    }
+
+    /// A working session in its own colors (the first Terminal one, else a demo), with agents.
+    static func sample(_ store: SessionStore) -> FocusCoverContent {
+        let snapshot = store.snapshot
+        let now = Date()
+        var content: FocusCoverContent
+        if let session = store.listSessions.first(where: { $0.windowId != nil }) ?? store.listSessions.first {
+            content = FocusCoverContent.make(session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId, now: now)
+        } else {
+            let theme = snapshot.themes.first { $0.id == snapshot.globalThemeId }
+            let fg = NSColor(hexString: theme?.fg) ?? NSColor(white: 0.88, alpha: 1)
+            content = FocusCoverContent(sessionId: "sample", title: "Migrate billing to Stripe v3", project: "billing",
+                                        background: NSColor(hexString: theme?.bg) ?? NSColor(srgbRed: 0.07, green: 0.08, blue: 0.1, alpha: 1),
+                                        foreground: fg, accent: NSColor(hexString: theme?.accents.first?.hex) ?? fg,
+                                        mainText: "working", mainDetail: nil, turnStartedAt: nil, agents: [])
+        }
+        let t = now.timeIntervalSince1970
+        content.mainText = "Porting the invoice webhooks to v3"
+        content.mainDetail = nil
+        content.turnStartedAt = t - 512
+        content.agents = [
+            FocusAgent(id: "a", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Grep", startedAt: t - 48),
+            FocusAgent(id: "b", label: "Write the migration tests", kind: "general-purpose", tool: "Edit", startedAt: t - 131),
+        ]
+        return content
+    }
+}
+
+private struct FocusReason: View {
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text)
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// A small Terminal window with focus mode's cover over it, drawn by the same view the covers
+/// use; its spinners turn while it's on screen.
+struct FocusPreview: NSViewRepresentable {
+    var content: FocusCoverContent
+
+    func makeNSView(context: Context) -> FocusMockView {
+        let view = FocusMockView()
+        view.scaledFrom = 760
+        return view
+    }
+
+    func updateNSView(_ view: FocusMockView, context: Context) {
+        view.cover.content = content
+        view.needsDisplay = true
+    }
+}
+
+/// A Terminal window's silhouette: a title bar, and the cover over its content. `scaledFrom`: draw
+/// the cover as a window this wide would show it, scaled down (the Settings preview).
+final class FocusMockView: NSView {
+    let cover = FocusCoverView()
+    var animates = true
+    var scaledFrom: CGFloat? { didSet { needsLayout = true } }
+    private var timer: Timer?
+    private static let titleBar: CGFloat = 26
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        addSubview(cover)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        let frame = NSRect(x: 0, y: Self.titleBar, width: bounds.width, height: max(0, bounds.height - Self.titleBar))
+        cover.frame = frame
+        let scale = scaledFrom.map { $0 / max(1, frame.width) } ?? 1
+        cover.bounds = NSRect(x: 0, y: 0, width: frame.width * scale, height: frame.height * scale)
+        cover.cornerRadius = 10 * scale
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        timer?.invalidate()
+        timer = nil
+        guard window != nil, animates, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cover.advance() }
+        }
+        timer.tolerance = 0.02
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 10, yRadius: 10)
+        (cover.content?.background ?? .black).setFill()
+        shape.fill()
+        NSGraphicsContext.saveGraphicsState()
+        shape.addClip()
+        NSColor(white: 1, alpha: 0.06).setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: Self.titleBar).fill()
+        for (index, color) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() {
+            color.withAlphaComponent(0.85).setFill()
+            NSBezierPath(ovalIn: NSRect(x: 12 + CGFloat(index) * 18, y: 8, width: 11, height: 11)).fill()
         }
         NSGraphicsContext.restoreGraphicsState()
         NSColor(white: 0.5, alpha: 0.35).setStroke()

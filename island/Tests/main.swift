@@ -144,5 +144,97 @@ check(working.progress(now: nowDate)?.caption == "~4m left · usually 8m", "sess
 working.status = .idle
 check(working.progress(now: nowDate) == nil, "no estimate on your turn")
 
+// Focus mode: covered while Claude works, open when it needs you or you're in the window
+check(FocusRule.covers(status: .busy, windowIsFront: false, terminalActive: true), "busy background window: covered")
+check(FocusRule.covers(status: .busy, windowIsFront: true, terminalActive: false), "busy, you're in another app: covered")
+check(!FocusRule.covers(status: .busy, windowIsFront: true, terminalActive: true), "the window you type in: open")
+check(!FocusRule.covers(status: .waiting, windowIsFront: false, terminalActive: true), "needs you: open")
+check(!FocusRule.covers(status: .idle, windowIsFront: false, terminalActive: false), "your turn: open")
+check(!FocusRule.covers(status: .error, windowIsFront: false, terminalActive: false), "error: open")
+check(!FocusRule.covers(status: .new, windowIsFront: false, terminalActive: false), "new session (your first prompt): open")
+check(!FocusRule.covers(status: .ended, windowIsFront: false, terminalActive: false), "ended: open")
+check(IslandConfig(raw: [:]).focusMode == false, "focus mode is off by default")
+check(IslandConfig(raw: ["focusMode": .bool(true)]).focusMode, "focusMode from config")
+
+// Subagents: running until their transcript ends with a final answer (shapes from real transcripts)
+let agentStart = [
+    #"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"s"}"#,
+]
+check(SubagentScanner.state(ofLines: agentStart) == (true, nil), "just started")
+let agentWorking = agentStart + [
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}],"stop_reason":"tool_use"},"type":"assistant"}"#,
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},"type":"user"}"#,
+]
+let working1 = SubagentScanner.state(ofLines: agentWorking)
+check(working1.running && working1.tool == "Bash", "after a tool result: running, last tool Bash (\(working1))")
+let agentThinking = agentWorking + [
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"text","text":"Now the tests."}],"stop_reason":null},"type":"assistant"}"#,
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Edit","input":{}}],"stop_reason":"tool_use"},"type":"assistant"}"#,
+]
+check(SubagentScanner.state(ofLines: agentThinking) == (true, "Edit"), "mid-turn text then Edit")
+let agentDone = agentThinking + [
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]},"type":"user"}"#,
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"text","text":"Done: 3 files."}],"stop_reason":"end_turn"},"type":"assistant"}"#,
+]
+check(SubagentScanner.state(ofLines: agentDone).running == false, "final answer: finished")
+let halfWritten = "{\"isSidechain\":true,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"te"
+check(SubagentScanner.state(ofLines: agentDone + [halfWritten]).running == false, "a half-written line is skipped")
+let agentResumed = agentDone + [
+    #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":"one more thing"},"type":"user"}"#,
+]
+check(SubagentScanner.state(ofLines: agentResumed).running, "sent another message: running again")
+
+// Subagents on disk: <transcript>/subagents/agent-<id>.jsonl + .meta.json
+let focusDir = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-focus-\(getpid())")
+let subDir = focusDir.appendingPathComponent("s1/subagents")
+try? FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+FileManager.default.createFile(atPath: focusDir.appendingPathComponent("s1.jsonl").path, contents: Data())
+func writeAgent(_ id: String, _ lines: [String], description: String, type: String) {
+    FileManager.default.createFile(atPath: subDir.appendingPathComponent("agent-\(id).jsonl").path, contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+    FileManager.default.createFile(atPath: subDir.appendingPathComponent("agent-\(id).meta.json").path,
+                                   contents: Data(#"{"agentType":"\#(type)","description":"\#(description)","toolUseId":"t"}"#.utf8))
+}
+writeAgent("a1", agentWorking, description: "Find the call sites", type: "Explore")
+writeAgent("a2", agentDone, description: "Write tests", type: "general-purpose")
+let scanner = SubagentScanner()
+let found = scanner.running(transcript: focusDir.appendingPathComponent("s1.jsonl").path)
+check(found.count == 1 && found.first?.id == "a1" && found.first?.label == "Find the call sites" && found.first?.kind == "Explore"
+      && found.first?.tool == "Bash", "running subagents from disk: \(found)")
+let later = scanner.running(transcript: focusDir.appendingPathComponent("s1.jsonl").path,
+                            now: Date().addingTimeInterval(SubagentScanner.staleAfter + 5))
+check(later.isEmpty, "a subagent quiet for 15 minutes is taken for dead")
+check(scanner.running(transcript: focusDir.appendingPathComponent("none.jsonl").path).isEmpty, "no subagents folder")
+try? FileManager.default.removeItem(at: focusDir)
+
+// The cover's layout: the title is big but under the watermark's size, and everything fits
+MainActor.assumeIsolated {
+    var cover = FocusCoverContent(sessionId: "s", title: "Migrate billing to Stripe v3", project: "billing",
+                                  background: .black, foreground: .white, accent: .orange, mainText: "working",
+                                  mainDetail: nil, turnStartedAt: nil, agents: [])
+    for size in [CGSize(width: 760, height: 460), CGSize(width: 845, height: 1316), CGSize(width: 1400, height: 380), CGSize(width: 480, height: 620)] {
+        let bounds = CGRect(origin: .zero, size: size)
+        guard let layout = FocusLayout.make(cover, in: bounds, agentCount: 3) else {
+            check(false, "layout at \(size)")
+            continue
+        }
+        let titleSize = (layout.title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 0
+        check(titleSize >= 20 && titleSize <= min(96, size.height * 0.12), "title \(titleSize)pt at \(size)")
+        check(bounds.contains(layout.box) && bounds.contains(layout.lines), "box and lines inside at \(size)")
+        check(layout.titleRect.minY >= layout.box.minY && layout.titleRect.maxY <= layout.box.maxY, "title inside the box at \(size)")
+        check(layout.maxLines >= 3, "room for 3 agent lines at \(size)")
+    }
+    cover.title = "Supercalifragilisticexpialidocious refactor"
+    let narrow = FocusLayout.make(cover, in: CGRect(x: 0, y: 0, width: 420, height: 400), agentCount: 1)
+    check(narrow != nil, "a long word still fits a narrow window")
+    check(FocusLayout.make(cover, in: CGRect(x: 0, y: 0, width: 400, height: 180), agentCount: 1)?.compact == true, "short window: title only")
+    check(FocusCoverView.elapsed(9) == "9s" && FocusCoverView.elapsed(125) == "2m 05s" && FocusCoverView.elapsed(3_900) == "1h 05m", "elapsed format")
+    check(FocusCoverView.who("general-purpose") == "agent" && FocusCoverView.who("Explore") == "explore"
+          && FocusCoverView.who("code-reviewer") == "code-re…" && FocusCoverView.who(nil) == "agent", "agent type column")
+    // The cover leaves Terminal's title bar (and tab bar) uncovered: measured, never shown.
+    _ = NSApplication.shared
+    check(TerminalChrome.titleBar >= 22 && TerminalChrome.titleBar <= 40, "title bar \(TerminalChrome.titleBar)")
+    check(TerminalChrome.tabBar >= 20 && TerminalChrome.tabBar <= 48, "tab bar \(TerminalChrome.tabBar)")
+}
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

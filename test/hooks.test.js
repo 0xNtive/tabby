@@ -179,6 +179,18 @@ test('/tab watermark turns the island watermark on and off', () => {
   S.writeConfig({ watermark: true, islandShortcuts: {} });
 });
 
+test('/tab focus-mode turns focus mode on and off', () => {
+  const run = (prompt) => as('a', process.pid, () => hook('UserPromptSubmit', { session_id: 'A', prompt })).reason;
+  assert.equal(S.readConfig().focusMode, false);
+  assert.match(run('/tab focus-mode'), /Focus mode on/);
+  assert.equal(S.readConfig().focusMode, true);
+  assert.match(run('/tab focus-mode off'), /Focus mode off/);
+  assert.equal(S.readConfig().focusMode, false);
+  assert.match(run('/tab focusmode on'), /Focus mode on/);
+  assert.match(run('/tab focus-mode maybe'), /Focus mode: on \| off \(now on\)/);
+  S.writeConfig({ focusMode: false });
+});
+
 test('/clear keeps the tab identity; exit restores the terminal', () => {
   const b = S.readSession('B');
   clearTty('b');

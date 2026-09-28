@@ -88,7 +88,62 @@ enum Snapshotter {
         renderSwatches(live.snapshot, folder: folder)
         renderSettings(store: demo, folder: folder)
         renderWatermarks(demo.snapshot, folder: folder)
+        renderFocus(demo.snapshot, folder: folder)
         renderOnboarding(store: demo, folder: folder)
+    }
+
+    /// Focus mode's cover over mock Terminal windows: the main agent alone and with subagents,
+    /// on dark and light themes, in a few window shapes.
+    private static func renderFocus(_ snapshot: StoreSnapshot, folder: URL) {
+        let now = Date().timeIntervalSince1970
+        let working = snapshot.sessions.first { $0.status == .busy } ?? snapshot.sessions[0]
+        let light = snapshot.themes.first { $0.mode == "light" && $0.group != "contrast" } ?? snapshot.themes.first { $0.mode == "light" }
+        let agents = [
+            FocusAgent(id: "1", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Grep", startedAt: now - 48),
+            FocusAgent(id: "2", label: "Write the migration tests for invoices and refunds", kind: "general-purpose", tool: "Edit", startedAt: now - 131),
+            FocusAgent(id: "3", label: "Review the webhook retry logic", kind: "code-reviewer", tool: nil, startedAt: now - 9),
+        ]
+        func content(_ session: IslandSession, theme: ThemeInfo?, agents: [FocusAgent]) -> FocusCoverContent {
+            var session = session
+            if let theme {
+                session.theme = theme.id
+                let accent = theme.accents.first { $0.key == (session.accentKey ?? "blue") } ?? theme.accents.first
+                session.accentHex = accent?.hex
+                session.cursorHex = accent?.hex
+                session.dotHex = accent?.dot
+            }
+            session.agents = agents
+            return FocusCoverContent.make(session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId,
+                                          now: Date(timeIntervalSince1970: now))
+        }
+        let long = snapshot.sessions.first { $0.title.count > 24 } ?? working
+        let cases: [(String, FocusCoverContent, CGSize)] = [
+            ("1-main-dark", content(working, theme: nil, agents: []), CGSize(width: 760, height: 460)),
+            ("2-agents-dark", content(working, theme: nil, agents: agents), CGSize(width: 760, height: 460)),
+            ("3-agents-light", content(working, theme: light, agents: agents), CGSize(width: 760, height: 460)),
+            ("4-main-light", content(long, theme: light, agents: []), CGSize(width: 760, height: 460)),
+            ("5-tall-agents", content(working, theme: nil, agents: Array(agents.prefix(2))), CGSize(width: 845, height: 1316)),
+            ("6-wide", content(long, theme: nil, agents: Array(agents.prefix(1))), CGSize(width: 1400, height: 380)),
+            ("7-small", content(working, theme: nil, agents: agents), CGSize(width: 420, height: 220)),
+            ("8-narrow", content(long, theme: nil, agents: agents), CGSize(width: 480, height: 620)),
+        ]
+        for (name, content, size) in cases {
+            let view = FocusMockView(frame: NSRect(origin: .zero, size: size))
+            view.animates = false
+            view.cover.clock = now
+            view.cover.frameIndex = 3
+            view.cover.content = content
+            let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            view.layoutSubtreeIfNeeded()
+            view.layout()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            write(rep, to: folder.appendingPathComponent("focus-\(name).png"))
+            window.close()
+        }
     }
 
     /// Each onboarding page (permissions mid-way: one allowed, one asking, one not asked yet), the
@@ -433,6 +488,9 @@ enum DemoData {
         sessions[3].typicalTurn = 360
         sessions[0].turnStartedAt = ago(4)
         snapshot.sessions = sessions
+        // Settings › Focus shows its preview on.
+        snapshot.configRaw["focusMode"] = .bool(true)
+        snapshot.config = IslandConfig(raw: snapshot.configRaw)
         return snapshot
     }
 }

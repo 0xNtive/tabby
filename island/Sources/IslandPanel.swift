@@ -253,6 +253,9 @@ final class IslandController {
             }
             .store(in: &cancellables)
         watermark.onUnknownWindow = { [weak store] in store?.requestTerminalWindows() }
+        watermark.onCoverClick = { [weak store] id in
+            if let session = store?.session(id: id) { Actions.focus(session) }
+        }
         permissions.onTerminalAllowed = { [weak store] in store?.requestTerminalWindows() }
         permissions.sessionTerms = { [weak store] in Set(store?.snapshot.sessions.compactMap(\.term) ?? []) }
         if !inert { permissions.startBackgroundChecks() }
@@ -380,7 +383,7 @@ final class IslandController {
             announcements.removeAll { $0.kind != .info }
             if ui.announcement?.kind != .info { endAnnouncement() }
         }
-        if first || next.watermark != old.watermark { updateWatermark(snapshot) }
+        if first || next.watermark != old.watermark || next.focusMode != old.focusMode { updateWatermark(snapshot) }
     }
 
     /// Applies a setting at once and has the CLI write it: `tabby config <key> <json>`, or
@@ -438,11 +441,15 @@ final class IslandController {
         }
     }
 
+    // MARK: Focus mode
+
+    func setFocusMode(_ on: Bool) { setSetting("focusMode", .bool(on)) }
+
     private func updateWatermark(_ snapshot: StoreSnapshot) {
         guard !inert else { return }
         var settings = config.watermark
         if let watermarkPreview { settings.opacity = watermarkPreview }
-        watermark.apply(settings)
+        watermark.apply(settings, focusMode: config.focusMode)
         watermark.update(snapshot) { session in
             settings.tint(for: session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId)
         }

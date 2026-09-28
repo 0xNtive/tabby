@@ -214,6 +214,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watermark.toolTip = "Each session's topic in large, faint letters over its Terminal window"
         if config.hotkeys { shortcut(watermark, config.shortcuts[.watermark]) }
         menu.addItem(watermark)
+        let focus = factory.item("Focus Mode", checked: config.focusMode) { [weak island] in
+            island?.setFocusMode(!config.focusMode)
+        }
+        focus.toolTip = "While Claude works, Terminal windows you're not in show only their topic and what's running"
+        menu.addItem(focus)
         menu.addItem(.separator())
         menu.addItem(factory.submenu("Tile Windows", symbol: "square.grid.2x2",
                                      menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in

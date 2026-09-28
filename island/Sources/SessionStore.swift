@@ -17,7 +17,7 @@ struct StoreSnapshot: Equatable, Sendable {
     var cli = CLIConfig(node: "/opt/homebrew/bin/node", cli: "")
     /// macOS refused to let the island control Terminal (Automation), last time it asked.
     var automationDenied = false
-    /// Every Terminal.app window with a tab, when the watermark is on.
+    /// Every Terminal.app window with a tab, when the watermark or focus mode is on.
     var terminalWindowIds: Set<Int> = []
 }
 
@@ -161,6 +161,7 @@ final class SnapshotLoader: @unchecked Sendable {
     private let tailBytes: UInt64 = 256 * 1024
     private let headBytes = 128 * 1024
     private let titleReader: TerminalTitleReader
+    private let subagents = SubagentScanner()
 
     init(automation: Bool) {
         titleReader = TerminalTitleReader(enabled: automation)
@@ -186,16 +187,19 @@ final class SnapshotLoader: @unchecked Sendable {
         snapshot.globalThemeId = str(config?["theme"]) ?? themes.defaultId
         snapshot.configRaw = (config ?? [:]).mapValues { ConfigValue($0) }
         snapshot.config = IslandConfig(raw: snapshot.configRaw)
-        snapshot.sessions = loadSessions(windows: snapshot.config.watermark.enabled)
+        // The watermark and focus mode draw over each session's Terminal window.
+        let windows = snapshot.config.watermark.enabled || snapshot.config.focusMode
+        snapshot.sessions = loadSessions(windows: windows, focus: snapshot.config.focusMode)
         snapshot.automationDenied = titleReader.automationDenied
-        if snapshot.config.watermark.enabled { snapshot.terminalWindowIds = Set(titleReader.terminalWindows().values) }
+        if windows { snapshot.terminalWindowIds = Set(titleReader.terminalWindows().values) }
         return snapshot
     }
 
     // MARK: Sessions
 
-    /// `windows`: also find each Terminal.app session's window (for the watermark).
-    private func loadSessions(windows: Bool) -> [IslandSession] {
+    /// `windows`: also find each Terminal.app session's window (for the watermark and focus
+    /// mode). `focus`: also find the subagents of working sessions (focus mode's cover lists them).
+    private func loadSessions(windows: Bool, focus: Bool = false) -> [IslandSession] {
         var recordsById: [String: [String: Any]] = [:]
         var recordsByPid: [Int: [String: Any]] = [:]
         let recordDir = tabbyDir.appendingPathComponent("sessions", isDirectory: true)
@@ -239,7 +243,7 @@ final class SnapshotLoader: @unchecked Sendable {
             }
             sessions.append(makeSession(entry: entry, record: record, pid: pid, sessionId: sessionId,
                                         terminalTitles: terminalTitles, terminalWindows: terminalWindows,
-                                        typical: everyonesTypical, needs: &needs, usedTranscripts: &usedTranscripts))
+                                        typical: everyonesTypical, focus: focus, needs: &needs, usedTranscripts: &usedTranscripts))
         }
 
         // Claude Code builds without the registry: trust live tabby records instead.
@@ -250,7 +254,7 @@ final class SnapshotLoader: @unchecked Sendable {
                 seenPids.insert(pid)
                 sessions.append(makeSession(entry: nil, record: record, pid: pid, sessionId: sessionId,
                                             terminalTitles: terminalTitles, terminalWindows: terminalWindows,
-                                            typical: everyonesTypical, needs: &needs, usedTranscripts: &usedTranscripts))
+                                            typical: everyonesTypical, focus: focus, needs: &needs, usedTranscripts: &usedTranscripts))
             }
         }
 
@@ -284,7 +288,7 @@ final class SnapshotLoader: @unchecked Sendable {
 
     private func makeSession(entry: [String: Any]?, record: [String: Any]?, pid: Int, sessionId: String?,
                              terminalTitles: [String: String], terminalWindows: [String: Int],
-                             typical everyones: TimeInterval?, needs: inout TitleNeeds,
+                             typical everyones: TimeInterval?, focus: Bool, needs: inout TitleNeeds,
                              usedTranscripts: inout Set<String>) -> IslandSession {
         let cwd = str(record?["cwd"]) ?? str(entry?["cwd"]) ?? ""
         let project = str(record?["project"]) ?? (cwd.isEmpty ? "session" : URL(fileURLWithPath: cwd).lastPathComponent)
@@ -359,6 +363,10 @@ final class SnapshotLoader: @unchecked Sendable {
             windowId = terminalWindows[tty]
             if windowId == nil { needs.missing.insert(tty) }
         }
+        var agents: [FocusAgent] = []
+        if focus, status == .busy, windowId != nil, let path = transcriptPath(record: record, cwd: cwd, sessionId: sessionId) {
+            agents = subagents.running(transcript: path)
+        }
         return IslandSession(
             id: sessionId ?? str(record?["sessionId"]) ?? "pid-\(pid)",
             sessionId: sessionId ?? str(record?["sessionId"]),
@@ -395,7 +403,10 @@ final class SnapshotLoader: @unchecked Sendable {
             typicalTurn: ProgressGuess.typical((record?["turns"] as? [Any])?.compactMap { num($0) } ?? [])
                 ?? ProgressGuess.typical(transcriptTurns) ?? everyones,
             lastTurnMs: num(record?["lastTurnMs"]),
-            tasks: tasks
+            tasks: tasks,
+            bgHex: str(record?["bg"]),
+            fgHex: str(record?["fg"]),
+            agents: agents
         )
     }
 
