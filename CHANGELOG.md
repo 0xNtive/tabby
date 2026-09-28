@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.1 — 2026-09-28
+
+**Update from wherever you are.** When a new version is out, Tabby Island shows an **Update** button (also in its menu-bar menu and Settings › General › Updates), a new Claude session mentions it once a day, and `/tab update` or `tabby update` get it from Claude or a terminal. An update gets the plugin, refreshes the parts of setup you have (nothing you turned off comes back) and the island, which restarts on the new version. `tabby update --check` only looks. The check asks github.com for the latest release at most every 6 hours and sends nothing about you; `tabby config updateCheck false` turns it off.
+
+**Fixes from an adversarial review of 0.3.0:**
+
+- **The terms prompt couldn't be answered on a Mac.** With `curl … | bash` (and `tabby install` in a shell), it said "Nothing was changed" before you could type. It waits for your answer now, and CI answers it through a pipe on every change.
+- **A `claude` alias broke every new terminal.** With `alias claude='claude --dangerously-skip-permissions'`, or Claude Code's old local installer, tabby's shell lines were a syntax error. They work alongside the alias now, and `tabby new --color/--theme` reach the new session.
+- **Tabby Island installs are safe to run at once and never go backwards.** Before, an island that was ahead of its release could be re-downloaded and restarted on every session start, and two installs at the same time could corrupt it. Now it's one install at a time, the copy is made before the island quits, and an older download never replaces a newer island.
+- **doctor respects your choices.** An island you skipped (`--no-island`), a login item you turned off, or an island you quit is reported, not "fixed". A missing island is a warning, not a failure.
+- **Uninstall is honest.** It finds `claude` like the installer does and says when the plugin wasn't removed. It leaves `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` alone if you had set it before tabby.
+- **Installer:**
+  - `CLAUDE_BIN` for a Claude Code in an unusual place;
+  - every plugin error is shown, not just the last;
+  - an install made without git switches to GitHub once git works, so it keeps updating;
+  - Node found through a version manager is remembered as its real binary, so hooks keep working in projects pinned to an old Node.
+- **`CLAUDE_CONFIG_DIR`:** the install guide, the "fix tabby" skill and the island follow it.
+- **Safer launching.** `tabby new --dangerous` refuses a folder it only guessed from part of its name, and `--dangerous=false` means off. `tabby ls` numbers sessions (for `tabby focus 2` and `tabby tile --only 1,3`), `tabby tile active` and `/tab tile screens` work, and `tabby new --list --limit` shows more folders.
+- `tabby island login --off` no longer stops the running island, and `tabby island stop` sticks until you start it again.
+
 ## 0.3.0 — 2026-09-28
 
 **Install, fireproofed.** A fresh install could fail on a Mac that isn't set up like a developer's: Claude Code's own installer ships without Node.js, the island had to be compiled with Xcode's tools, and a failure printed one easy-to-miss line.
