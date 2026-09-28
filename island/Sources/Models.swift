@@ -378,6 +378,14 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     /// What the tabby CLI accepts for `--session`.
     var cliTarget: String { sessionId ?? String(pid) }
 
+    /// The last prompt a person typed: not a message Claude Code injected itself
+    /// (`<task-notification>…`, `<command-name>…`).
+    var typedPrompt: String? {
+        guard let prompt = lastPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty,
+              !prompt.hasPrefix("<") else { return nil }
+        return prompt
+    }
+
     /// Seconds of work in the current turn (time waiting on you left out); nil unless working.
     func workElapsed(now: Date) -> TimeInterval? {
         guard status == .busy || status == .waiting, let start = turnStartedAt ?? activityAt else { return nil }
@@ -635,5 +643,188 @@ enum TextMetrics {
     static func width(_ text: String, size: CGFloat, weight: NSFont.Weight) -> CGFloat {
         let font = NSFont.systemFont(ofSize: size, weight: weight)
         return ceil((text as NSString).size(withAttributes: [.font: font]).width) + 1
+    }
+}
+
+// MARK: - Session details (the hover dropdown's words)
+
+/// The terminal a session runs in, as far as the island can act on it.
+enum TerminalKind: Equatable, Sendable {
+    case terminal, iTerm, other(String)
+
+    init(term: String?) {
+        let term = (term ?? "").lowercased()
+        if term.contains("iterm") {
+            self = .iTerm
+        } else if term.isEmpty || term.contains("apple") || term == "terminal" {
+            self = .terminal
+        } else {
+            self = .other(term)
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .terminal: return "Terminal"
+        case .iTerm: return "iTerm2"
+        case .other(let term):
+            if term.contains("ghostty") { return "Ghostty" }
+            if term.contains("cursor") { return "Cursor" }
+            if term.contains("vscode") { return "VS Code" }
+            if term.contains("warp") { return "Warp" }
+            if term.contains("wezterm") { return "WezTerm" }
+            if term.contains("kitty") { return "kitty" }
+            if term.contains("alacritty") { return "Alacritty" }
+            if term.contains("tmux") { return "tmux" }
+            return term.prefix(1).uppercased() + term.dropFirst()
+        }
+    }
+
+    /// The island can close this terminal's tab once Claude has ended (by AppleScript).
+    var closesTabs: Bool {
+        if case .other = self { return false }
+        return true
+    }
+}
+
+enum SessionDetailCopy {
+    /// What the session is doing, in a sentence: the dropdown's first line.
+    static func headline(_ session: IslandSession, now: Date) -> String {
+        switch session.status {
+        case .busy:
+            return session.workElapsed(now: now).flatMap(Fmt.worked).map { "Working for \($0)" } ?? "Working"
+        case .waiting:
+            switch (session.waitingFor ?? "").lowercased() {
+            case "permission": return "Needs your permission to continue"
+            case "input", "question": return "Asked you a question"
+            case "": return "Waiting for you"
+            default: return "Waiting for \(Fmt.oneLine(session.waitingFor ?? "", max: 60))"
+            }
+        case .idle, .unknown: return "Your turn: Claude is done"
+        case .error: return "Stopped with an error"
+        case .new: return "New session, nothing asked yet"
+        case .ended: return "Ended"
+        }
+    }
+
+    /// The line under the headline: what to do, or what's next. `progress`: the row above
+    /// doesn't show the progress line (the one-line mode).
+    static func hint(_ session: IslandSession, now: Date, progress: Bool) -> String? {
+        switch session.status {
+        case .waiting: return "Click the row to answer in its terminal."
+        case .busy: return progress ? session.progress(now: now)?.caption : nil
+        case .idle, .unknown: return session.lastTurnMs.map { "That turn took \(Fmt.duration($0 / 1000))." }
+        default: return nil
+        }
+    }
+
+    /// "asked 2m ago", "done 12m ago": when the status last changed.
+    static func when(_ session: IslandSession, now: Date) -> String? {
+        guard let ago = Fmt.ago(session.activityAt, now: now) else { return nil }
+        switch session.status {
+        case .waiting: return "asked \(ago)"
+        case .idle, .unknown: return "done \(ago)"
+        case .busy: return nil
+        default: return ago
+        }
+    }
+
+    /// "~/Dev/tabby"
+    static func path(_ cwd: String) -> String {
+        cwd.isEmpty ? "" : (cwd as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// What ending does, said in the confirmation.
+    static func endConsequence(_ session: IslandSession) -> String {
+        let kind = TerminalKind(term: session.term)
+        let tab = kind.closesTabs ? "and its \(kind.label) tab closes" : "Its \(kind.label) tab stays open"
+        let first = kind.closesTabs ? "Claude stops, even mid-task, \(tab)." : "Claude stops, even mid-task. \(tab)."
+        return "\(first) The conversation stays in history: claude --resume brings it back."
+    }
+}
+
+// MARK: - Ending a session safely
+
+/// Before the island ends a session: is that pid still the Claude process of that session, in
+/// that terminal? Anything uncertain refuses. Ending the wrong process is far worse than leaving
+/// one running.
+enum SessionEndGuard {
+    struct Observed: Equatable, Sendable {
+        /// Running, and not a zombie.
+        var running: Bool
+        /// The kernel's short command name (`p_comm`).
+        var command: String?
+        var arguments: [String] = []
+        var tty: String?
+        var startedAt: Date?
+        /// From Claude's own registry, ~/.claude/sessions/<pid>.json, when there is one.
+        var registrySessionId: String?
+        var registryProcStart: String?
+    }
+
+    enum Verdict: Equatable, Sendable {
+        case end
+        /// Nothing left to end.
+        case gone
+        case refuse(String)
+    }
+
+    /// `startedAtMs`: when the island says the session started (0 when unknown).
+    static func verdict(sessionId: String?, tty: String?, startedAtMs: Double, observed: Observed) -> Verdict {
+        guard observed.running else { return .gone }
+        guard isClaude(command: observed.command, arguments: observed.arguments) else {
+            return .refuse("That process isn't Claude anymore, so tabby left it alone.")
+        }
+        guard let want = normalizeTTY(tty) else {
+            return .refuse("tabby doesn't know which terminal it runs in, so it left it alone.")
+        }
+        guard normalizeTTY(observed.tty) == want else {
+            return .refuse("Its process isn't in that terminal tab anymore, so tabby left it alone.")
+        }
+        if let start = observed.startedAt {
+            // A reused pid belongs to a process that started after this session did.
+            if startedAtMs > 0, start.timeIntervalSince1970 * 1000 > startedAtMs + 5_000 {
+                return .refuse("That process started after the session did (its pid was reused).")
+            }
+            if let text = observed.registryProcStart {
+                let candidates = procStartDates(text)
+                if !candidates.isEmpty, !candidates.contains(where: { abs($0.timeIntervalSince(start)) <= 2 }) {
+                    return .refuse("Claude's records and that process disagree about when it started.")
+                }
+            }
+        }
+        // Without a start time to compare, Claude's registry must at least name this session.
+        if observed.registryProcStart == nil, let mine = sessionId, let theirs = observed.registrySessionId, mine != theirs {
+            return .refuse("Claude's records name another session for that process.")
+        }
+        return .end
+    }
+
+    /// The native `claude` binary, or Node running Claude Code's CLI.
+    static func isClaude(command: String?, arguments: [String]) -> Bool {
+        let names = ([command] + arguments.prefix(2).map { Optional($0) })
+            .compactMap { $0 }
+            .map { ($0 as NSString).lastPathComponent.lowercased() }
+        if names.contains("claude") { return true }
+        return arguments.prefix(3).contains { $0.contains("@anthropic-ai/claude-code") }
+    }
+
+    /// "/dev/ttys003" from "ttys003" or "/dev/ttys003"; nil for no terminal.
+    static func normalizeTTY(_ tty: String?) -> String? {
+        guard let raw = tty?.trimmingCharacters(in: .whitespaces), !raw.isEmpty, raw != "??" else { return nil }
+        return raw.hasPrefix("/dev/") ? raw : "/dev/\(raw)"
+    }
+
+    /// Claude's registry writes the process start like "Mon Sep 28 08:38:00 2026" (in UTC on
+    /// the builds seen so far); UTC and local time are both accepted.
+    static func procStartDates(_ text: String) -> [Date] {
+        let collapsed = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return [TimeZone(identifier: "UTC"), TimeZone.current].compactMap { zone in
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = zone
+            formatter.dateFormat = "EEE MMM d HH:mm:ss yyyy"
+            return formatter.date(from: collapsed)
+        }
     }
 }

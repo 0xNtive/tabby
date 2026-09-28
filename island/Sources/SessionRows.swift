@@ -9,6 +9,8 @@ struct SessionRow: View {
     /// Hovered by the mouse or selected with the keyboard.
     let hovered: Bool
     let reduceMotion: Bool
+    /// Draws its own hover highlight (off when the list frames the row with its dropdown).
+    var framed = true
     /// Set while this row's title is being edited in place.
     var renameText: Binding<String>? = nil
     var onRenameCommit: () -> Void = {}
@@ -26,7 +28,7 @@ struct SessionRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(shape.fill(Color.white.opacity(hovered ? 0.08 : 0)))
+            .background(shape.fill(Color.white.opacity(framed && hovered ? 0.08 : 0)))
             .contentShape(shape)
             .onTapGesture { if renameText == nil { onTap() } }
             .overlay(RightClickCatcher { _ in onMenu() })
@@ -95,16 +97,6 @@ struct SessionRow: View {
                         ProgressLine(guess: guess, accent: dot, reduceMotion: reduceMotion)
                             .padding(.top, 2)
                     }
-                    if hovered {
-                        VStack(alignment: .leading, spacing: 5) {
-                            currentTask
-                            summaryBlock(lines: 4)
-                            noteBlock
-                            promptBlock(lines: 2)
-                        }
-                        .padding(.top, 4)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
                 }
             }
         }
@@ -131,7 +123,7 @@ struct SessionRow: View {
                             .padding(.vertical, 2)
                     }
                     currentTask
-                    if session.summary != nil || session.note != nil || session.lastPrompt != nil {
+                    if session.summary != nil || session.note != nil || session.typedPrompt != nil {
                         VStack(alignment: .leading, spacing: 4) {
                             summaryBlock(lines: 2)
                             noteBlock
@@ -222,7 +214,7 @@ struct SessionRow: View {
     }
 
     @ViewBuilder private func promptBlock(lines: Int) -> some View {
-        if let prompt = session.lastPrompt {
+        if let prompt = session.typedPrompt {
             Text("“\(prompt)”")
                 .font(.system(size: 11).italic())
                 .foregroundStyle(.white.opacity(0.55))
@@ -443,18 +435,31 @@ struct Percent: View {
 
 // MARK: - Entrance: rows fade and slide in with a small stagger
 
+/// The rows that already made their entrance since the island opened: a list that re-renders
+/// (a dropdown pushing it into its scroll view, say) doesn't replay it.
+@MainActor
+enum RowEntrance {
+    static var entered = Set<String>()
+}
+
 struct StaggeredEntrance: ViewModifier {
+    let id: String
     let index: Int
     let enabled: Bool
     let reduceMotion: Bool
     @State private var shown = false
+    /// Decided once, when the row first appears in this view tree.
+    @State private var plays: Bool?
 
     func body(content: Content) -> some View {
-        content
-            .opacity(shown || !enabled ? 1 : 0)
-            .offset(y: shown || !enabled || reduceMotion ? 0 : -8)
+        let animated = enabled && (plays ?? !RowEntrance.entered.contains(id))
+        return content
+            .opacity(shown || !animated ? 1 : 0)
+            .offset(y: shown || !animated || reduceMotion ? 0 : -8)
             .onAppear {
-                guard enabled, !shown else { return }
+                if plays == nil { plays = animated }
+                RowEntrance.entered.insert(id)
+                guard animated, !shown else { return }
                 let delay = 0.04 + Double(min(index, 10)) * 0.035
                 let animation: Animation = reduceMotion
                     ? .easeOut(duration: 0.18).delay(delay)

@@ -34,6 +34,8 @@ struct IslandRootView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var ui: IslandUIState
     let actions: IslandActions
+    /// The hover dropdown under a row, and ending a session from it.
+    @ObservedObject var detail: SessionDetailModel = .shared
 
     var body: some View {
         let geometry = ui.geometry
@@ -55,6 +57,15 @@ struct IslandRootView: View {
         .onPreferenceChange(ViewportKey.self) { frame in MainActor.assumeIsolated { onViewport(frame) } }
         .environment(\.colorScheme, .dark)
         .focusEffectDisabled()
+        .onChange(of: ui.hoveredRow) { _, id in
+            detail.reduceMotion = ui.reduceMotion
+            detail.pointer(at: id)
+        }
+        .onChange(of: ui.expanded) { _, expanded in
+            guard !expanded else { return }
+            detail.reset()
+            RowEntrance.entered.removeAll()
+        }
     }
 
     // MARK: Island shape
@@ -233,6 +244,13 @@ struct IslandRootView: View {
                     Color.clear.preference(key: ViewportKey.self, value: proxy.frame(in: .named(IslandSpace.name)))
                 })
             }
+            if let notice = detail.notice {
+                DetailNotice(notice: notice)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 2)
+                    .padding(.bottom, ui.keyboard || ui.renaming != nil ? 0 : 10)
+                    .transition(.opacity)
+            }
             if ui.keyboard || ui.renaming != nil {
                 KeyboardHint(renaming: ui.renaming != nil)
                     .padding(.horizontal, 18)
@@ -251,23 +269,16 @@ struct IslandRootView: View {
         return VStack(spacing: detailed ? 0 : 2) {
             ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                 if detailed && index > 0 {
-                    let quiet = ui.hoveredRow == session.id || ui.hoveredRow == sessions[index - 1].id
+                    let quiet = lit(session.id) || lit(sessions[index - 1].id)
                     Rectangle()
                         .fill(Color.white.opacity(quiet ? 0 : 0.07))
                         .frame(height: 1)
                         .padding(.leading, 38)
                         .padding(.trailing, 10)
                 }
-                SessionRow(session: session,
-                           mode: ui.mode,
-                           hovered: ui.hoveredRow == session.id,
-                           reduceMotion: ui.reduceMotion,
-                           renameText: ui.renaming == session.id ? $ui.renameText : nil,
-                           onRenameCommit: actions.commitRename,
-                           onRenameCancel: actions.cancelRename,
-                           onTap: { actions.tapRow(session) },
-                           onMenu: { actions.sessionMenu(session) })
-                    .modifier(StaggeredEntrance(index: index, enabled: !ui.staticRender, reduceMotion: ui.reduceMotion))
+                row(session)
+                    .modifier(StaggeredEntrance(id: session.id, index: index, enabled: !ui.staticRender,
+                                                reduceMotion: ui.reduceMotion))
                     .background(GeometryReader { proxy in
                         Color.clear.preference(key: RowFramesKey.self,
                                                value: [session.id: proxy.frame(in: .named(IslandSpace.name))])
@@ -277,6 +288,45 @@ struct IslandRootView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+    }
+
+    /// Highlighted: under the pointer, picked with the keyboard, or showing its dropdown.
+    private func lit(_ id: String) -> Bool {
+        ui.hoveredRow == id || cardOpen(id)
+    }
+
+    private func cardOpen(_ id: String) -> Bool {
+        detail.openRow == id && ui.renaming != id
+    }
+
+    /// A session row and, while it's open, its dropdown: one highlighted block, measured as
+    /// one, so moving the pointer into the dropdown keeps it open.
+    private func row(_ session: IslandSession) -> some View {
+        let open = cardOpen(session.id)
+        let shape = RoundedRectangle(cornerRadius: ui.mode == .minimal ? 10 : 12, style: .continuous)
+        return VStack(spacing: 0) {
+            SessionRow(session: session,
+                       mode: ui.mode,
+                       hovered: ui.hoveredRow == session.id,
+                       reduceMotion: ui.reduceMotion,
+                       framed: false,
+                       renameText: ui.renaming == session.id ? $ui.renameText : nil,
+                       onRenameCommit: actions.commitRename,
+                       onRenameCancel: actions.cancelRename,
+                       onTap: { actions.tapRow(session) },
+                       onMenu: { actions.sessionMenu(session) })
+            if open {
+                SessionDetailCard(session: session, mode: ui.mode, model: detail, reduceMotion: ui.reduceMotion,
+                                  onOpen: { actions.tapRow(session) })
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+                    .transition(ui.reduceMotion
+                        ? .opacity
+                        : .asymmetric(insertion: .opacity.combined(with: .offset(y: -6)),
+                                      removal: .opacity.animation(.easeIn(duration: 0.1))))
+            }
+        }
+        .background(shape.fill(Color.white.opacity(lit(session.id) ? 0.08 : 0)))
     }
 
     // MARK: Toolbar
