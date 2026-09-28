@@ -14,6 +14,24 @@ enum Snapshotter {
     private struct State {
         let name: String
         let configure: (IslandUIState, [IslandSession]) -> Void
+        /// The hover dropdown and the end-session states.
+        var detail: ((SessionDetailModel, [IslandSession]) -> Void)? = nil
+
+        init(name: String, detail: ((SessionDetailModel, [IslandSession]) -> Void)? = nil,
+             configure: @escaping (IslandUIState, [IslandSession]) -> Void) {
+            self.name = name
+            self.detail = detail
+            self.configure = configure
+        }
+    }
+
+    /// A working session with a task list if there is one, else the first working one.
+    private static func working(_ list: [IslandSession]) -> IslandSession? {
+        list.first { $0.status == .busy && $0.tasks != nil } ?? list.first { $0.status == .busy } ?? list.first
+    }
+
+    private static func needsYou(_ list: [IslandSession]) -> IslandSession? {
+        list.first { $0.status == .waiting } ?? list.first
     }
 
     private static let states: [State] = [
@@ -45,6 +63,54 @@ enum Snapshotter {
             ui.hoveredRow = list.first?.id
             ui.renaming = list.first?.id
             ui.renameText = list.first?.title ?? ""
+        },
+        State(name: "dropdown-working", detail: { detail, list in detail.freeze(open: working(list)?.id) }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = working(list)?.id
+        },
+        State(name: "dropdown-waiting", detail: { detail, list in detail.freeze(open: needsYou(list)?.id) }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = needsYou(list)?.id
+        },
+        State(name: "dropdown-minimal", detail: { detail, list in detail.freeze(open: working(list)?.id) }) { ui, list in
+            ui.expanded = true
+            ui.mode = .minimal
+            ui.hoveredRow = working(list)?.id
+        },
+        State(name: "dropdown-detailed", detail: { detail, list in detail.freeze(open: needsYou(list)?.id) }) { ui, list in
+            ui.expanded = true
+            ui.mode = .detailed
+            ui.hoveredRow = needsYou(list)?.id
+        },
+        State(name: "end-confirm", detail: { detail, list in
+            detail.freeze(open: working(list)?.id, confirming: working(list)?.id)
+        }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = working(list)?.id
+        },
+        State(name: "end-ending", detail: { detail, list in
+            detail.freeze(open: working(list)?.id, ending: Set([working(list)?.id].compactMap { $0 }))
+        }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = working(list)?.id
+        },
+        State(name: "end-failed", detail: { detail, list in
+            let id = working(list)?.id ?? ""
+            detail.freeze(open: id, failure: .init(id: id, message: "That process isn't Claude anymore, so tabby left it alone."))
+        }) { ui, list in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredRow = working(list)?.id
+        },
+        State(name: "end-done", detail: { detail, _ in
+            detail.freeze(open: nil, notice: .init(text: "Ended “Write the 2.0 release notes” and closed its tab.", ok: true))
+        }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
         },
         State(name: "announce-done") { ui, list in
             ui.announcement = (list.first { $0.status.isYourTurn } ?? list.first).map(Announcement.done)
@@ -82,7 +148,7 @@ enum Snapshotter {
         flat.notchWidth = 0
         flat.barHeight = 24
         render(store: demo, prefix: "flat", geometry: flat, size: rect.size, folder: folder,
-               states: states.filter { ["collapsed", "standard", "announce-done"].contains($0.name) })
+               states: states.filter { ["collapsed", "standard", "announce-done", "dropdown-working"].contains($0.name) })
 
         renderBrand(folder: folder)
         renderSwatches(live.snapshot, folder: folder)
@@ -257,10 +323,12 @@ enum Snapshotter {
             ui.geometry = sized
             ui.mode = store.snapshot.config.mode
             state.configure(ui, store.listSessions)
+            let detail = SessionDetailModel()
+            state.detail?(detail, store.listSessions)
             var islandFrame = CGRect.zero
             var actions = IslandActions.inert
             actions.islandFrame = { islandFrame = $0 }
-            let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions))
+            let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, detail: detail))
             host.frame = NSRect(origin: .zero, size: panelSize)
             let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -459,7 +527,7 @@ enum DemoData {
                                  project: project, registryName: nil, title: title, titleSource: "ai",
                                  summary: summary, note: note, theme: theme?.id, accentKey: key, accentHex: hex,
                                  dotHex: dot, cursorHex: hex, status: status, waitingFor: waitingFor,
-                                 lastPrompt: prompt, context: context, model: model, tty: nil, term: "apple-terminal",
+                                 lastPrompt: prompt, context: context, model: model, tty: "/dev/ttys00\(n)", term: "apple-terminal",
                                  startedAt: ago(started), activityAt: ago(activity), hasRecord: true)
         }
         var sessions = [

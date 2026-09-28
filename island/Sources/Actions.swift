@@ -284,6 +284,10 @@ final class MenuFactory: NSObject {
         menu.addItem(.separator())
         menu.addItem(item("Rename with AI", symbol: "sparkles") { Actions.renameWithAI(session) })
         menu.addItem(item("Reset Look", symbol: "arrow.counterclockwise") { Actions.resetLook(session) })
+
+        // Never ends anything from the menu: it opens the island's inline confirmation.
+        menu.addItem(.separator())
+        menu.addItem(item("End Session…", symbol: "stop.circle") { SessionDetailModel.shared.askToEnd(session) })
         return menu
     }
 

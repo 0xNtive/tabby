@@ -235,6 +235,67 @@ MainActor.assumeIsolated {
     check(TerminalChrome.titleBar >= 22 && TerminalChrome.titleBar <= 40, "title bar \(TerminalChrome.titleBar)")
     check(TerminalChrome.tabBar >= 20 && TerminalChrome.tabBar <= 48, "tab bar \(TerminalChrome.tabBar)")
 }
+// The hover dropdown's words
+var asking = working
+asking.status = .waiting
+asking.waitingFor = "permission"
+check(SessionDetailCopy.headline(asking, now: nowDate) == "Needs your permission to continue", "permission headline")
+asking.waitingFor = "input"
+check(SessionDetailCopy.headline(asking, now: nowDate) == "Asked you a question", "question headline")
+asking.waitingFor = nil
+check(SessionDetailCopy.headline(asking, now: nowDate) == "Waiting for you", "plain waiting headline")
+check(SessionDetailCopy.hint(asking, now: nowDate, progress: false) == "Click the row to answer in its terminal.", "waiting hint")
+var busy = working
+busy.status = .busy
+check(SessionDetailCopy.headline(busy, now: nowDate) == "Working for 4m", "busy headline: \(SessionDetailCopy.headline(busy, now: nowDate))")
+check(SessionDetailCopy.hint(busy, now: nowDate, progress: false) == nil, "the row already shows progress")
+check(SessionDetailCopy.hint(busy, now: nowDate, progress: true) == "~4m left · usually 8m", "one-line mode shows it in the card")
+busy.lastPrompt = "<task-notification><task-id>x</task-id></task-notification>"
+check(busy.typedPrompt == nil, "injected messages aren't prompts")
+busy.lastPrompt = "  fix the flaky test  "
+check(busy.typedPrompt == "fix the flaky test", "typed prompt")
+check(TerminalKind(term: "apple-terminal") == .terminal && TerminalKind(term: nil) == .terminal, "Terminal.app")
+check(TerminalKind(term: "iterm2") == .iTerm && TerminalKind(term: "iterm.app") == .iTerm, "iTerm2")
+check(TerminalKind(term: "ghostty").label == "Ghostty" && !TerminalKind(term: "ghostty").closesTabs, "Ghostty keeps its tab")
+check(TerminalKind(term: "iterm2").closesTabs && TerminalKind(term: "apple-terminal").closesTabs, "closes Terminal and iTerm2 tabs")
+busy.term = "ghostty"
+check(SessionDetailCopy.endConsequence(busy).contains("Its Ghostty tab stays open"), "consequence names the terminal")
+
+// Ending a session: only that Claude process, in that tab
+let started = Date(timeIntervalSince1970: 1_790_584_680)
+let fine = SessionEndGuard.Observed(running: true, command: "claude", arguments: ["claude", "--continue"], tty: "/dev/ttys002",
+                                    startedAt: started, registrySessionId: "abc", registryProcStart: "Mon Sep 28 08:38:00 2026")
+let startedMs = 1_790_584_681_969.0
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: fine) == .end, "the right process")
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "ttys002", startedAtMs: startedMs, observed: fine) == .end, "tty without /dev/")
+var gone = fine
+gone.running = false
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: gone) == .gone, "already ended")
+var other = fine
+other.command = "zsh"
+other.arguments = ["-zsh"]
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: other) != .end, "not claude")
+var moved = fine
+moved.tty = "/dev/ttys009"
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: moved) != .end, "other tty")
+check(SessionEndGuard.verdict(sessionId: "abc", tty: nil, startedAtMs: startedMs, observed: fine) != .end, "unknown tty")
+var reused = fine
+reused.startedAt = started.addingTimeInterval(3_600)
+reused.registryProcStart = nil
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: reused) != .end, "pid reused later")
+var disagree = fine
+disagree.registryProcStart = "Mon Sep 28 07:00:00 2026"
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: disagree) != .end, "registry start differs")
+var cleared = fine
+cleared.registrySessionId = "after-clear"
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: cleared) == .end, "/clear keeps the process (start times agree)")
+cleared.registryProcStart = nil
+check(SessionEndGuard.verdict(sessionId: "abc", tty: "/dev/ttys002", startedAtMs: startedMs, observed: cleared) != .end, "no start time: the ids must agree")
+check(SessionEndGuard.isClaude(command: "node", arguments: ["node", "/usr/local/bin/claude"]), "npm install")
+check(SessionEndGuard.isClaude(command: "node", arguments: ["node", "/x/node_modules/@anthropic-ai/claude-code/cli.js"]), "npm cli.js")
+check(!SessionEndGuard.isClaude(command: "node", arguments: ["node", "server.js", "claude"]), "node with a claude argument later")
+check(!SessionEndGuard.isClaude(command: "claude-helper", arguments: ["claude-helper"]), "other binaries")
+check(SessionEndGuard.procStartDates("Sat Sep  6 20:07:51 2026").count == 2, "padded day parses")
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)
