@@ -83,6 +83,7 @@ Tell them, briefly:
 - Open a **new** Claude Code session, or type `/reload-plugins` in the ones already open. Each tab gets a name and a color after its first prompt.
 - On a Mac, Tabby Island sits at the top center of the screen: hover it to see every session. Its menu-bar icon has Settings and the shortcuts.
 - `/tab` shows the commands. "fix tabby" in Claude runs this check again. `tabby uninstall` removes everything.
+- Updates: the island shows an **Update** button when a new version is out, or `/tab update` in Claude, or `tabby update` in a terminal.
 
 ## Troubleshooting
 

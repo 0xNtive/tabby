@@ -96,7 +96,7 @@ struct SettingsView: View {
             Divider()
             Group {
                 switch state.tab {
-                case .general: GeneralPane(island: island, store: store, state: state)
+                case .general: GeneralPane(island: island, store: store, state: state, updates: island.updates)
                 case .watermark: WatermarkPane(island: island, store: store, state: state, permissions: island.permissions)
                 case .focus: FocusPane(island: island, store: store, state: state, permissions: island.permissions)
                 case .windows: WindowsPane(island: island, state: state)
@@ -147,6 +147,21 @@ struct GeneralPane: View {
     let island: IslandController
     @ObservedObject var store: SessionStore
     @ObservedObject var state: SettingsState
+    @ObservedObject var updates: UpdateCenter
+
+    private var updateStatus: String {
+        switch updates.phase {
+        case .checking: return "Checking…"
+        case .updating(let message): return message
+        case .failed(let message): return message
+        case .idle:
+            let info = updates.info
+            let when = info.checkedAt.map { " · checked \(RelativeDateTimeFormatter().localizedString(for: $0, relativeTo: Date()))" } ?? ""
+            if info.available, let latest = info.latest { return "\(latest) is out\(when)" }
+            if info.latest != nil { return "Up to date\(when)" }
+            return info.error.map { "Couldn't check: \($0)" } ?? "Not checked yet"
+        }
+    }
 
     var body: some View {
         let config = state.config
@@ -159,6 +174,30 @@ struct GeneralPane: View {
                 .pickerStyle(.segmented)
                 Toggle("Announce when a session is done or needs you", isOn: setting(config.announce) { island.setAnnounce($0) })
                 Toggle("Open at login", isOn: setting(state.loginItem) { island.setLoginItem($0) })
+            }
+            Section {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("tabby \(updates.info.current ?? "")")
+                        Text(updateStatus)
+                            .font(.caption)
+                            .foregroundStyle(updates.info.available ? Color(nsColor: Brand.marmalade) : .secondary)
+                    }
+                    Spacer()
+                    if updates.info.available, !updates.phase.busy {
+                        Button("Update Now") { updates.update() }
+                            .keyboardShortcut(.defaultAction)
+                    }
+                    Button("Check Now") { updates.check(manual: true) }
+                        .disabled(updates.phase.busy)
+                }
+                Toggle("Check for updates automatically", isOn: setting(state.config.updateCheck) { island.setUpdateCheck($0) })
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("Asks github.com for the latest release every 6 hours; nothing about you is sent. Updating gets the plugin and Tabby Island, and the island restarts. From a terminal: tabby update, or /tab update in Claude.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section {
                 Picker("Theme for every tab", selection: setting(config.theme ?? store.snapshot.defaultThemeId ?? "") { island.setThemeAll($0) }) {

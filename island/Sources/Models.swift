@@ -104,6 +104,8 @@ struct IslandConfig: Equatable, Sendable {
     var watermark = WatermarkSettings()
     /// Terminal windows you're not in show only their topic while Claude works (`focusMode`).
     var focusMode = false
+    /// Look for a newer tabby every 6 h (`updateCheck`, on by default).
+    var updateCheck = true
 
     // tabby's own settings (Settings › General).
     /// The theme for every tab (`theme`); nil means tabby's default.
@@ -140,6 +142,7 @@ struct IslandConfig: Equatable, Sendable {
         }
         watermark = WatermarkSettings(raw: raw)
         focusMode = raw["focusMode"]?.bool ?? false
+        updateCheck = raw["updateCheck"]?.bool ?? true
         theme = raw["theme"]?.string
         namer = raw["namer"]?.string ?? "ai"
         strength = raw["strength"]?.string ?? "medium"

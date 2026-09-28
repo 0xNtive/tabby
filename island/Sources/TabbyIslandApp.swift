@@ -240,6 +240,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(factory.item("Setup & Permissions…", symbol: "checkmark.shield") { [weak island] in
             island?.showOnboarding(.permissions, activate: true)
         })
+        let updates = island.updates
+        if case .updating = updates.phase {
+            menu.addItem(factory.info("Updating tabby…"))
+        } else if updates.info.available, let latest = updates.info.latest {
+            menu.addItem(factory.item("Update to tabby \(latest)…", symbol: "arrow.down.circle") { updates.update() })
+        } else {
+            menu.addItem(factory.item("Check for Updates…", symbol: "arrow.triangle.2.circlepath") { updates.check(manual: true) })
+        }
         menu.addItem(factory.item("About tabby", symbol: "info.circle") { [weak self] in self?.showAbout() })
         let quit = NSMenuItem(title: "Quit Tabby Island", action: #selector(quitByUser), keyEquivalent: "q")
         quit.target = self

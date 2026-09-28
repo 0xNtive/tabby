@@ -12,6 +12,7 @@ process.env.CLAUDE_CONFIG_DIR = path.join(tmp, 'claude');
 process.env.TERM_PROGRAM = 'Apple_Terminal';
 process.env.TABBY_NO_TERMINAL_PROFILES = '1'; // never switch the real Terminal's profiles
 process.env.TABBY_NO_ISLAND = '1'; // never download, start or quit the real Tabby Island
+process.env.TABBY_NO_UPDATE_CHECK = '1'; // no network
 process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
 delete process.env.TMUX;
 delete process.env.TABBY_OFF;

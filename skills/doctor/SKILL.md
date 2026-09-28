@@ -19,7 +19,9 @@ description: Diagnose and fix tabby when something about it isn't working — ta
 
    Run it again until nothing is `fail`, and tell them in a line or two what was wrong and what changed.
 
-3. When a piece is broken beyond a single fix, reinstalling is safe and repairs in place. Run the `reinstall` command from the JSON only after they've accepted the terms (`--yes` records acceptance). Its log is `~/.claude/tabby/install.log`; hooks log to `~/.claude/tabby/tabby.log`.
+3. Outdated (the `update` check, or the island is older than tabby): `… tabby update` gets the newest plugin, refreshes setup and updates Tabby Island. Then open sessions need `/reload-plugins`.
+
+4. When a piece is broken beyond a single fix, reinstalling is safe and repairs in place. Run the `reinstall` command from the JSON only after they've accepted the terms (`--yes` records acceptance). Its log is `~/.claude/tabby/install.log`; hooks log to `~/.claude/tabby/tabby.log`.
 
 ## Tabby Island (macOS)
 

@@ -100,6 +100,8 @@ final class IslandUIState: ObservableObject {
     @Published var keyboard = false
     /// The live activity in the collapsed pill.
     @Published var announcement: Announcement?
+    /// A newer tabby is out, or one is being installed (the header's Update pill).
+    @Published var update: UpdateBadge?
     /// The session whose title is being edited in place, and the text so far.
     @Published var renaming: String?
     @Published var renameText = ""
@@ -124,13 +126,15 @@ struct IslandActions {
     var setMode: @MainActor (IslandMode) -> Void
     var tileMenu: @MainActor () -> Void
     var openSettings: @MainActor () -> Void
+    /// Installs the newer tabby (the Update pill).
+    var update: @MainActor () -> Void
     /// Inline rename: Return commits (empty lets AI name it), Esc cancels.
     var commitRename: @MainActor () -> Void
     var cancelRename: @MainActor () -> Void
 
     static let inert = IslandActions(islandFrame: { _ in }, rowFrames: { _ in }, viewport: { _ in }, tapHeader: {},
                                      tapRow: { _ in }, sessionMenu: { _ in }, themeAllMenu: {}, setMode: { _ in },
-                                     tileMenu: {}, openSettings: {}, commitRename: {}, cancelRename: {})
+                                     tileMenu: {}, openSettings: {}, update: {}, commitRename: {}, cancelRename: {})
 }
 
 /// Settings the user just changed, by config key: applied at once, and kept until config.json
@@ -221,6 +225,8 @@ final class IslandController {
     private let inert: Bool
     /// What macOS allows the island (Accessibility, Automation), for the onboarding and Settings.
     let permissions: PermissionCenter
+    /// Newer versions of tabby: checking, and installing one.
+    let updates: UpdateCenter
     private var onboarding: OnboardingWindowController?
 
     init(store: SessionStore, inert: Bool = false) {
@@ -229,6 +235,9 @@ final class IslandController {
         permissions = inert
             ? PermissionCenter(accessibility: .allowed, automation: [.terminal: .waiting, .systemEvents: .notAsked])
             : PermissionCenter()
+        updates = inert
+            ? UpdateCenter(info: .init(current: "0.3.0", latest: "0.3.1", available: true, checkedAt: Date().addingTimeInterval(-7200)))
+            : UpdateCenter()
         buildPanel()
         if !inert { Self.current = self }
         observers.append(NotificationCenter.default.addObserver(
@@ -260,6 +269,22 @@ final class IslandController {
         permissions.onTerminalAllowed = { [weak store] in store?.requestTerminalWindows() }
         permissions.sessionTerms = { [weak store] in Set(store?.snapshot.sessions.compactMap(\.term) ?? []) }
         if !inert { permissions.startBackgroundChecks() }
+        updates.announce = { [weak self] text, symbol in
+            self?.enqueue(Announcement(kind: .info, title: text, symbol: symbol, topic: "update"), force: true)
+        }
+        Publishers.CombineLatest(updates.$info, updates.$phase)
+            .sink { [weak self] info, phase in
+                MainActor.assumeIsolated {
+                    guard let self, !self.inert else { return }
+                    let badge: UpdateBadge?
+                    if case .updating = phase { badge = .updating }
+                    else if info.available, let latest = info.latest { badge = .available(latest) }
+                    else { badge = nil }
+                    if self.ui.update != badge { self.ui.update = badge }
+                }
+            }
+            .store(in: &cancellables)
+        if !inert { updates.start(automatic: false) }
         settingsState.loginItem = Self.loginItemInstalled
         installDebugChannel()
     }
@@ -315,6 +340,7 @@ final class IslandController {
             setMode: { [weak self] mode in self?.setMode(mode) },
             tileMenu: { [weak self] in self?.showTileMenu() },
             openSettings: { [weak self] in self?.openSettings() },
+            update: { [weak self] in self?.updates.update() },
             commitRename: { [weak self] in self?.commitRename() },
             cancelRename: { [weak self] in self?.cancelRename() }
         )
@@ -385,6 +411,7 @@ final class IslandController {
             if ui.announcement?.kind != .info { endAnnouncement() }
         }
         if first || next.watermark != old.watermark || next.focusMode != old.focusMode { updateWatermark(snapshot) }
+        if first || next.updateCheck != old.updateCheck { updates.setAutomatic(next.updateCheck) }
     }
 
     /// Applies a setting at once and has the CLI write it: `tabby config <key> <json>`, or
@@ -445,6 +472,7 @@ final class IslandController {
     // MARK: Focus mode
 
     func setFocusMode(_ on: Bool) { setSetting("focusMode", .bool(on)) }
+    func setUpdateCheck(_ on: Bool) { setSetting("updateCheck", .bool(on)) }
 
     private func updateWatermark(_ snapshot: StoreSnapshot) {
         guard !inert else { return }

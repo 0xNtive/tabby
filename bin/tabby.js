@@ -15,7 +15,7 @@ import { runCommand, helpText } from '../lib/commands.js';
 import { handleHook, refreshContext, wantsRename } from '../lib/hooks.js';
 import { runNamer } from '../lib/namer.js';
 import { statusline } from '../lib/statusline.js';
-import { install, uninstall, pluginInstalled, writeExports, ROOT } from '../lib/install.js';
+import { install, uninstall, refresh, pluginInstalled, writeExports, ROOT } from '../lib/install.js';
 import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
 import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next, screensCommand } from '../lib/tile.js';
@@ -26,6 +26,7 @@ import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, setBoldC
 import { runTicker } from '../lib/ticker.js';
 import * as islandApp from '../lib/island.js';
 import { printDoctor } from '../lib/doctor.js';
+import * as updates from '../lib/update.js';
 
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
@@ -309,6 +310,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
   tabby doctor [--json]       check every part of the install, with the fix for each
+  tabby update [--check]      get the newest tabby: plugin, setup and island (--check: only look)
   tabby config [key value]    e.g. tabby config strength subtle · tabby config animate false`;
 
 // Interactive acceptance for `tabby install` / `tabby setup` in a shell.
@@ -347,7 +349,7 @@ const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-title
 
 function main() {
   const cmd = pos[0];
-  const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_profile', 'statusline', 'install', 'uninstall', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', undefined].includes(cmd);
+  const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_after-update', '_profile', 'statusline', 'install', 'uninstall', 'update', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', undefined].includes(cmd);
   if (changes && !termsAccepted() && !(cmd === 'island' && pos[1] === 'stop')) {
     return console.log('tabby is off until you accept its terms. Run: tabby setup');
   }
@@ -387,6 +389,37 @@ function main() {
       console.log(c(BOLD, 'Installing tabby'));
       for (const s of install({ statusline: !flags['no-statusline'], shell: !flags['no-shell'], plugin: !flags['no-plugin'], title: !flags['no-title'], terminalTitles: !flags['no-terminal-titles'] })) console.log('  • ' + s);
       console.log('\nNew Claude sessions are organized automatically. Run `tabby adopt` to color the ones already open,\n`tabby island` for the session island, and open a new shell for the claude --tab/--color/--theme flags.');
+      return;
+    }
+    case 'update': {
+      if (flags.check) {
+        const u = updates.check();
+        if (flags.json) return console.log(JSON.stringify(u));
+        if (flags.quiet) return;
+        return console.log(u.available ? `tabby ${u.latest} is out (you have ${u.current}). To update: tabby update` : u.latest ? `tabby ${u.current} is the latest.` : `Couldn't check for updates: ${u.error}`);
+      }
+      const res = updates.update({ say: flags.quiet ? () => {} : console.log });
+      if (!flags.quiet) console.log(res.message);
+      if (!res.ok) process.exitCode = 1;
+      return;
+    }
+    case '_after-update': {
+      // Runs as the NEW version, right after the plugin updated from pos[1].
+      const from = pos[1] || '0.0.0';
+      const to = islandApp.version();
+      if (islandApp.newer(to, from)) {
+        if (termsAccepted()) console.log(`Setup refreshed: ${refresh().join(', ')}.`);
+        else console.log(`tabby ${to} comes with updated terms: run tabby setup to review them.`);
+      }
+      if (process.platform === 'darwin' && !islandApp.unsupported() && (fs.existsSync(islandApp.APP) || islandApp.running() || islandApp.loginOn())) {
+        const have = fs.existsSync(islandApp.APP) ? islandApp.appVersion() : null;
+        if (!have || islandApp.newer(to, have)) {
+          const res = islandApp.install();
+          console.log(res.message);
+          if (res.ok && islandApp.loginOn()) islandApp.login(true);
+          if (res.ok && !islandApp.running() && !islandApp.status()?.quitByUser) islandApp.start();
+        } else console.log(`Tabby Island ${have} is current.`);
+      }
       return;
     }
     case 'uninstall':
