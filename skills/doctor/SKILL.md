@@ -8,20 +8,20 @@ description: Diagnose and fix tabby when something about it isn't working — ta
 1. Run the check (10-minute timeout on every Bash call):
 
    ```sh
-   sh ~/.claude/tabby/bin/tabby doctor --json
+   sh "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby/bin/tabby" doctor --json
    ```
 
    If that file doesn't exist, setup never ran: use `sh "<this skill's base directory>/../../bin/tabby.sh" doctor --json` instead.
 
 2. It returns `{ ok, next, reinstall, checks: [{ id, title, status, detail, fix }] }`. Work through each `fail`, then each `warn`, that has a `fix`:
-   - `fix.run`: run it (tabby's own commands; `sh ~/.claude/tabby/bin/tabby …`).
+   - `fix.run`: run it (tabby's own commands; `sh "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby/bin/tabby" …`).
    - `fix.tell`: tell the person what to do, in your own words, and wait for them. Never accept tabby's terms for them: show the summary (`… tabby terms`) and ask first.
 
    Run it again until nothing is `fail`, and tell them in a line or two what was wrong and what changed.
 
 3. Outdated (the `update` check, or the island is older than tabby): `… tabby update` gets the newest plugin, refreshes setup and updates Tabby Island. Then open sessions need `/reload-plugins`.
 
-4. When a piece is broken beyond a single fix, reinstalling is safe and repairs in place. Run the `reinstall` command from the JSON only after they've accepted the terms (`--yes` records acceptance). Its log is `~/.claude/tabby/install.log`; hooks log to `~/.claude/tabby/tabby.log`.
+4. When a piece is broken beyond a single fix, reinstalling is safe and repairs in place. Run the `reinstall` command from the JSON only after they've accepted the terms (`--yes` records acceptance). Its log is `install.log` in `${CLAUDE_CONFIG_DIR:-~/.claude}/tabby/`; hooks log to `tabby.log` there.
 
 ## Tabby Island (macOS)
 

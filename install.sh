@@ -18,6 +18,7 @@
 #
 # Options: --yes (accept the terms) · --no-island · --no-node (never download Node) · plus any
 # `tabby install` flag (--no-statusline, --no-shell, --no-title, --no-terminal-titles).
+# CLAUDE_BIN=/path/to/claude when Claude Code lives somewhere unusual.
 set -uo pipefail
 
 REPO=0xNtive/tabby
@@ -50,13 +51,15 @@ die() {
   printf '\n  The full log is in %s.\n  Stuck? Paste this into Claude Code and it will sort it out:\n    %sInstall tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it.%s\n' "$LOG" "$B" "$N" >&2
   exit 1
 }
-# Runs a command, its output to the log; on failure shows the last lines.
+# Runs a command, its output to the log; failures are kept to show if the step fails.
+ERRORS=""
 quiet() {
   local out
   out=$("$@" 2>&1)
   local status=$?
   printf '$ %s\n%s\n' "$*" "$out" >> "$LOG"
-  [ $status -eq 0 ] || LAST_ERROR=$(printf '%s' "$out" | tail -n 3)
+  [ $status -eq 0 ] || ERRORS="${ERRORS}$(printf '%s' "$out" | tail -n 2 | sed "s|^|$(basename "$2" 2> /dev/null) $3 $4: |")
+"
   return $status
 }
 has_tty() { { : > /dev/tty; } 2> /dev/null; }
@@ -72,7 +75,7 @@ case "$OS" in
 esac
 
 CLAUDE=""
-for c in "$(command -v claude 2> /dev/null)" "$HOME/.local/bin/claude" "$CLAUDE_HOME/local/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do
+for c in "${CLAUDE_BIN:-}" "$(command -v claude 2> /dev/null)" "$HOME/.local/bin/claude" "$CLAUDE_HOME/local/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do
   if [ -n "$c" ] && [ -x "$c" ] && "$c" --version > /dev/null 2>&1; then
     CLAUDE="$c"
     break
@@ -126,6 +129,9 @@ elif [ "$NODE_DOWNLOAD" = 1 ]; then
 else
   die "tabby needs Node.js 18 or newer: https://nodejs.org (or: brew install node)"
 fi
+# The real binary behind a version manager's shim, so hooks keep a Node 18+ in every project.
+REAL_NODE=$("$NODE" -p 'process.execPath' 2> /dev/null)
+[ -n "$REAL_NODE" ] && [ -x "$REAL_NODE" ] && NODE="$REAL_NODE"
 printf '%s\n' "$NODE" > "$TABBY_DIR/node-path"
 export TABBY_NODE="$NODE"
 
@@ -138,10 +144,18 @@ git_works() {
   if [ "$OS" = Darwin ] && [ "$(command -v git)" = /usr/bin/git ]; then xcode-select -p > /dev/null 2>&1 || return 1; fi
   git --version > /dev/null 2>&1
 }
-LAST_ERROR=""
+# Where the tabby marketplace comes from now, if it's already added: a GitHub repo, or a folder.
+MARKET_DIR=$("$NODE" -e '
+try {
+  const m = require(require("path").join(process.argv[1], "plugins/known_marketplaces.json")).tabby;
+  if (m && m.source && m.source.source === "directory") process.stdout.write(m.source.path);
+} catch {}
+' "$CLAUDE_HOME")
 if [ -n "${TABBY_MARKETPLACE:-}" ]; then # a checkout, for testing
   quiet "$CLAUDE" plugin marketplace add "$TABBY_MARKETPLACE" || quiet "$CLAUDE" plugin marketplace update tabby || true
 elif git_works; then
+  # Installed earlier without git (a downloaded folder): switch to GitHub, which updates.
+  case "$MARKET_DIR" in "$TABBY_DIR"/src/*) quiet "$CLAUDE" plugin marketplace remove tabby || true ;; esac
   quiet "$CLAUDE" plugin marketplace add "$REPO" || quiet "$CLAUDE" plugin marketplace update tabby || true
 else
   SRC="$TABBY_DIR/src"
@@ -165,7 +179,7 @@ try { for (const v of fs.readdirSync(dir)) if (fs.existsSync(path.join(dir, v, "
 if (best) process.stdout.write(path.join(dir, best));
 ' "$CLAUDE_HOME")
 if [ -z "$ROOT" ]; then
-  [ -n "$LAST_ERROR" ] && printf '%s\n' "$LAST_ERROR" | sed 's/^/    /' >&2
+  [ -n "$ERRORS" ] && printf '%s' "$ERRORS" | sed 's/^/    /' >&2
   die "The plugin didn't install. Inside Claude Code, type: /plugin marketplace add $REPO  then  /plugin install tabby@tabby"
 fi
 tabby() { "$NODE" "$ROOT/bin/tabby.js" "$@"; }
@@ -190,8 +204,12 @@ fi
 ok "setup done"
 
 # ---------- 4. Tabby Island (macOS) ----------
+if [ "$OS" = Darwin ] && [ "$ISLAND" = 0 ]; then
+  tabby config island false > /dev/null # doctor and updates leave it out
+fi
 if [ "$OS" = Darwin ] && [ "$ISLAND" = 1 ]; then
   step "Tabby Island"
+  tabby config island true > /dev/null
   out=$(tabby island install 2>&1)
   status=$?
   printf '%s\n' "$out" >> "$LOG"

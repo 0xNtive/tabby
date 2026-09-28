@@ -2,6 +2,7 @@
 // tabby — name, color and track every Claude Code session's terminal tab.
 import fs from 'node:fs';
 import path from 'node:path';
+import tty from 'node:tty';
 import { spawnSync } from 'node:child_process';
 import {
   readConfig, writeConfig, readSession, patchSession, listSessions, liveSessions,
@@ -38,7 +39,9 @@ const c = (code, s) => (color ? code + s + RESET : s);
 const argv = process.argv.slice(2);
 const flags = {};
 const pos = [];
-const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir', 'ttys', 'only', 'screens', 'screen', 'term']);
+// A flag given as --x=false (or 0/no/off) is off.
+const on = (v) => v === true || (typeof v === 'string' && !/^(false|0|no|off)$/i.test(v));
+const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir', 'ttys', 'only', 'screens', 'screen', 'term', 'limit']);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--') {
@@ -164,17 +167,18 @@ function printLs() {
   if (flags.json) return console.log(JSON.stringify(rows, null, 2));
   if (!rows.length) return console.log('No Claude sessions running.');
   const words = { waiting: 'needs you', busy: 'working', idle: 'your turn', new: 'new', error: 'error', shell: 'shell' };
-  for (const s of rows) {
+  for (const [i, s] of rows.entries()) {
     const accent = s.accent || '#8b949e';
     const glyph = cfg.status[s.status] || ' ';
     const title = s.title || s.claudeName || s.project;
     const swatch = s.bg ? c(ansiBg(s.bg) + ansiFg(accent), ' ● ') : c(ansiFg(accent), ' ● ');
     const status = s.status === 'waiting' ? c(ansiFg('#e5c07b'), pad(words.waiting, 10)) : c(DIM, pad(words[s.status] || s.status || '', 10));
-    const line = `${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(s.project, 12))} ${contextUsed(s.context?.usedPct)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
+    // The number is what tabby focus <n> and tabby tile --only <n,…> use.
+    const line = `${c(DIM, String(i + 1).padStart(2))} ${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(s.project, 12))} ${contextUsed(s.context?.usedPct)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
     console.log(line);
     const about = s.note || s.summary || (s.prompts || []).at(-1);
-    if (about) console.log(`      ${c(DIM, pad(about, 96))}`);
-    if (!s.tracked) console.log(`      ${c(DIM, 'not tracked yet — restart this session (or run: tabby adopt)')}`);
+    if (about) console.log(`         ${c(DIM, pad(about, 96))}`);
+    if (!s.tracked) console.log(`         ${c(DIM, 'not tracked yet — restart this session (or run: tabby adopt)')}`);
   }
 }
 
@@ -212,12 +216,12 @@ const asq = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 // `tabby new [dir|recent folder] [-n name] [--dangerous] [--screen s] [--term t]`, or `--list`.
 function newSession() {
-  if (flags.list) return console.log(listFolders({ json: !!flags.json }));
+  if (flags.list) return console.log(listFolders({ json: !!flags.json, limit: flags.limit === undefined ? 20 : Number(flags.limit) || 0 }));
   const str = (v) => (typeof v === 'string' ? v : undefined);
   console.log(launch({
     dir: pos[1] || str(flags.dir),
     name: str(flags.name) || str(flags.n),
-    dangerous: !!(flags.dangerous || flags['skip-permissions'] || flags['dangerously-skip-permissions']),
+    dangerous: on(flags.dangerous) || on(flags['skip-permissions']) || on(flags['dangerously-skip-permissions']),
     color: str(flags.color),
     theme: str(flags.theme),
     term: str(flags.term),
@@ -234,8 +238,8 @@ function island(sub = 'start') {
   const say = (m) => !quiet && m && console.log(m);
   switch (sub) {
     case 'stop':
-      islandApp.quit();
-      return say('Tabby Island stopped.');
+      islandApp.stop();
+      return say('Tabby Island stopped. New Claude sessions leave it closed until you run: tabby island');
     case 'install':
     case 'update':
     case 'build': {
@@ -321,27 +325,42 @@ function ensureTerms() {
     acceptTerms('cli');
     return true;
   }
-  if (!process.stdin.isTTY) {
+  // tty.isatty, not process.stdin.isTTY: touching process.stdin puts fd 0 in non-blocking mode
+  // on macOS, and the answer could then never be read.
+  if (!tty.isatty(0)) {
     console.log('Run again with --accept-terms to agree.');
     return false;
   }
-  process.stdout.write('Accept the tabby terms? [Y/n] ');
-  const buf = Buffer.alloc(64);
-  let n = 0;
-  for (let i = 0; i < 100 && !n; i++) {
-    try {
-      n = fs.readSync(0, buf, 0, 64, null);
-    } catch (e) {
-      if (e.code !== 'EAGAIN') break;
-    }
-  }
-  // Enter alone accepts; no answer at all (end of input) does not.
-  if (n > 0 && /^(y(es)?)?$/i.test(buf.toString('utf8', 0, n).trim())) {
+  if (askYes('Accept the tabby terms? [Y/n] ')) {
     acceptTerms('cli');
     return true;
   }
   console.log('Nothing was changed.');
   return false;
+}
+
+// Waits for a line on the terminal. Enter alone means yes; no answer at all (end of input) doesn't.
+function askYes(question) {
+  process.stdout.write(question);
+  let fd = 0;
+  let own = false;
+  try {
+    fd = fs.openSync('/dev/tty', 'r'); // a blocking handle of our own
+    own = true;
+  } catch {}
+  const buf = Buffer.alloc(256);
+  let n = 0;
+  for (;;) {
+    try {
+      n = fs.readSync(fd, buf, 0, buf.length, null);
+      break;
+    } catch (e) {
+      if (e.code !== 'EAGAIN') break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  if (own) fs.closeSync(fd);
+  return n > 0 && /^(y(es)?)?$/i.test(buf.toString('utf8', 0, n).trim());
 }
 
 // Commands that change terminals or settings wait for the terms; read-only ones don't.
@@ -437,11 +456,12 @@ function main() {
       return console.log(next());
     case 'tile':
       if (pos[1] === 'screens') return console.log(screensCommand(pos.slice(2).join(' ')));
-      return console.log(tile(Number(pos[1]) || undefined, {
+      // tabby tile [n] [active|all], or the same as flags
+      return console.log(tile(Number(pos.find((w, i) => i > 0 && /^\d+$/.test(w))) || undefined, {
         dryRun: !!flags['dry-run'],
         ttys: typeof flags.ttys === 'string' ? flags.ttys.split(',') : undefined,
-        active: !!flags.active,
-        all: !!flags.all,
+        active: on(flags.active) || pos.includes('active'),
+        all: on(flags.all) || pos.slice(1).includes('all'),
         only: typeof flags.only === 'string' ? flags.only : undefined,
         screens: typeof flags.screens === 'string' ? flags.screens : undefined,
       }));
