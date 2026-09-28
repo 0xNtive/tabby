@@ -296,6 +296,59 @@ check(SessionEndGuard.isClaude(command: "node", arguments: ["node", "/x/node_mod
 check(!SessionEndGuard.isClaude(command: "node", arguments: ["node", "server.js", "claude"]), "node with a claude argument later")
 check(!SessionEndGuard.isClaude(command: "claude-helper", arguments: ["claude-helper"]), "other binaries")
 check(SessionEndGuard.procStartDates("Sat Sep  6 20:07:51 2026").count == 2, "padded day parses")
+// Screens for Claude sessions (Settings › Windows), as lib/screens.js decides
+let laptop = ScreenInfo(key: "LAPTOP", name: "Built-in", frame: CGRect(x: -1512, y: 0, width: 1512, height: 982), hasNotch: true)
+let mainScreen = ScreenInfo(key: "MAIN", name: "HP", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), isPrimary: true)
+let vertical = ScreenInfo(key: "DELL", name: "Dell", frame: CGRect(x: 2560, y: -600, width: 1440, height: 2560))
+let screens = ScreenInfo.sorted([mainScreen, vertical, laptop])
+check(screens.map(\.key) == ["LAPTOP", "MAIN", "DELL"], "screens left to right: \(screens.map(\.key))")
+check(vertical.isPortrait && !mainScreen.isPortrait, "portrait")
+check(TileScreens(raw: nil) == .current && TileScreens(raw: .string("all")) == .all, "tileScreens default and all")
+check(TileScreens(raw: .array([.string("DELL")])) == .chosen(["DELL"]), "tileScreens keys")
+check(TileScreens(raw: .array([])) == .current, "no keys: the current screen")
+check(TileScreens.chosen(["DELL", "GONE"]).config == .array([.string("DELL"), .string("GONE")]), "round trip")
+check(TileScreens.current.used(screens, focused: "MAIN") == ["MAIN"], "current = the screen you're on")
+check(TileScreens.chosen(["DELL"]).used(screens, focused: "MAIN") == ["DELL"], "only the vertical monitor")
+check(TileScreens.chosen(["GONE"]).used(screens, focused: "MAIN") == ["MAIN"], "unplugged: falls back")
+let picked = TileScreens.current.toggling("DELL", screens: screens, focused: "MAIN")
+check(picked == .chosen(["MAIN", "DELL"]), "clicking adds to what's in use: \(picked)")
+check(picked.toggling("MAIN", screens: screens, focused: "MAIN") == .chosen(["DELL"]), "and removes")
+check(TileScreens.chosen(["DELL"]).toggling("DELL", screens: screens, focused: "MAIN") == .chosen(["DELL"]), "the last screen stays")
+check(TileScreens.chosen(["GONE", "DELL"]).toggling("MAIN", screens: screens, focused: nil) == .chosen(["GONE", "DELL", "MAIN"]),
+      "an unplugged pick is kept")
+check(TileScope(raw: .string("active")) == .active && TileScope(raw: nil) == .all, "tileScope")
+
+// Tiling some sessions
+var tileable = working
+tileable.tty = "/dev/ttys004"
+tileable.term = "apple-terminal"
+tileable.status = .waiting
+check(tileable.isTileable && tileable.isActive, "Terminal session waiting on you: tileable, active")
+tileable.term = "vscode"
+check(!tileable.isTileable, "VS Code can't be tiled")
+tileable.status = .idle
+check(!tileable.isActive, "your turn isn't active")
+check(tileable.tileToken == "w", "tile --only by session id")
+
+// Quick launch
+let folders = RecentFolder.parse("""
+[{"path":"/w/wildcat","name":"wildcat","display":"~/w/wildcat","sessions":31,"live":1,"lastUsed":0},
+ {"path":"/w/tabby","name":"tabby","display":"~/w/tabby","sessions":2,"live":0,"lastUsed":0},
+ {"path":"/w/lab/cat-tools","name":"cat-tools","display":"~/w/lab/cat-tools","sessions":1}]
+""")
+check(folders.count == 3 && folders[0].countText == "1 running" && folders[1].countText == "2 sessions", "parse \(folders)")
+check(QuickLaunchFilter.apply("", to: folders).map(\.name) == ["wildcat", "tabby", "cat-tools"], "empty: frecency order")
+check(QuickLaunchFilter.apply("cat", to: folders).map(\.name) == ["cat-tools", "wildcat"], "prefix first, then contains")
+check(QuickLaunchFilter.apply("lab", to: folders).map(\.name) == ["cat-tools"], "matches the path too")
+let typed = QuickLaunchFilter.apply("~/new-app", to: folders, home: "/Users/me", isDirectory: { $0 == "/Users/me/new-app" })
+check(typed.first?.path == "/Users/me/new-app" && typed.first?.typed == true && typed.first?.display == "~/new-app", "a typed path: \(typed)")
+check(QuickLaunchFilter.apply("/nope", to: folders, isDirectory: { _ in false }).isEmpty, "a path that doesn't exist")
+check(QuickLaunchFilter.arguments(for: folders[1], name: "  Fix it ", skipPermissions: true) == ["new", "/w/tabby", "--name", "Fix it", "--dangerous"],
+      "launch args")
+check(QuickLaunchFilter.arguments(for: folders[1], name: "", skipPermissions: false) == ["new", "/w/tabby"], "plain launch")
+check(ShortcutAction.launch.defaultCombo == KeyCombo(kVK_ANSI_L, [.control, .option]), "quick launch ⌃⌥L")
+let defaults = ShortcutAction.allCases.map(\.defaultCombo)
+check(Set(defaults).count == defaults.count, "no two default shortcuts collide")
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

@@ -230,6 +230,7 @@ final class IslandController {
             ? PermissionCenter(accessibility: .allowed, automation: [.terminal: .waiting, .systemEvents: .notAsked])
             : PermissionCenter()
         buildPanel()
+        if !inert { Self.current = self }
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -474,6 +475,7 @@ final class IslandController {
         case .next: jumpToNextNeedingYou()
         case .jump: focusSession(at: 0)
         case .tile: tile(nil)
+        case .launch: showQuickLaunch()
         case .mode: cycleMode()
         case .watermark: toggleWatermark()
         case .settings: openSettings()
@@ -1027,10 +1029,10 @@ final class IslandController {
         focus(candidates[index])
     }
 
-    /// `tabby tile [n]`; the CLI's notices (Accessibility above all) show in the pill.
-    func tile(_ count: Int?) {
+    /// `tabby tile [n] [--active | --only …]`; the CLI's notices (Accessibility above all) show in the pill.
+    func tile(_ count: Int?, extra: [String] = []) {
         if ui.keyboard { endKeyboard(restoreFocus: true) } else { setExpanded(false) }
-        Actions.tile(count) { [weak self] output in
+        Actions.tile(count, extra: extra) { [weak self] output in
             Debug.log("tile output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
             guard let self, let notice = Actions.notice(fromTileOutput: output) else { return }
             if notice.accessibility {

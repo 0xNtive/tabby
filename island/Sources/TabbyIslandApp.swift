@@ -220,6 +220,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         focus.toolTip = "While Claude works, Terminal windows you're not in show only their topic and what's running"
         menu.addItem(focus)
         menu.addItem(.separator())
+        let launch = factory.item("New Session…", symbol: "plus") { [weak island] in island?.showQuickLaunch() }
+        if config.hotkeys { shortcut(launch, config.shortcuts[.launch]) }
+        menu.addItem(launch)
         menu.addItem(factory.submenu("Tile Windows", symbol: "square.grid.2x2",
                                      menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in
                                          island?.tile(count)

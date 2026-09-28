@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - State
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, watermark, focus, shortcuts, permissions
+    case general, watermark, focus, windows, shortcuts, permissions
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -14,6 +14,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: return "gearshape"
         case .watermark: return "textformat"
         case .focus: return "eye.slash"
+        case .windows: return "rectangle.3.group"
         case .shortcuts: return "keyboard"
         case .permissions: return "checkmark.shield"
         }
@@ -98,6 +99,7 @@ struct SettingsView: View {
                 case .general: GeneralPane(island: island, store: store, state: state)
                 case .watermark: WatermarkPane(island: island, store: store, state: state, permissions: island.permissions)
                 case .focus: FocusPane(island: island, store: store, state: state, permissions: island.permissions)
+                case .windows: WindowsPane(island: island, state: state)
                 case .shortcuts: ShortcutsPane(island: island, state: state)
                 case .permissions: PermissionsPane(island: island, permissions: island.permissions)
                 }

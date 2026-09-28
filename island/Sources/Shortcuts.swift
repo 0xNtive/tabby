@@ -169,7 +169,7 @@ enum KeyNames {
 
 /// The island's global shortcuts (`islandShortcuts` in config.json overrides the defaults).
 enum ShortcutAction: String, CaseIterable, Identifiable, Sendable {
-    case toggle, next, jump, tile, mode, watermark, settings
+    case toggle, next, jump, tile, launch, mode, watermark, settings
 
     var id: String { rawValue }
 
@@ -180,6 +180,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Sendable {
         case .next: return "Jump to the next session that needs you"
         case .jump: return "Jump to session 1–9"
         case .tile: return "Tile session windows"
+        case .launch: return "Start a session in a recent folder"
         case .mode: return "Switch the island's detail level"
         case .watermark: return "Show or hide the watermark"
         case .settings: return "Open Settings"
@@ -193,6 +194,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Sendable {
         case .next: return "Next Session That Needs You"
         case .jump: return "Jump to Session 1–9"
         case .tile: return "Tile Windows"
+        case .launch: return "New Session…"
         case .mode: return "Cycle Mode"
         case .watermark: return "Toggle Watermark"
         case .settings: return "Settings…"
@@ -206,6 +208,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Sendable {
         case .next: return KeyCombo(kVK_ANSI_N, hyper)
         case .jump: return KeyCombo(kVK_ANSI_1, hyper)
         case .tile: return KeyCombo(kVK_ANSI_G, hyper)
+        case .launch: return KeyCombo(kVK_ANSI_L, hyper)
         case .mode: return KeyCombo(kVK_ANSI_M, hyper)
         case .watermark: return KeyCombo(kVK_ANSI_W, hyper)
         case .settings: return KeyCombo(kVK_ANSI_Comma, hyper)
