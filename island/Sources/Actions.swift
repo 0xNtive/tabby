@@ -349,9 +349,13 @@ final class MenuFactory: NSObject {
     func tileMenu(sessionCount: Int, run: @escaping @MainActor (Int?) -> Void) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        let all = item("Tile All Sessions (\(sessionCount))", symbol: "square.grid.2x2") { run(nil) }
+        let all = item("Tile All Sessions (\(sessionCount))", symbol: "square.grid.2x2") {
+            // Everything, whatever the "Tile" setting says.
+            if let island = IslandController.current { island.tile(nil, extra: ["--all"]) } else { run(nil) }
+        }
         all.isEnabled = sessionCount > 0
         menu.addItem(all)
+        tileSelectionItems(sessions: Actions.store?.snapshot.sessions ?? []).forEach(menu.addItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: "Most recent sessions"))
         for count in [2, 3, 4, 6, 8] {

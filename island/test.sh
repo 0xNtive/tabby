@@ -7,5 +7,5 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 
 xcrun --sdk macosx swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -o "$OUT/checks" \
-  "$HERE"/Sources/{Shortcuts,Models,Watermark,FocusMode,FocusCover,SessionStore,TerminalTitles,Permissions,Progress}.swift "$HERE/Tests/main.swift"
+  "$HERE"/Sources/{Shortcuts,Models,Watermark,FocusMode,FocusCover,SessionStore,TerminalTitles,Permissions,Progress,WindowsModel}.swift "$HERE/Tests/main.swift"
 "$OUT/checks"

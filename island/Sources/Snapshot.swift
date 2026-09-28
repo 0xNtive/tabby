@@ -156,6 +156,7 @@ enum Snapshotter {
         renderWatermarks(demo.snapshot, folder: folder)
         renderFocus(demo.snapshot, folder: folder)
         renderOnboarding(store: demo, folder: folder)
+        renderWindowsFeatures(store: demo, folder: folder)
     }
 
     /// Focus mode's cover over mock Terminal windows: the main agent alone and with subagents,

@@ -118,6 +118,14 @@ struct IslandConfig: Equatable, Sendable {
     /// Terminal.app windows show only the session name (`terminalTabTitles`).
     var terminalTitles = false
 
+    // Windows (Settings › Windows).
+    /// Where tiling and new sessions put windows (`tileScreens`).
+    var tileScreens = TileScreens.current
+    /// What ⌃⌥G and the tile button tile (`tileScope`).
+    var tileScope = TileScope.all
+    /// Quick launch starts with "Skip permissions" ticked (`launchSkipPermissions`).
+    var launchSkipPermissions = false
+
     init() {}
 
     init(raw: [String: ConfigValue]) {
@@ -138,6 +146,9 @@ struct IslandConfig: Equatable, Sendable {
         marker = raw["marker"]?.string ?? "circle"
         animate = raw["animate"]?.bool ?? true
         terminalTitles = raw["terminalTabTitles"]?.bool ?? false
+        tileScreens = TileScreens(raw: raw["tileScreens"])
+        tileScope = TileScope(raw: raw["tileScope"])
+        launchSkipPermissions = raw["launchSkipPermissions"]?.bool ?? false
     }
 
     /// "", "none", "off", false or null turn a shortcut off; anything unreadable keeps the default.

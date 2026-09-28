@@ -18,7 +18,8 @@ import { statusline } from '../lib/statusline.js';
 import { install, uninstall, pluginInstalled, writeExports, ROOT } from '../lib/install.js';
 import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
 import { mergedSessions, transcriptFor } from '../lib/sessions.js';
-import { tile, next } from '../lib/tile.js';
+import { tile, next, screensCommand } from '../lib/tile.js';
+import { newSession as launch, listFolders } from '../lib/launch.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
 import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, setBoldColor } from '../lib/terminal-prefs.js';
@@ -36,7 +37,7 @@ const c = (code, s) => (color ? code + s + RESET : s);
 const argv = process.argv.slice(2);
 const flags = {};
 const pos = [];
-const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir', 'ttys']);
+const VALUE_FLAGS = new Set(['session', 's', 'name', 'n', 'color', 'theme', 'dir', 'ttys', 'only', 'screens', 'screen', 'term']);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--') {
@@ -208,18 +209,20 @@ function adopt() {
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const asq = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
+// `tabby new [dir|recent folder] [-n name] [--dangerous] [--screen s] [--term t]`, or `--list`.
 function newSession() {
-  const dir = path.resolve(pos[1] || flags.dir || process.cwd());
-  const env = [flags.color && `TABBY_COLOR=${shq(flags.color)}`, flags.theme && `TABBY_THEME=${shq(flags.theme)}`].filter(Boolean).join(' ');
-  const name = flags.name || flags.n;
-  const cmd = `cd ${shq(dir)} && ${env ? env + ' ' : ''}claude${name ? ` --name ${shq(name)}` : ''}`;
-  const term = detectTerminal();
-  const script =
-    term === 'iterm2'
-      ? `tell application "iTerm2"\n create window with default profile\n tell current session of current window to write text "${asq(cmd)}"\n activate\nend tell`
-      : `tell application "Terminal"\n do script "${asq(cmd)}"\n activate\nend tell`;
-  const r = spawnSync('osascript', ['-e', script], { encoding: 'utf8' });
-  console.log(r.status === 0 ? `Opened ${dir}${name ? ` as "${name}"` : ''}` : `Could not open a terminal: ${r.stderr}`);
+  if (flags.list) return console.log(listFolders({ json: !!flags.json }));
+  const str = (v) => (typeof v === 'string' ? v : undefined);
+  console.log(launch({
+    dir: pos[1] || str(flags.dir),
+    name: str(flags.name) || str(flags.n),
+    dangerous: !!(flags.dangerous || flags['skip-permissions'] || flags['dangerously-skip-permissions']),
+    color: str(flags.color),
+    theme: str(flags.theme),
+    term: str(flags.term),
+    screen: str(flags.screen),
+    dryRun: !!flags['dry-run'],
+  }));
 }
 
 // The macOS session island. install: the ready-made download (a local build if that fails),
@@ -289,9 +292,14 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby next                  jump to the next session that needs you
   tabby focus <n|query>       jump to session n (as listed) or by name
   tabby tile [2|3|4|6|8]      fill the screen with session windows (tabs become windows)
+    --active | --only 1,3,auth | --all   which sessions (active = working or needs you)
+    --screens 2 | all | current          which screens, this once
+  tabby tile screens [2|1,2|all|current]   list the displays / choose where sessions go
   tabby themes                preview all ${THEMES.length} themes
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
-  tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
+  tabby new [dir|name] [-n name] [--dangerous] [--screen s] [--color c] [--theme t]
+                              a new window running claude (a recent folder by name works)
+  tabby new --list            recent and frequent folders, best first
   tabby adopt                 color sessions that were started before tabby
   tabby island [install|update|stop|login|setup|permissions|status]   the macOS session island
                               (install: the ready-made download; build: compile it here)
@@ -395,7 +403,15 @@ function main() {
     case 'next':
       return console.log(next());
     case 'tile':
-      return console.log(tile(Number(pos[1]) || undefined, { dryRun: !!flags['dry-run'], ttys: typeof flags.ttys === 'string' ? flags.ttys.split(',') : undefined }));
+      if (pos[1] === 'screens') return console.log(screensCommand(pos.slice(2).join(' ')));
+      return console.log(tile(Number(pos[1]) || undefined, {
+        dryRun: !!flags['dry-run'],
+        ttys: typeof flags.ttys === 'string' ? flags.ttys.split(',') : undefined,
+        active: !!flags.active,
+        all: !!flags.all,
+        only: typeof flags.only === 'string' ? flags.only : undefined,
+        screens: typeof flags.screens === 'string' ? flags.screens : undefined,
+      }));
     case 'terminal-titles': {
       const on = !['off', 'false', 'no'].includes(String(pos[1] || 'on').toLowerCase());
       return console.log(setTerminalTabTitles(on) || `Terminal.app tab titles already ${on ? 'show only the session name' : 'at Terminal defaults'}.`);
