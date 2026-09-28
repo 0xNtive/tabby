@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook SessionStart",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook SessionStart",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook UserPromptSubmit",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook UserPromptSubmit",
             "timeout": 60
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook PermissionRequest",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook PermissionRequest",
             "timeout": 10,
             "async": true
           }
@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook Notification",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook Notification",
             "timeout": 10,
             "async": true
           }
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook Stop",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook Stop",
             "timeout": 10,
             "async": true
           }
@@ -76,7 +76,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook StopFailure",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook StopFailure",
             "timeout": 10,
             "async": true
           }
@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.js\" hook SessionEnd",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tabby.sh\" hook SessionEnd",
             "timeout": 10
           }
         ]

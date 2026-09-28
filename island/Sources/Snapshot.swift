@@ -91,13 +91,17 @@ enum Snapshotter {
         renderOnboarding(store: demo, folder: folder)
     }
 
-    /// Each onboarding page (permissions mid-way: one allowed, one asking, one not asked yet), and
-    /// the last page once everything is allowed.
+    /// Each onboarding page (permissions mid-way: one allowed, one asking, one not asked yet), the
+    /// permissions for iTerm2 and for a terminal that needs none, and the last page once
+    /// everything is allowed.
     private static func renderOnboarding(store: SessionStore, folder: URL) {
         let island = IslandController(store: store, inert: true)
         let ready = PermissionCenter(accessibility: .allowed, automation: [.terminal: .allowed, .systemEvents: .allowed])
+        let iTerm = PermissionCenter(accessibility: .notAsked, automation: [.iTerm: .notAsked], usesTerminal: false, usesITerm: true)
+        let none = PermissionCenter(accessibility: .notAsked, automation: [:], usesTerminal: false, usesITerm: false)
         let pages: [(OnboardingPage, PermissionCenter, String)] = [
             (.welcome, island.permissions, "welcome"), (.permissions, island.permissions, "permissions"),
+            (.permissions, iTerm, "permissions-iterm"), (.permissions, none, "permissions-none"),
             (.done, island.permissions, "done"), (.done, ready, "done-ready"),
         ]
         for (page, permissions, name) in pages {

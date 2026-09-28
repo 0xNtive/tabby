@@ -7,4 +7,4 @@ id=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | h
 file="${TABBY_HOME:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby}/sessions/$id.json"
 [ -f "$file" ] || exit 0
 grep -q '"status": "\(waiting\|error\)"' "$file" || exit 0
-printf '%s' "$input" | exec node "$(dirname "$0")/../bin/tabby.js" hook PostToolUse
+printf '%s' "$input" | exec sh "$(dirname "$0")/../bin/tabby.sh" hook PostToolUse

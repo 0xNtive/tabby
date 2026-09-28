@@ -4,26 +4,27 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
-  paths, readConfig, writeConfig, readSession, patchSession, listSessions, liveSessions,
-  readRegistry, isAlive, projectName, ensureDirs, log, readJson, rememberProjectColor,
+  readConfig, writeConfig, readSession, patchSession, listSessions, liveSessions,
+  readRegistry, isAlive, projectName, ensureDirs, log, rememberProjectColor,
 } from '../lib/state.js';
 import { THEMES, getTheme, themesExport } from '../lib/themes.js';
-import { detectTerminal, caps, ownTty, ttyOfPid, focusTab, terminalTitles } from '../lib/term.js';
+import { detectTerminal, ownTty, ttyOfPid, focusTab, terminalTitles } from '../lib/term.js';
 import { chooseLook } from '../lib/assign.js';
 import { withLook, applySession, displayTitle, targetOf } from '../lib/apply.js';
 import { runCommand, helpText } from '../lib/commands.js';
 import { handleHook, refreshContext, wantsRename } from '../lib/hooks.js';
 import { runNamer } from '../lib/namer.js';
 import { statusline } from '../lib/statusline.js';
-import { install, uninstall, pluginInstalled, writeExports, ROOT, nodePath, LAUNCHER } from '../lib/install.js';
+import { install, uninstall, pluginInstalled, writeExports, ROOT } from '../lib/install.js';
 import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
 import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next } from '../lib/tile.js';
-import { termsAccepted, acceptTerms, TERMS_SUMMARY, TERMS_VERSION } from '../lib/terms.js';
+import { termsAccepted, acceptTerms, TERMS_SUMMARY } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
-import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, twins, setBoldColor } from '../lib/terminal-prefs.js';
-import { runTicker, tickerPid } from '../lib/ticker.js';
-import { claudeTheme, claudeMode } from '../lib/claude-palette.js';
+import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, setBoldColor } from '../lib/terminal-prefs.js';
+import { runTicker } from '../lib/ticker.js';
+import * as islandApp from '../lib/island.js';
+import { printDoctor } from '../lib/doctor.js';
 
 const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
@@ -186,38 +187,6 @@ function printThemes() {
 }
 
 // ---------- commands ----------
-function doctor() {
-  const cfg = readConfig();
-  const term = detectTerminal();
-  const cp = caps(term);
-  const settings = readJson(paths.settings, {}) || {};
-  const claude = spawnSync('claude', ['--version'], { encoding: 'utf8' });
-  const islandApp = path.join(ROOT, 'island', 'build', 'Tabby Island.app');
-  const islandUp = spawnSync('pgrep', ['-x', 'TabbyIsland']).status === 0;
-  const ok = (b) => (b ? c(ansiFg('#98c379'), '✓') : c(ansiFg('#e06c75'), '✗'));
-  const rows = [
-    ['terminal', `${cp.label}  colors ${ok(cp.colors)}  tab color ${cp.tabColor ? ok(true) : c(DIM, '✗ → emoji marker in title')}  focus ${ok(cp.focus)}`],
-    ['this tab', ownTty() || c(DIM, 'no tty')],
-    ['node', process.version],
-    ['claude', (claude.stdout || '').trim() || c(ansiFg('#e06c75'), 'not found on PATH')],
-    ['plugin', pluginInstalled() ? `${ok(true)} installed (hooks + /tab)` : `${ok(false)} not installed → tabby install  (or: claude --plugin-dir ${ROOT})`],
-    ['tab titles', settings.env?.CLAUDE_CODE_DISABLE_TERMINAL_TITLE === '1' ? `${ok(true)} tabby owns titles (color marker + status)` : `${c(DIM, '–')} Claude owns titles (names sync, no color marker)`],
-    ['statusline', /statusline/.test(settings.statusLine?.command || '') && /tabby/.test(settings.statusLine?.command || '') ? `${ok(true)} tab name + context %` : c(DIM, settings.statusLine ? 'your own statusLine (kept)' : 'off')],
-    ['shell flags', ['.zshrc', '.bashrc'].some((f) => (fs.existsSync(path.join(process.env.HOME, f)) ? fs.readFileSync(path.join(process.env.HOME, f), 'utf8') : '').includes('>>> tabby')) ? `${ok(true)} claude --tab/--color/--theme` : c(DIM, 'off')],
-    ['naming', `${cfg.namer}${cfg.namer === 'ai' ? ` (${cfg.namerModel} via your Claude login)` : ''}`],
-    ['theme', `${getTheme(cfg.theme).name} · ${cfg.auto} mode · ${cfg.strength} tint · ${cfg.marker} markers`],
-    ['island', fs.existsSync(islandApp) ? `${ok(true)} built${islandUp ? ', running' : ' (tabby island)'}` : c(DIM, 'not built → tabby island')],
-    ['terms', termsAccepted(cfg) ? `${ok(true)} accepted (${TERMS_VERSION})` : `${ok(false)} not accepted → tabby setup`],
-    ['Claude theme', getTheme(cfg.theme).mode === claudeMode() ? `${ok(true)} ${claudeTheme()} (matches ${getTheme(cfg.theme).name})` : `${ok(false)} ${claudeTheme()}, but ${getTheme(cfg.theme).name} is ${getTheme(cfg.theme).mode}: Claude's text will be hard to read. Use /theme in Claude or a ${claudeMode()} tabby theme`],
-    ['Terminal titles', term === 'apple-terminal' ? (cfg.terminalTabTitles ? `${ok(true)} only the session name (Claude tabs use ${twins().join(', ') || 'a “· tabby” copy of their profile'})` : c(DIM, 'windows show folder, process and args too → tabby terminal-titles on')) : c(DIM, 'n/a')],
-    ['animation', cfg.animate === false ? c(DIM, 'off') : `${ok(true)} spinner + blinking bell${tickerPid() ? ' (running)' : ''}`],
-    ['watermark', process.platform !== 'darwin' ? c(DIM, 'n/a (Tabby Island, macOS)') : cfg.watermark === false ? c(DIM, 'off → /tab watermark on') : `${ok(true)} each Terminal.app session's topic over its window${islandUp ? '' : ' (when Tabby Island runs: tabby island)'}`],
-    ['sessions', `${[...readRegistry().values()].filter((r) => r.kind === 'interactive').length} running · ${liveSessions().length} tracked`],
-    ['state', paths.root],
-  ];
-  for (const [k, v] of rows) console.log(`  ${c(DIM, pad(k, 16))} ${v}`);
-}
-
 // Color sessions that were already running before tabby was installed (colors only —
 // Claude keeps drawing their titles until they restart with the plugin).
 function adopt() {
@@ -236,7 +205,6 @@ function adopt() {
   console.log(n ? `Adopted ${n} running session${n === 1 ? '' : 's'} (colors now; AI names, status and /tab after a restart — claude --continue keeps the conversation).` : 'Nothing to adopt — every running session is already tracked.');
 }
 
-const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const asq = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
@@ -254,49 +222,51 @@ function newSession() {
   console.log(r.status === 0 ? `Opened ${dir}${name ? ` as "${name}"` : ''}` : `Could not open a terminal: ${r.stderr}`);
 }
 
+// The macOS session island. install: the ready-made download (a local build if that fails),
+// kept in ~/Applications, opened at login, started with its setup window.
 function island(sub = 'start') {
-  const app = path.join(ROOT, 'island', 'build', 'Tabby Island.app');
   writeExports();
-  if (sub === 'stop') {
-    spawnSync('osascript', ['-e', 'quit app "Tabby Island"'], { stdio: 'ignore' });
-    return console.log('Tabby Island stopped.');
+  const quiet = !!flags.quiet;
+  const say = (m) => !quiet && m && console.log(m);
+  switch (sub) {
+    case 'stop':
+      islandApp.quit();
+      return say('Tabby Island stopped.');
+    case 'install':
+    case 'update':
+    case 'build': {
+      const res = islandApp.install({ prefer: sub === 'build' || flags.build ? 'build' : 'download', quiet: quiet || sub !== 'build' });
+      say(res.message);
+      if (!res.ok) {
+        process.exitCode = res.unsupported ? 0 : 1;
+        return;
+      }
+      if (sub === 'update') return;
+      if (!flags['no-login']) say(islandApp.login(true));
+      if (flags['no-launch']) return;
+      return say(islandApp.start({ onboarding: flags['no-onboarding'] ? null : 'welcome' }).message);
+    }
+    case 'login':
+      return say(islandApp.login(!flags.off));
+    case 'onboarding':
+    case 'setup':
+      return say(islandApp.start({ onboarding: 'welcome' }).message);
+    case 'permissions':
+    case 'accessibility':
+      return say(islandApp.start({ onboarding: 'permissions' }).message);
+    case 'status':
+      return console.log(JSON.stringify({ app: islandApp.findApp(), version: islandApp.appVersion(islandApp.findApp() || islandApp.APP), running: islandApp.running(), login: islandApp.loginOn(), status: islandApp.status() }, null, 2));
+    default: {
+      if (!islandApp.findApp()) {
+        const why = islandApp.unsupported();
+        if (why) return say(why);
+        return island('install');
+      }
+      const res = islandApp.start();
+      say(res.message);
+      if (!res.ok) process.exitCode = 1;
+    }
   }
-  if (sub === 'build' || !fs.existsSync(app)) {
-    const r = spawnSync('bash', [path.join(ROOT, 'island', 'build.sh')], { stdio: 'inherit' });
-    if (r.status !== 0) return console.log('Build failed (needs Xcode command line tools: xcode-select --install).');
-    if (sub === 'build') return;
-  }
-  if (sub === 'login') return islandLogin();
-  if (sub === 'onboarding' || sub === 'setup' || sub === 'accessibility') {
-    // Restart it with the flag (a running app ignores new arguments). The island asks macOS
-    // itself, so each permission is Tabby Island's own.
-    spawnSync('osascript', ['-e', 'quit app "Tabby Island"'], { stdio: 'ignore' });
-    for (let i = 0; i < 40 && spawnSync('pgrep', ['-x', 'TabbyIsland']).status === 0; i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-    spawnSync('open', [app, '--args', sub === 'accessibility' ? '--allow-accessibility' : '--onboarding']);
-    return console.log(sub === 'accessibility'
-      ? 'Tabby Island opened its permissions: click Allow on each, and it checks them as you go.'
-      : 'Tabby Island opened its setup window: a minute, and it walks you through the permissions.');
-  }
-  spawnSync('open', [app]);
-  console.log('Tabby Island is running — hover the top-center of your screen.');
-}
-
-// At login, the launcher opens the newest installed island (a version's own folder goes away
-// after an update).
-function islandLogin() {
-  const plist = path.join(process.env.HOME, 'Library', 'LaunchAgents', 'dev.tabby.island.plist');
-  if (flags.off) {
-    spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
-    try { fs.unlinkSync(plist); } catch {}
-    return console.log('Tabby Island will no longer start at login.');
-  }
-  fs.mkdirSync(path.dirname(plist), { recursive: true });
-  fs.writeFileSync(
-    plist,
-    `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>dev.tabby.island</string>\n<key>ProgramArguments</key><array><string>${xmlEscape(nodePath())}</string><string>${xmlEscape(LAUNCHER)}</string><string>island</string></array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n`
-  );
-  spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
-  console.log(`Tabby Island starts at login (${plist}). Undo: tabby island login --off`);
 }
 
 function config() {
@@ -323,12 +293,13 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
   tabby new [dir] [-n name] [--color c] [--theme t]   open a new tab running claude
   tabby adopt                 color sessions that were started before tabby
-  tabby island [build|stop|login|onboarding]   the macOS session island (Settings: ⌃⌥, or its menu-bar icon)
+  tabby island [install|update|stop|login|setup|permissions|status]   the macOS session island
+                              (install: the ready-made download; build: compile it here)
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
-  tabby doctor                what works in this terminal
+  tabby doctor [--json]       check every part of the install, with the fix for each
   tabby config [key value]    e.g. tabby config strength subtle · tabby config animate false`;
 
 // Interactive acceptance for `tabby install` / `tabby setup` in a shell.
@@ -343,7 +314,7 @@ function ensureTerms() {
     console.log('Run again with --accept-terms to agree.');
     return false;
   }
-  process.stdout.write('Accept the tabby terms? [y/N] ');
+  process.stdout.write('Accept the tabby terms? [Y/n] ');
   const buf = Buffer.alloc(64);
   let n = 0;
   for (let i = 0; i < 100 && !n; i++) {
@@ -353,7 +324,8 @@ function ensureTerms() {
       if (e.code !== 'EAGAIN') break;
     }
   }
-  if (/^y(es)?$/i.test(buf.toString('utf8', 0, n).trim())) {
+  // Enter alone accepts; no answer at all (end of input) does not.
+  if (n > 0 && /^(y(es)?)?$/i.test(buf.toString('utf8', 0, n).trim())) {
     acceptTerms('cli');
     return true;
   }
@@ -399,8 +371,11 @@ function main() {
       try { process.stdout.write(statusline(readStdinJson())); } catch (e) { log('statusline error', e.message); }
       return;
     case 'install': {
-      if (!ensureTerms()) return;
-      console.log(BOLD + 'Installing tabby' + RESET);
+      if (!ensureTerms()) {
+        process.exitCode = 2;
+        return;
+      }
+      console.log(c(BOLD, 'Installing tabby'));
       for (const s of install({ statusline: !flags['no-statusline'], shell: !flags['no-shell'], plugin: !flags['no-plugin'], title: !flags['no-title'], terminalTitles: !flags['no-terminal-titles'] })) console.log('  • ' + s);
       console.log('\nNew Claude sessions are organized automatically. Run `tabby adopt` to color the ones already open,\n`tabby island` for the session island, and open a new shell for the claude --tab/--color/--theme flags.');
       return;
@@ -409,7 +384,7 @@ function main() {
       for (const s of uninstall()) console.log('  • ' + s);
       return;
     case 'doctor':
-      return doctor();
+      return console.log(printDoctor({ json: !!flags.json, color: !!color }));
     case 'ls':
     case 'list':
       return printLs();

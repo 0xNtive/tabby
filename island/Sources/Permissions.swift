@@ -3,12 +3,17 @@ import ApplicationServices
 import Carbon
 
 /// What Tabby Island needs from macOS, checked live while a window shows it (the onboarding,
-/// Settings › Permissions):
+/// Settings › Permissions), and every 20 s in the background until everything needed is allowed:
 ///
 /// - **Accessibility:** tiling splits tabs into windows and takes windows out of full screen.
 /// - **Automation of Terminal:** jumping to a tab, reading tab titles, and finding each
 ///   session's window for the watermark.
+/// - **Automation of iTerm2:** jumping to a tab and reading tab titles there.
 /// - **Automation of System Events:** tiling clicks Terminal's "Move Tab to New Window".
+///
+/// Only what the terminals in use need: a Mac that runs Claude in VS Code or Ghostty is asked
+/// for nothing. Every change is written to ~/.claude/tabby/island-status.json, where
+/// `tabby doctor` (and Claude, helping someone install) reads it.
 @MainActor
 final class PermissionCenter: ObservableObject {
     enum Status: Equatable {
@@ -26,18 +31,39 @@ final class PermissionCenter: ObservableObject {
 
     enum Target: String, CaseIterable, Identifiable, Sendable {
         case terminal = "com.apple.Terminal"
+        case iTerm = "com.googlecode.iterm2"
         case systemEvents = "com.apple.systemevents"
 
         var id: String { rawValue }
-        var name: String { self == .terminal ? "Terminal" : "System Events" }
+        var name: String {
+            switch self {
+            case .terminal: return "Terminal"
+            case .iTerm: return "iTerm2"
+            case .systemEvents: return "System Events"
+            }
+        }
+        /// Its key in island-status.json.
+        var key: String {
+            switch self {
+            case .terminal: return "terminal"
+            case .iTerm: return "iterm"
+            case .systemEvents: return "systemEvents"
+            }
+        }
     }
 
     @Published private(set) var accessibility: Status = .unknown
     @Published private(set) var automation: [Target: Status] = [:]
+    /// Terminal.app / iTerm2 are in use here: running, or where a known session runs.
+    @Published private(set) var usesTerminal = true
+    @Published private(set) var usesITerm = false
     /// Terminal just became controllable: the store can read its tabs now.
     var onTerminalAllowed: (() -> Void)?
+    /// The terminals the island's sessions run in ("apple-terminal", "iterm2", …).
+    var sessionTerms: () -> Set<String> = { [] }
 
     private var timer: Timer?
+    private var background: Timer?
     private var watchers = 0
     private var accessibilityRequested = false
     private var asking = Set<Target>()
@@ -50,17 +76,54 @@ final class PermissionCenter: ObservableObject {
     }
 
     /// Snapshot renders: a frozen state.
-    init(accessibility: Status, automation: [Target: Status]) {
+    init(accessibility: Status, automation: [Target: Status], usesTerminal: Bool = true, usesITerm: Bool = false) {
         fixed = true
         self.accessibility = accessibility
         self.automation = automation
+        self.usesTerminal = usesTerminal
+        self.usesITerm = usesITerm
     }
 
+    /// Asked for at all on this Mac (see the type's comment).
+    func isNeeded(_ target: Target) -> Bool {
+        switch target {
+        case .terminal, .systemEvents: return usesTerminal
+        case .iTerm: return usesITerm
+        }
+    }
+
+    var accessibilityNeeded: Bool { usesTerminal || usesITerm }
+    var neededTargets: [Target] { Target.allCases.filter(isNeeded) }
+    /// None of the terminals in use can be scripted: there's nothing to allow.
+    var nothingNeeded: Bool { !accessibilityNeeded && neededTargets.isEmpty }
+
     var allGranted: Bool {
-        accessibility.granted && Target.allCases.allSatisfy { status(of: $0).granted }
+        (!accessibilityNeeded || accessibility.granted) && neededTargets.allSatisfy { status(of: $0).granted }
     }
 
     func status(of target: Target) -> Status { automation[target] ?? .unknown }
+
+    /// A check at launch, then every 20 s in the background until everything needed is allowed
+    /// (so `tabby doctor` sees a switch flipped in System Settings with no window open).
+    func startBackgroundChecks() {
+        guard !fixed else { return }
+        refresh()
+        guard background == nil else { return }
+        let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.allGranted, self.accessibility != .unknown {
+                    self.background?.invalidate()
+                    self.background = nil
+                } else if self.watchers == 0 {
+                    self.refresh()
+                }
+            }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        background = timer
+    }
 
     // MARK: Watching
 
@@ -86,10 +149,16 @@ final class PermissionCenter: ObservableObject {
 
     func refresh() {
         guard !fixed else { return }
+        let terms = sessionTerms()
+        let terminal = Self.isRunning(.terminal) || terms.contains("apple-terminal")
+        let iTerm = Self.isRunning(.iTerm) || terms.contains("iterm2")
+        if usesTerminal != terminal { usesTerminal = terminal }
+        if usesITerm != iTerm { usesITerm = iTerm }
         let trusted = AXIsProcessTrusted()
         let next: Status = trusted ? .allowed : (accessibilityRequested ? .waiting : .notAsked)
         if accessibility != next { accessibility = next }
         if trusted { accessibilityRequested = false }
+        report()
         for target in Target.allCases where !asking.contains(target) {
             queue.async { [weak self] in
                 let status = Self.determine(target, ask: false)
@@ -104,8 +173,33 @@ final class PermissionCenter: ObservableObject {
     private func settle(_ target: Target, _ status: Status?) {
         guard !asking.contains(target) else { return }
         let known = status ?? (Self.remembered(target) ? .allowed : .notAsked)
-        if automation[target] != known { automation[target] = known }
+        if automation[target] != known {
+            automation[target] = known
+            report()
+        }
         if let status { Self.remember(target, status == .allowed) }
+    }
+
+    /// Writes the statuses for `tabby doctor` ("notNeeded" for what this Mac isn't asked for).
+    private func report() {
+        guard !fixed else { return }
+        var permissions: [String: String] = [
+            "accessibility": accessibilityNeeded ? Self.word(accessibility) : "notNeeded",
+        ]
+        for target in Target.allCases {
+            permissions[target.key] = isNeeded(target) ? Self.word(status(of: target)) : "notNeeded"
+        }
+        IslandReport.write(["permissions": permissions])
+    }
+
+    nonisolated private static func word(_ status: Status) -> String {
+        switch status {
+        case .unknown: return "unknown"
+        case .notAsked: return "notAsked"
+        case .waiting: return "waiting"
+        case .allowed: return "allowed"
+        case .denied: return "denied"
+        }
     }
 
     // MARK: Asking
@@ -133,15 +227,49 @@ final class PermissionCenter: ObservableObject {
         asking.insert(target)
         automation[target] = .waiting
         queue.async { [weak self] in
-            if target == .systemEvents { Self.launchSystemEvents() }
+            // macOS only asks about an app that's running: start it first, in the background.
+            Self.launch(target)
             let status = Self.determine(target, ask: true) ?? .notAsked
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.asking.remove(target)
                     self.automation[target] = status
+                    self.report()
                     Self.remember(target, status == .allowed)
                     if target == .terminal, status == .allowed { self.onTerminalAllowed?() }
+                }
+            }
+        }
+    }
+
+    /// One click for everything this Mac needs: each app's prompt in turn (each waits for your
+    /// answer), then Accessibility last, since that one opens System Settings.
+    func requestAll() {
+        guard !fixed else { return }
+        let targets = neededTargets.filter { status(of: $0) != .allowed && status(of: $0) != .denied && !asking.contains($0) }
+        for target in targets {
+            asking.insert(target)
+            automation[target] = .waiting
+        }
+        let wantsAccessibility = accessibilityNeeded && !AXIsProcessTrusted()
+        queue.async { [weak self] in
+            var results: [(Target, Status)] = []
+            for target in targets {
+                Self.launch(target)
+                results.append((target, Self.determine(target, ask: true) ?? .notAsked))
+            }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    for (target, status) in results {
+                        self.asking.remove(target)
+                        self.automation[target] = status
+                        Self.remember(target, status == .allowed)
+                        if target == .terminal, status == .allowed { self.onTerminalAllowed?() }
+                    }
+                    self.report()
+                    if wantsAccessibility { self.requestAccessibility() }
                 }
             }
         }
@@ -188,17 +316,25 @@ final class PermissionCenter: ObservableObject {
         }
     }
 
-    nonisolated private static func launchSystemEvents() {
-        let id = Target.systemEvents.rawValue
-        guard NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty else { return }
+    nonisolated static func isRunning(_ target: Target) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: target.rawValue).isEmpty
+    }
+
+    /// Starts the app without bringing it forward (System Events only runs on demand; Terminal or
+    /// iTerm2 may simply be closed right now), and waits up to 4 s for it.
+    nonisolated private static func launch(_ target: Target) {
+        guard !isRunning(target),
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: target.rawValue) else { return }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
+        configuration.hides = target != .systemEvents
         configuration.addsToRecentItems = false
-        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Library/CoreServices/System Events.app"),
-                                           configuration: configuration)
-        for _ in 0..<40 where NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty {
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        for _ in 0..<40 where !isRunning(target) {
             Thread.sleep(forTimeInterval: 0.1)
         }
+        // A freshly started app answers Apple events a moment after it shows up.
+        Thread.sleep(forTimeInterval: 0.4)
     }
 
     /// `tccutil reset <service> dev.tabby.island`: only the island's own entries.
@@ -220,5 +356,27 @@ final class PermissionCenter: ObservableObject {
         var map = UserDefaults.standard.dictionary(forKey: rememberedKey) ?? [:]
         map[target.rawValue] = allowed
         UserDefaults.standard.set(map, forKey: rememberedKey)
+    }
+}
+
+/// ~/.claude/tabby/island-status.json: what the island knows about itself (version, screen,
+/// permissions, whether you quit it), for `tabby doctor` and SessionStart. Merged, never replaced.
+enum IslandReport {
+    static var url: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/tabby/island-status.json")
+    }
+
+    static func write(_ patch: [String: Any]) {
+        var json = (try? Data(contentsOf: url))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        for (key, value) in patch { json[key] = value }
+        json["pid"] = Int(ProcessInfo.processInfo.processIdentifier)
+        json["version"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        json["app"] = Bundle.main.bundlePath
+        json["updatedAt"] = Int(Date().timeIntervalSince1970 * 1000)
+        guard let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
     }
 }

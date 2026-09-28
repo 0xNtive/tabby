@@ -1,0 +1,41 @@
+name: Something isn't working
+description: tabby, /tab or Tabby Island doesn't do what it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Quickest fix first: in Claude Code, ask **"fix tabby"**. It runs `tabby doctor` and repairs what it can.
+        Still stuck? The doctor output below tells us almost everything.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: "The island shows no sessions after installing; I expected my three Claude tabs."
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`tabby doctor` output"
+      description: "Run `sh ~/.claude/tabby/bin/tabby doctor` in a terminal and paste the result."
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Pasted the prompt into Claude Code
+        - curl … | bash
+        - /plugin commands inside Claude Code
+        - From a checkout
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Install log (if the install failed)
+      description: The end of `~/.claude/tabby/install.log`.
+      render: text
