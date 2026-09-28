@@ -105,10 +105,11 @@
       <div class="island-copy">
         <p class="eyebrow">macOS</p>
         <h2 id="island-title" class="h2">All your sessions, one glance up.</h2>
-        <p class="lede">Tabby Island sits at the top of your screen. Hover for every session's name, status and context, then click one to jump to its tab. It also writes each session's topic in large, faint letters across its Terminal window.</p>
+        <p class="lede">Tabby Island sits at the top of your screen. Hover for every session's name, status and context, rest on one to see what it needs, then click to jump to its tab. Turn on Focus mode and the windows you're not in show only their topic and what's running, until Claude needs you.</p>
         <dl class="shortcuts">
           <div><dt><kbd class="kbd">⌃⌥Space</kbd></dt><dd>open it from the keyboard</dd></div>
           <div><dt><kbd class="kbd">⌃⌥N</kbd></dt><dd>jump to the session that needs you</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥L</kbd></dt><dd>start a session in a recent folder</dd></div>
           <div><dt><kbd class="kbd">⌃⌥G</kbd></dt><dd>tile your windows</dd></div>
           <div><dt><kbd class="kbd">⌃⌥M</kbd></dt><dd>switch between three levels of detail</dd></div>
           <div><dt><kbd class="kbd">⌃⌥W</kbd></dt><dd>show or hide the watermark</dd></div>
@@ -138,7 +139,7 @@
         <g class="grid-cells"><rect x="4" y="4" width="74" height="44" rx="3.5" fill="#f4913e"/><rect x="82" y="4" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="4" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="82" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/></g>
       </svg>
       <code class="tile-cmd"><img src="/assets/icons/grid.png?v=20260928a" alt="" width="28" height="28"><span>tabby tile <span class="tile-n">4</span></span></code>
-      <p class="tile-note">Tabs become windows, full-screen windows come back, and every session gets its own cell.</p>
+      <p class="tile-note">Tabs become windows, full-screen windows come back, and every session gets its own cell, on the screens you pick: keep your main screen free if you like. Tile them all, only the active ones, or the ones you choose.</p>
       <p class="tile-jump"><img src="/assets/icons/bell.png?v=20260928a" alt="" width="28" height="28"><span><kbd class="kbd">⌃⌥N</kbd> jumps to the one that needs you.</span></p>
     </div>
   </section>
@@ -262,9 +263,11 @@
         <h2 id="questions-title" class="h2">Questions, answered.</h2>
         <div class="qa-list">
           <details class="qa" open><summary>Does it cost anything?<span class="qa-toggle" aria-hidden="true"></span></summary><p>No. tabby is free and MIT licensed. Tab names come from Claude Haiku through your own Claude Code login, about 500 tokens each, which Pro and Max cover.</p></details>
-          <details class="qa"><summary>What leaves my machine?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Only the naming request, sent through your own Claude login. No servers, no telemetry, no accounts. Everything else lives in ~/.claude/tabby.</p></details>
+          <details class="qa"><summary>What leaves my machine?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Only the naming request, sent through your own Claude login, and a check with github.com for a newer release every few hours, which sends nothing about you (you can turn it off). No servers, no telemetry, no accounts. Everything else lives in ~/.claude/tabby.</p></details>
+          <details class="qa"><summary>How do I update?<span class="qa-toggle" aria-hidden="true"></span></summary><p>When a new version is out, the island shows an Update button. Or type /tab update in Claude, or run tabby update in a terminal. It updates the plugin and the island together.</p></details>
           <details class="qa"><summary>Which terminals work?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Terminal.app and iTerm2 get everything, including the island and tiling. Ghostty, WezTerm, kitty, Alacritty, VS Code and tmux get names, colors and live status.</p></details>
           <details class="qa"><summary>Why does tiling ask for Accessibility?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Moving a tab into its own window and bringing a full-screen window back use macOS window controls. tabby asks once, for Tabby Island, and never records your screen.</p></details>
+          <details class="qa"><summary>Something isn't working?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Ask Claude to “fix tabby”: it runs tabby doctor, which checks every part of the install, and fixes what it finds. Running the installer again is safe too.</p></details>
           <details class="qa"><summary>How do I turn it off?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Type /tab off for one tab, or run tabby uninstall to revert every change. Your Claude settings file is backed up first.</p></details>
           <details class="qa"><summary>Is this made by Anthropic?<span class="qa-toggle" aria-hidden="true"></span></summary><p>No. tabby is an independent open source project. Claude is a trademark of Anthropic.</p></details>
         </div>
