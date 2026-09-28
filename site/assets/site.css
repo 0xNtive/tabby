@@ -187,11 +187,14 @@ button { font: inherit; color: inherit; }
 .stamp { align-self: flex-start; display: inline-flex; align-items: center; height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: var(--marmalade); color: #1b1206; font: 600 15px/1 var(--display); cursor: pointer; box-shadow: 0 3px 0 #b8631f; transition: transform 0.08s, box-shadow 0.08s; }
 .stamp:active { transform: translateY(3px) skewX(-4deg); box-shadow: 0 0 0 #b8631f, inset 0 2px 4px rgb(0 0 0 / 0.25); }
 @media (min-width: 640px) { .stamp { align-self: auto; } }
+.cmd-box--prompt code { white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+.cmd-hl { color: var(--marmalade); }
 .install-alt { display: grid; gap: 32px; margin-top: 48px; text-align: left; }
 .install-alt > * { min-width: 0; }
 .install-alt-title { font-weight: 500; }
 .install-alt pre { margin-top: 12px; padding: 16px; overflow-x: auto; border-radius: 12px; background: rgb(15 58 60 / 0.7); font-size: 14px; line-height: 28px; }
-.install-alt-note { align-self: end; color: var(--foam-soft); }
+.install-alt pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.install-alt-note { margin-top: 32px; text-align: left; color: var(--foam-soft); }
 @media (min-width: 768px) { .install-alt { grid-template-columns: 1fr 1fr; } }
 
 /* Questions: a vertical rail note and a ruled list of native details rows. */

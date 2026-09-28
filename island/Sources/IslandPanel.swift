@@ -254,6 +254,8 @@ final class IslandController {
             .store(in: &cancellables)
         watermark.onUnknownWindow = { [weak store] in store?.requestTerminalWindows() }
         permissions.onTerminalAllowed = { [weak store] in store?.requestTerminalWindows() }
+        permissions.sessionTerms = { [weak store] in Set(store?.snapshot.sessions.compactMap(\.term) ?? []) }
+        if !inert { permissions.startBackgroundChecks() }
         settingsState.loginItem = Self.loginItemInstalled
         installDebugChannel()
     }

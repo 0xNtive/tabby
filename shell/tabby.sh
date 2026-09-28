@@ -10,7 +10,7 @@
 
 _TABBY_HOME="${TABBY_HOME:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby}"
 
-tabby() { node "$_TABBY_HOME/bin/tabby.mjs" "$@"; }
+tabby() { sh "$_TABBY_HOME/bin/tabby" "$@"; }
 
 claude() {
   local -a _tabby_args

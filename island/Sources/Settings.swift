@@ -395,6 +395,12 @@ struct PermissionsPane: View {
                               allow: { permissions.requestAutomation(.terminal) },
                               askAgain: { permissions.askAgain(.terminal) },
                               openSettings: PermissionCenter.openAutomationPane)
+                PermissionRow(title: "Control iTerm2",
+                              detail: "Jump to a session's tab in iTerm2 and read its tab titles.",
+                              status: permissions.status(of: .iTerm),
+                              allow: { permissions.requestAutomation(.iTerm) },
+                              askAgain: { permissions.askAgain(.iTerm) },
+                              openSettings: PermissionCenter.openAutomationPane)
                 PermissionRow(title: "Control System Events",
                               detail: "Tiling clicks Terminal's “Move Tab to New Window” for you.",
                               status: permissions.status(of: .systemEvents),
@@ -404,7 +410,7 @@ struct PermissionsPane: View {
             } header: {
                 Text("macOS permissions")
             } footer: {
-                Text("Checked live. tabby uses them only on your Mac: nothing is sent anywhere.")
+                Text("Checked live. Only the ones for the terminals you use matter (the setup guide asks just for those). tabby uses them only on your Mac: nothing is sent anywhere.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

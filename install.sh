@@ -1,73 +1,213 @@
 #!/usr/bin/env bash
 # tabby installer: https://github.com/0xNtive/tabby
 #
-#   curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash
-#   curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash -s -- --yes   # accept the terms, no questions
+#   curl -fsSL https://claude-tabby.vercel.app/install | bash
+#   curl -fsSL https://claude-tabby.vercel.app/install | bash -s -- --yes   # accept the terms, no questions
 #
-# Adds the tabby plugin to Claude Code, runs its one-time setup (terms, Claude settings, the /tab
-# command, shell flags, Terminal.app titles) and, on macOS, builds Tabby Island and opens its setup
-# window, which walks through the permissions. Every step is reversible: tabby uninstall.
-set -euo pipefail
+# Or let Claude do it: paste this into Claude Code
+#   Install tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it.
+#
+# What it does, each step checked (a log goes to ~/.claude/tabby/install.log):
+#   1. finds Claude Code and Node.js 18+ (no Node? it puts a private copy in ~/.claude/tabby/node)
+#   2. adds the tabby plugin to Claude Code
+#   3. shows the terms and runs the one-time setup (tab titles, status line, /tab, shell flags)
+#   4. on a Mac: downloads Tabby Island into ~/Applications, opens it at login, and opens its setup
+#      window, which asks only for the permissions your terminal needs
+#   5. runs `tabby doctor`
+# Everything is reversible: tabby uninstall.
+#
+# Options: --yes (accept the terms) · --no-island · --no-node (never download Node) · plus any
+# `tabby install` flag (--no-statusline, --no-shell, --no-title, --no-terminal-titles).
+set -uo pipefail
 
+REPO=0xNtive/tabby
 YES=0
 ISLAND=1
+NODE_DOWNLOAD=1
+PASS=()
 for arg in "$@"; do
   case "$arg" in
     -y | --yes | --accept-terms) YES=1 ;;
     --no-island) ISLAND=0 ;;
+    --no-node) NODE_DOWNLOAD=0 ;;
+    --no-*) PASS+=("$arg") ;;
   esac
 done
 
-bold() { printf '\033[1m%s\033[0m\n' "$*"; }
-say() { printf '  %s\n' "$*"; }
-die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+TABBY_DIR="${TABBY_HOME:-$CLAUDE_HOME/tabby}"
+mkdir -p "$TABBY_DIR"
+LOG="$TABBY_DIR/install.log"
+{ echo; echo "=== tabby install $(date '+%Y-%m-%d %H:%M:%S') · $(uname -sm) · args: $*"; } >> "$LOG"
+
+if [ -t 1 ]; then B=$'\033[1m' D=$'\033[2m' G=$'\033[32m' Y=$'\033[33m' R=$'\033[31m' N=$'\033[0m'; else B= D= G= Y= R= N=; fi
+step() { printf '%s▸%s %s\n' "$B" "$N" "$*"; echo "## $*" >> "$LOG"; }
+ok() { printf '  %s✓%s %s\n' "$G" "$N" "$*"; echo "ok: $*" >> "$LOG"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; echo "warn: $*" >> "$LOG"; }
+die() {
+  printf '  %s✗ %s%s\n' "$R" "$*" "$N" >&2
+  echo "FAILED: $*" >> "$LOG"
+  printf '\n  The full log is in %s.\n  Stuck? Paste this into Claude Code and it will sort it out:\n    %sInstall tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it.%s\n' "$LOG" "$B" "$N" >&2
+  exit 1
+}
+# Runs a command, its output to the log; on failure shows the last lines.
+quiet() {
+  local out
+  out=$("$@" 2>&1)
+  local status=$?
+  printf '$ %s\n%s\n' "$*" "$out" >> "$LOG"
+  [ $status -eq 0 ] || LAST_ERROR=$(printf '%s' "$out" | tail -n 3)
+  return $status
+}
 has_tty() { { : > /dev/tty; } 2> /dev/null; }
 
-bold "tabby: every Claude Code tab, at a glance"
+printf '%stabby%s: every Claude Code tab, at a glance\n\n' "$B" "$N"
 
-command -v node > /dev/null || die "tabby needs Node.js 18 or newer: https://nodejs.org"
-node -e 'process.exit(+process.versions.node.split(".")[0] >= 18 ? 0 : 1)' || die "tabby needs Node.js 18 or newer (this is $(node -v))."
-command -v claude > /dev/null || die "tabby is a Claude Code plugin. Install Claude Code first: https://claude.com/claude-code"
+# ---------- 1. Claude Code and Node.js ----------
+step "Checking this machine"
+OS=$(uname -s)
+case "$OS" in
+  Darwin | Linux) ;;
+  *) die "tabby runs on macOS and Linux (this is $OS). On Windows, use WSL." ;;
+esac
 
-say "Adding the plugin to Claude Code..."
-claude plugin marketplace add 0xNtive/tabby > /dev/null 2>&1 || claude plugin marketplace update tabby > /dev/null 2>&1 || true
-claude plugin install tabby@tabby > /dev/null 2>&1 || claude plugin update tabby@tabby > /dev/null 2>&1 || true
+CLAUDE=""
+for c in "$(command -v claude 2> /dev/null)" "$HOME/.local/bin/claude" "$CLAUDE_HOME/local/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do
+  if [ -n "$c" ] && [ -x "$c" ] && "$c" --version > /dev/null 2>&1; then
+    CLAUDE="$c"
+    break
+  fi
+done
+[ -n "$CLAUDE" ] || die "Claude Code isn't installed (or not where a terminal can find it). Install it first: https://claude.com/claude-code"
+ok "Claude Code $("$CLAUDE" --version 2> /dev/null | head -n 1 | sed 's/ (Claude Code)//') ($CLAUDE)"
+
+node_ok() { [ -x "$1" ] && "$1" -e 'process.exit(+process.versions.node.split(".")[0] >= 18 ? 0 : 1)' > /dev/null 2>&1; }
+NODE=""
+for n in "$(command -v node 2> /dev/null)" "$TABBY_DIR/node/bin/node" /opt/homebrew/bin/node /usr/local/bin/node \
+  "$HOME/.volta/bin/node" "$HOME/.local/share/mise/shims/node" "$HOME/.asdf/shims/node" \
+  "$HOME"/.nvm/versions/node/v*/bin/node "$HOME"/.local/share/fnm/node-versions/v*/installation/bin/node /usr/bin/node; do
+  if [ -n "$n" ] && node_ok "$n"; then NODE="$n"; fi
+  [ -n "$NODE" ] && break
+done
+
+# No Node 18+: a private copy of the current Node 22 LTS, checked against nodejs.org's checksums,
+# used only by tabby (nothing on your PATH changes). tabby uninstall removes it.
+install_private_node() {
+  local os arch sums file sum tmp
+  case "$OS" in Darwin) os=darwin ;; Linux) os=linux ;; esac
+  case "$(uname -m)" in arm64 | aarch64) arch=arm64 ;; x86_64 | amd64) arch=x64 ;; *) return 1 ;; esac
+  sums=$(curl -fsSL --retry 2 https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt) || return 1
+  file=$(printf '%s\n' "$sums" | awk -v want="-$os-$arch.tar.gz" 'substr($2, length($2) - length(want) + 1) == want { print $2; exit }')
+  sum=$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f { print $1; exit }')
+  [ -n "$file" ] && [ -n "$sum" ] || return 1
+  tmp=$(mktemp -d)
+  curl -fsSL --retry 2 -o "$tmp/$file" "https://nodejs.org/dist/latest-v22.x/$file" || { rm -rf "$tmp"; return 1; }
+  local got
+  got=$( (shasum -a 256 "$tmp/$file" 2> /dev/null || sha256sum "$tmp/$file") | awk '{print $1}')
+  [ "$got" = "$sum" ] || { echo "checksum mismatch for $file" >> "$LOG"; rm -rf "$tmp"; return 1; }
+  tar -xzf "$tmp/$file" -C "$tmp" || { rm -rf "$tmp"; return 1; }
+  rm -rf "$TABBY_DIR/node"
+  mv "$tmp/${file%.tar.gz}" "$TABBY_DIR/node" || { rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"
+  node_ok "$TABBY_DIR/node/bin/node"
+}
+
+[ "${TABBY_NODE_DOWNLOAD:-}" = force ] && NODE="" # testing the no-Node path
+if [ -n "$NODE" ]; then
+  ok "Node.js $("$NODE" -v) ($NODE)"
+elif [ "$NODE_DOWNLOAD" = 1 ]; then
+  printf '  %s…%s No Node.js 18+ here: getting a private copy for tabby (about 30 MB)\n' "$D" "$N"
+  if install_private_node; then
+    NODE="$TABBY_DIR/node/bin/node"
+    ok "Node.js $("$NODE" -v) → $TABBY_DIR/node (only tabby uses it)"
+  else
+    die "Couldn't download Node.js from nodejs.org. Install Node 18 or newer (https://nodejs.org, or: brew install node), then run this again."
+  fi
+else
+  die "tabby needs Node.js 18 or newer: https://nodejs.org (or: brew install node)"
+fi
+printf '%s\n' "$NODE" > "$TABBY_DIR/node-path"
+export TABBY_NODE="$NODE"
+
+# ---------- 2. The plugin ----------
+step "Adding the tabby plugin to Claude Code"
+# Git clones the plugin. A Mac without the Command Line Tools has only a stub git that pops up an
+# installer, so there tabby comes as a download instead.
+git_works() {
+  command -v git > /dev/null 2>&1 || return 1
+  if [ "$OS" = Darwin ] && [ "$(command -v git)" = /usr/bin/git ]; then xcode-select -p > /dev/null 2>&1 || return 1; fi
+  git --version > /dev/null 2>&1
+}
+LAST_ERROR=""
+if [ -n "${TABBY_MARKETPLACE:-}" ]; then # a checkout, for testing
+  quiet "$CLAUDE" plugin marketplace add "$TABBY_MARKETPLACE" || quiet "$CLAUDE" plugin marketplace update tabby || true
+elif git_works; then
+  quiet "$CLAUDE" plugin marketplace add "$REPO" || quiet "$CLAUDE" plugin marketplace update tabby || true
+else
+  SRC="$TABBY_DIR/src"
+  rm -rf "$SRC" && mkdir -p "$SRC"
+  if quiet sh -c "curl -fsSL --retry 2 https://codeload.github.com/$REPO/tar.gz/refs/heads/main | tar -xz -C '$SRC'"; then
+    quiet "$CLAUDE" plugin marketplace remove tabby || true
+    quiet "$CLAUDE" plugin marketplace add "$SRC/tabby-main" || true
+    warn "no git here, so tabby came as a download (updates: run this installer again)"
+  fi
+fi
+quiet "$CLAUDE" plugin install tabby@tabby || true
+quiet "$CLAUDE" plugin update tabby@tabby || true
 
 # The newest installed copy of the plugin.
-ROOT=$(node -e '
+ROOT=$("$NODE" -e '
 const fs = require("fs"), path = require("path");
-const dir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME, ".claude"), "plugins/cache/tabby/tabby");
+const dir = path.join(process.argv[1], "plugins/cache/tabby/tabby");
 const key = (v) => v.split(".").map((n) => n.padStart(6, "0")).join(".");
 let best = "";
 try { for (const v of fs.readdirSync(dir)) if (fs.existsSync(path.join(dir, v, "bin/tabby.js")) && key(v) > key(best || "0")) best = v; } catch {}
 if (best) process.stdout.write(path.join(dir, best));
-')
-[ -n "$ROOT" ] || die "The plugin didn't install. Inside Claude Code, run: /plugin marketplace add 0xNtive/tabby"
-tabby() { node "$ROOT/bin/tabby.js" "$@"; }
-
-# Setup shows the terms and asks on the terminal (this script itself arrives through a pipe).
-if [ "$YES" = 1 ]; then
-  tabby install --accept-terms
-elif has_tty; then
-  tabby install < /dev/tty
-else
-  die "No terminal to ask on. To accept the terms, run: curl -fsSL https://github.com/0xNtive/tabby/raw/main/install.sh | bash -s -- --yes"
+' "$CLAUDE_HOME")
+if [ -z "$ROOT" ]; then
+  [ -n "$LAST_ERROR" ] && printf '%s\n' "$LAST_ERROR" | sed 's/^/    /' >&2
+  die "The plugin didn't install. Inside Claude Code, type: /plugin marketplace add $REPO  then  /plugin install tabby@tabby"
 fi
+tabby() { "$NODE" "$ROOT/bin/tabby.js" "$@"; }
+ok "tabby $(tabby version) ($ROOT)"
 
-if [ "$(uname)" = Darwin ] && [ "$ISLAND" = 1 ]; then
-  if xcode-select -p > /dev/null 2>&1; then
-    say "Building Tabby Island (about 15 s)..."
-    if tabby island build > /dev/null 2>&1; then
-      tabby island onboarding > /dev/null
-      say "Tabby Island is open: its setup window walks you through the permissions it needs."
-    else
-      say "Tabby Island didn't build. Try later with: tabby island build"
-    fi
+# ---------- 3. Terms and setup ----------
+step "Terms and setup"
+if [ "$YES" = 1 ]; then
+  tabby install --accept-terms "${PASS[@]+"${PASS[@]}"}" 2>&1 | tee -a "$LOG" | sed -e '/Installing tabby/d' -e '/^New Claude sessions/,$d' -e '/^$/d' -e 's/^/  /'
+  status=${PIPESTATUS[0]}
+elif has_tty; then
+  tabby install "${PASS[@]+"${PASS[@]}"}" < /dev/tty
+  status=$?
+else
+  die "No terminal to ask on, so the terms can't be shown. To accept them: curl -fsSL https://claude-tabby.vercel.app/install | bash -s -- --yes"
+fi
+if [ "$status" = 2 ]; then
+  echo "Nothing else was changed: the plugin stays off until you accept. Run this again any time."
+  exit 0
+fi
+[ "$status" = 0 ] || die "Setup failed (tabby install exited $status)."
+ok "setup done"
+
+# ---------- 4. Tabby Island (macOS) ----------
+if [ "$OS" = Darwin ] && [ "$ISLAND" = 1 ]; then
+  step "Tabby Island"
+  out=$(tabby island install 2>&1)
+  status=$?
+  printf '%s\n' "$out" >> "$LOG"
+  if [ $status -eq 0 ]; then
+    printf '%s\n' "$out" | sed 's/^/  /'
+    ok "Its setup window is open: it asks only for what your terminal needs."
   else
-    say "Skipped Tabby Island: it needs the Xcode Command Line Tools (xcode-select --install). Then run: tabby island"
+    printf '%s\n' "$out" | sed 's/^/    /'
+    warn "Everything else works without it. Try again later: tabby island install"
   fi
 fi
 
-bold "Done."
-say "Open a new Claude Code session (or type /reload-plugins in the ones already open)."
-say "In Claude: /tab. In a new shell: tabby ls. To remove everything: tabby uninstall"
+# ---------- 5. Check ----------
+step "Checking the install"
+tabby doctor 2>&1 | tee -a "$LOG" | sed -n '2,$p'
+printf '\n%sDone.%s Open a new Claude Code session (or type /reload-plugins in one that is open):\n' "$B" "$N"
+printf '  its tab gets a name and a color after your first prompt'
+[ "$OS" = Darwin ] && [ "$ISLAND" = 1 ] && printf ', and every session shows in the island at the top center of your screen'
+printf '.\n  /tab in Claude for commands · tabby doctor to check · tabby uninstall to remove everything\n'

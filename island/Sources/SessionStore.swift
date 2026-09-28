@@ -638,10 +638,13 @@ final class SnapshotLoader: @unchecked Sendable {
     }
 
     private func loadCLI() -> CLIConfig {
+        // The sh launcher finds a Node wherever it lives (even one installed after the island).
+        let launcher = tabbyDir.appendingPathComponent("bin/tabby").path
+        if fm.fileExists(atPath: launcher) { return CLIConfig(node: "/bin/sh", cli: launcher) }
         let json = readJSON(tabbyDir.appendingPathComponent("island.json"))
         var node = str(json?["node"])
         if node == nil || !fm.isExecutableFile(atPath: node!) {
-            node = ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"]
+            node = [tabbyDir.appendingPathComponent("node/bin/node").path, "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"]
                 .first { fm.isExecutableFile(atPath: $0) } ?? "/opt/homebrew/bin/node"
         }
         var cli = str(json?["cli"])

@@ -101,6 +101,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         UserDefaults.standard.register(defaults: ["showIsland": true])
+        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
+        IslandReport.write(["quitByUser": false, "notch": (screen?.safeAreaInsets.top ?? 0) > 0,
+                            "onboardingDone": UserDefaults.standard.bool(forKey: "onboardingDone"),
+                            "macOS": ProcessInfo.processInfo.operatingSystemVersionString])
         Actions.store = store
         store.start()
 
@@ -229,8 +233,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             island?.showOnboarding(.permissions, activate: true)
         })
         menu.addItem(factory.item("About tabby", symbol: "info.circle") { [weak self] in self?.showAbout() })
-        menu.addItem(NSMenuItem(title: "Quit Tabby Island", action: #selector(NSApplication.terminate(_:)),
-                                keyEquivalent: "q"))
+        let quit = NSMenuItem(title: "Quit Tabby Island", action: #selector(quitByUser), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+    }
+
+    /// Quit from the menu: new Claude sessions leave it closed until `tabby island` or next login.
+    @objc private func quitByUser() {
+        IslandReport.write(["quitByUser": true])
+        NSApp.terminate(nil)
     }
 
     /// Shows a shortcut on a menu item (only while the menu is open does it act as one).

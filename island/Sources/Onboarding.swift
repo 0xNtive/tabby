@@ -263,35 +263,60 @@ private struct PermissionsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("A few permissions")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-            Text("macOS asks for each one once. tabby uses them only to arrange windows, jump to tabs and find each session's window. Nothing leaves your Mac.")
+            HStack(alignment: .firstTextBaseline) {
+                Text(permissions.nothingNeeded ? "No permissions needed" : "A few permissions")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                Spacer()
+                if !permissions.nothingNeeded && !permissions.allGranted {
+                    Button("Allow All") { permissions.requestAll() }
+                        .buttonStyle(MarmaladeButtonStyle(compact: true))
+                        .accessibilityHint("Asks macOS for each permission below, one after another")
+                }
+            }
+            Text(permissions.nothingNeeded
+                 ? "Your terminal works with the island as it is: it lists every session and brings the right app forward. Tiling and the watermark are for Terminal and iTerm2."
+                 : "macOS asks for each one once. tabby uses them only to arrange windows, jump to tabs and find each session's window. Nothing leaves your Mac.")
                 .font(.system(size: 14))
                 .foregroundStyle(OnboardingStyle.foamSoft)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             VStack(spacing: 10) {
-                PermissionCard(symbol: "hand.raised.fill", title: "Accessibility",
-                               detail: "Tiling splits tabs into their own windows and brings full-screen windows back.",
-                               status: permissions.accessibility,
-                               hint: "Switch on Tabby Island in System Settings › Privacy & Security › Accessibility.",
-                               allow: { permissions.requestAccessibility() },
-                               askAgain: { permissions.requestAccessibility() },
-                               openSettings: PermissionCenter.openAccessibilityPane)
-                PermissionCard(symbol: "terminal.fill", title: "Control Terminal",
-                               detail: "Jump to a session's tab, and put its watermark on the right window.",
-                               status: permissions.status(of: .terminal),
-                               hint: "Click Allow in the dialog macOS shows.",
-                               allow: { permissions.requestAutomation(.terminal) },
-                               askAgain: { permissions.askAgain(.terminal) },
-                               openSettings: PermissionCenter.openAutomationPane)
-                PermissionCard(symbol: "rectangle.split.2x1.fill", title: "Control System Events",
-                               detail: "Tiling clicks Terminal's “Move Tab to New Window” for you.",
-                               status: permissions.status(of: .systemEvents),
-                               hint: "Click Allow in the dialog macOS shows.",
-                               allow: { permissions.requestAutomation(.systemEvents) },
-                               askAgain: { permissions.askAgain(.systemEvents) },
-                               openSettings: PermissionCenter.openAutomationPane)
+                if permissions.accessibilityNeeded {
+                    PermissionCard(symbol: "hand.raised.fill", title: "Accessibility",
+                                   detail: "Tiling splits tabs into their own windows and brings full-screen windows back.",
+                                   status: permissions.accessibility,
+                                   hint: "Switch on Tabby Island in System Settings › Privacy & Security › Accessibility.",
+                                   allow: { permissions.requestAccessibility() },
+                                   askAgain: { permissions.requestAccessibility() },
+                                   openSettings: PermissionCenter.openAccessibilityPane)
+                }
+                if permissions.isNeeded(.terminal) {
+                    PermissionCard(symbol: "terminal.fill", title: "Control Terminal",
+                                   detail: "Jump to a session's tab, and put its watermark on the right window.",
+                                   status: permissions.status(of: .terminal),
+                                   hint: "Click Allow in the dialog macOS shows.",
+                                   allow: { permissions.requestAutomation(.terminal) },
+                                   askAgain: { permissions.askAgain(.terminal) },
+                                   openSettings: PermissionCenter.openAutomationPane)
+                }
+                if permissions.isNeeded(.iTerm) {
+                    PermissionCard(symbol: "terminal", title: "Control iTerm2",
+                                   detail: "Jump to a session's tab in iTerm2 and read its tab titles.",
+                                   status: permissions.status(of: .iTerm),
+                                   hint: "Click Allow in the dialog macOS shows.",
+                                   allow: { permissions.requestAutomation(.iTerm) },
+                                   askAgain: { permissions.askAgain(.iTerm) },
+                                   openSettings: PermissionCenter.openAutomationPane)
+                }
+                if permissions.isNeeded(.systemEvents) {
+                    PermissionCard(symbol: "rectangle.split.2x1.fill", title: "Control System Events",
+                                   detail: "Tiling clicks Terminal's “Move Tab to New Window” for you.",
+                                   status: permissions.status(of: .systemEvents),
+                                   hint: "Click Allow in the dialog macOS shows.",
+                                   allow: { permissions.requestAutomation(.systemEvents) },
+                                   askAgain: { permissions.askAgain(.systemEvents) },
+                                   openSettings: PermissionCenter.openAutomationPane)
+                }
                 LoginCard(on: state.loginItem) { island.setLoginItem($0) }
             }
             .padding(.top, 20)

@@ -35,6 +35,7 @@
     "lib/",
     "hooks/",
     "commands/",
+    "skills/",
     "shell/",
     "scripts/export.js",
     "island/Sources/",

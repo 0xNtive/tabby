@@ -11,6 +11,7 @@ process.env.TABBY_HOME = path.join(tmp, 'tabby');
 process.env.CLAUDE_CONFIG_DIR = path.join(tmp, 'claude');
 process.env.TERM_PROGRAM = 'Apple_Terminal';
 process.env.TABBY_NO_TERMINAL_PROFILES = '1'; // never switch the real Terminal's profiles
+process.env.TABBY_NO_ISLAND = '1'; // never download, start or quit the real Tabby Island
 process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
 delete process.env.TMUX;
 delete process.env.TABBY_OFF;
@@ -59,8 +60,9 @@ test('until the terms are accepted tabby stays off and points at /tabby:setup', 
   assert.equal(T.termsAccepted(), true);
   const settings = JSON.parse(fs.readFileSync(path.join(process.env.CLAUDE_CONFIG_DIR, 'settings.json'), 'utf8'));
   assert.equal(settings.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE, '1');
-  assert.match(settings.statusLine.command, /tabby\.mjs" statusline$/);
+  assert.match(settings.statusLine.command, /^sh ".*\/bin\/tabby" statusline$/);
   assert.ok(fs.existsSync(path.join(process.env.TABBY_HOME, 'bin', 'tabby.mjs')), 'launcher');
+  assert.ok(fs.existsSync(path.join(process.env.TABBY_HOME, 'bin', 'tabby')), 'sh launcher');
   assert.ok(fs.existsSync(path.join(process.env.CLAUDE_CONFIG_DIR, 'commands', 'tab.md')), '/tab');
   const rc = path.basename(process.env.SHELL || 'zsh') === 'bash' ? '.bashrc' : '.zshrc';
   assert.match(fs.readFileSync(path.join(tmp, rc), 'utf8'), />>> tabby/);

@@ -1,0 +1,54 @@
+name: release
+# Push a tag vX.Y.Z (matching package.json) and this publishes the ready-made Tabby Island that
+# `tabby island install` downloads: universal (Apple silicon + Intel), ad-hoc signed with the
+# stable requirement, zipped with a .sha256 next to it.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v0.3.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  island:
+    runs-on: macos-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: The tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "$TAG"
+      - run: bash island/build.sh --universal
+      - run: bash island/test.sh
+      - name: Check the app
+        run: |
+          APP="island/build/Tabby Island.app"
+          lipo -archs "$APP/Contents/MacOS/TabbyIsland" | grep -q arm64
+          lipo -archs "$APP/Contents/MacOS/TabbyIsland" | grep -q x86_64
+          codesign --verify --strict "$APP"
+          codesign -d -r- "$APP" 2>&1 | grep -q 'identifier "dev.tabby.island"'
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")" = "${TAG#v}"
+      - name: Zip it
+        working-directory: island/build
+        run: |
+          ditto -c -k --norsrc --noextattr --keepParent "Tabby Island.app" TabbyIsland.zip
+          shasum -a 256 TabbyIsland.zip | awk '{print $1}' > TabbyIsland.zip.sha256
+          cat TabbyIsland.zip.sha256
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(awk -v v="${TAG#v}" 'index($0, "## " v " ") == 1 {f=1; next} /^## / && f {exit} f' CHANGELOG.md)
+          files=(island/build/TabbyIsland.zip island/build/TabbyIsland.zip.sha256)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --title "tabby ${TAG#v}" --notes "${notes:-See CHANGELOG.md}"
+          fi

@@ -1,0 +1,28 @@
+name: Idea or feature
+description: Something that would make working with many Claude sessions easier.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What gets in your way today?
+      placeholder: "With six sessions open I can't tell which one finished first."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it belong?
+      multiple: true
+      options:
+        - Tab names, colors, status
+        - /tab and the CLI
+        - Tabby Island
+        - Tiling and screens
+        - Install and setup
+        - Themes
+        - Something else
