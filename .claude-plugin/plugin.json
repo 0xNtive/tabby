@@ -1,7 +1,7 @@
 {
   "name": "tabby",
-  "version": "0.2.13",
-  "description": "Every Claude Code tab, at a glance: an AI-written name, a calm color and a live status (working / your turn / needs you) for each session, /tab to rename or re-theme in one line, window tiling and a macOS session island.",
+  "version": "0.3.0",
+  "description": "Every Claude Code tab, at a glance: an AI-written name, a calm color and a live status for each session, /tab to rename or re-theme in one line, and a macOS island with Focus mode, tiling across the screens you choose and a quick launcher.",
   "author": {
     "name": "0xNtive"
   },

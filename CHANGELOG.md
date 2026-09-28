@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0 — 2026-09-28
+
+**Install, fireproofed.** A fresh install could fail on a Mac that isn't set up like a developer's: Claude Code's own installer ships without Node.js, the island had to be compiled with Xcode's tools, and a failure printed one easy-to-miss line.
+
+- **Let Claude install it.** Paste "Install tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it." into Claude Code. Claude shows you the terms, runs the installer, checks every piece and walks you through the Mac permissions. Later, "fix tabby" does the same checks (a new `doctor` skill).
+- **`tabby doctor`** checks every part of the install and gives the fix for each: a command to run, or what to do. `--json` is what Claude reads.
+- **The installer** (`curl -fsSL https://claude-tabby.vercel.app/install | bash`):
+  - finds Claude Code and Node.js wherever they're installed;
+  - sets up a private, checksum-verified Node.js 22 when there's none;
+  - installs without git when a Mac has no developer tools;
+  - logs every step to `~/.claude/tabby/install.log` and never hides a failure;
+  - ends with `tabby doctor`.
+- **Node.js, found anywhere.** Hooks, the status line and the `tabby` command start through a small launcher that finds Node.js (Homebrew, nvm, Volta, mise, fnm, asdf or the private copy), so Claude started from the Dock or an editor works too. With no Node.js at all, hooks stay silent and a session start says how to fix it.
+- **Tabby Island arrives ready to run.** It's downloaded from the GitHub release (universal, SHA-256 checked) into `~/Applications`, opens at login, and starts with your Claude sessions. When tabby updates, it fetches the matching island in the background. Building it locally is now only the fallback.
+- **Permissions that always prompt.** macOS only asks about an app that's running, and the island never started Terminal first, so its Allow button could do nothing. Now it starts the app first. It also asks only for what your terminal needs (nothing for VS Code, Cursor, Ghostty or Warp; iTerm2 has its own card), has **Allow All**, and keeps checking in the background until everything is allowed.
+- `/tabby:setup` also installs the island on a Mac, and `tabby uninstall` now removes the island, its login item and the private Node.js too. The terms prompt takes Enter for yes.
+
+**Focus mode.** While Claude works, each Terminal window you're not in shows only its topic in a big box, with one line per running agent (Claude and its subagents): a spinner, what it's doing, and for how long. A window opens again when Claude needs you or it's your turn, and the one you're typing in is never covered. Settings › Focus, the menu-bar menu, or `/tab focus-mode on`.
+
+**Hover a session for the full picture.** In every mode, resting on a session opens a dropdown with what it's doing or waiting for (and what to do about it), its current task, summary, your last prompt, tokens and cost, folder and terminal. Before, hovering changed little, and nothing for sessions tabby hadn't tracked yet.
+
+**End a session from the island,** from its dropdown or right-click menu. It always asks first, names the session, and checks it's really that Claude process before stopping it. Then it closes the tab (iTerm2 by script, Terminal.app by a clean `exit`).
+
+**Your screens, your choice.**
+
+- Tiling knows every display: the screen you're on, all of them, or the ones you pick in Settings › Windows. Pick only a vertical monitor, for example, and your main screen stays free. Sessions spread by screen size, and a portrait screen stacks rows.
+- Tile every session, only the active ones (working or waiting on you), or pick them: **Tile Active Sessions** and **Choose Sessions…** in the tile menu; `tabby tile --active`, `--only 1,3,auth`, `--screens`; `/tab tile active`.
+
+**Quick launch.** ⌃⌥L (or **New Session…** in the menu-bar menu) opens your recent and most-used folders. Type to filter, add a name, press Enter, and a new window runs Claude there, on your chosen screen. **Skip permissions** (⌘D) adds `--dangerously-skip-permissions`; it's remembered and warns you while it's on. `tabby new <folder or recent name> [--dangerous]`, `tabby new --list`.
+
+**Open source housekeeping.** A new README, issue and pull request templates (bug reports ask for `tabby doctor`), a security policy, a code of conduct, a contributor guide with the architecture and release steps, and CI that runs the whole installer on clean macOS and Linux machines.
+
 ## 0.2.13 — 2026-09-27
 
 - **Working or idle, at a glance.** A working session's dot now turns inside a ring of its own color, a session waiting for your next prompt rests dimmed, and one that needs you keeps its amber ring. Every row says it in words too: "Working 3m", "Your turn", "Needs you" or "Error", each in its own color, in all three modes.
