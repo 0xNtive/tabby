@@ -227,17 +227,26 @@ enum WindowServer {
 
 // MARK: - Controller
 
-/// Draws each Terminal.app session's topic, large and faint, over its window: a click-through
-/// window kept directly above the session's own. It follows the window by asking the window
-/// server where it is: 4× a second while Terminal is in front, once a second otherwise, and at
-/// once on clicks, app switches and desktop changes. While a window moves or resizes, its
-/// watermark fades out and returns when the window settles.
+/// Draws over each Terminal.app session's window: its topic, large and faint (the watermark,
+/// click-through), or, in focus mode while Claude works there, an opaque cover (FocusCover.swift).
+/// Each is a window kept directly above the session's own. It follows the window by asking the
+/// window server where it is: 4× a second while Terminal is in front, once a second otherwise,
+/// and at once on clicks, app switches and desktop changes. While a window moves or resizes,
+/// what's over it fades out and returns when the window settles.
 @MainActor
 final class WatermarkController {
+    /// What's over a Terminal window right now.
+    private enum Presentation {
+        case none, watermark, cover
+    }
+
     @MainActor
     private final class Overlay {
         let window = WatermarkWindow()
         let view = WatermarkView()
+        /// Focus mode's cover, made the first time it's needed.
+        private(set) var coverWindow: FocusCoverWindow?
+        var presentation = Presentation.none
         /// The Terminal window's bounds when last seen, and since when they've held.
         var bounds: CGRect?
         var changedAt = Date.distantPast
@@ -246,15 +255,38 @@ final class WatermarkController {
         init() {
             window.contentView = view
         }
+
+        var cover: FocusCoverWindow {
+            if let coverWindow { return coverWindow }
+            let made = FocusCoverWindow()
+            coverWindow = made
+            return made
+        }
+
+        /// The window that presents it, if any.
+        var current: NSWindow? {
+            switch presentation {
+            case .none: return nil
+            case .watermark: return window
+            case .cover: return cover
+            }
+        }
     }
 
     private struct Target: Equatable {
         var text: String
         var tint: NSColor
+        var status: SessionStatus
+        /// Focus mode's cover for this window (focus mode on), shown while FocusRule says so.
+        var cover: FocusCoverContent?
     }
 
     private let terminalBundle = "com.apple.Terminal"
     private var settings = WatermarkSettings()
+    private var focusMode = false
+    /// Spins the covers' spinners while any cover shows.
+    private var animation: Timer?
+    private var animationStill = false
     private var targets: [Int: Target] = [:]
     private var overlays: [Int: Overlay] = [:]
     /// Every Terminal window the store knows (session tabs or not), and those already asked about.
@@ -267,33 +299,45 @@ final class WatermarkController {
     private var observers: [NSObjectProtocol] = []
     /// A Terminal window showed up that the store can't place yet (a tab moved to its own window).
     var onUnknownWindow: (() -> Void)?
+    /// A cover was clicked: open that session (its session id).
+    var onCoverClick: ((String) -> Void)?
 
-    private var active: Bool { settings.enabled && !targets.isEmpty }
+    private var active: Bool { (settings.enabled || focusMode) && !targets.isEmpty }
 
-    func apply(_ settings: WatermarkSettings) {
-        guard settings != self.settings else { return }
+    func apply(_ settings: WatermarkSettings, focusMode: Bool = false) {
+        guard settings != self.settings || focusMode != self.focusMode else { return }
         let restyle = settings.size != self.settings.size || settings.opacity != self.settings.opacity ||
             settings.color != self.settings.color || settings.position != self.settings.position
         self.settings = settings
+        self.focusMode = focusMode
         if restyle { overlays.values.forEach { $0.view.settings = settings } }
         refreshActivity()
     }
 
     func update(_ snapshot: StoreSnapshot, color: (IslandSession) -> NSColor) {
         var next: [Int: Target] = [:]
+        let now = Date()
         for session in snapshot.sessions where !session.disabled {
             guard let id = session.windowId else { continue }
-            next[id] = Target(text: session.title, tint: color(session))
+            let cover = focusMode
+                ? FocusCoverContent.make(session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId, now: now)
+                : nil
+            guard settings.enabled || cover != nil else { continue }
+            next[id] = Target(text: session.title, tint: color(session), status: session.status, cover: cover)
         }
         knownWindows = snapshot.terminalWindowIds
         guard next != targets else { return }
+        let statusChanged = next.contains { id, target in targets[id]?.status != target.status }
         targets = next
         for (id, target) in targets {
             guard let overlay = overlays[id] else { continue }
             overlay.view.text = target.text
             overlay.view.tint = target.tint
+            if let cover = target.cover, overlay.coverWindow != nil { overlay.cover.cover.content = cover }
         }
         refreshActivity()
+        // Claude finished or needs you: open its window now, not at the next round.
+        if statusChanged { poke() }
     }
 
     /// Starts or stops following windows, and ticks now.
@@ -306,6 +350,7 @@ final class WatermarkController {
             timer = nil
             stopObserving()
             removeAll()
+            animate(false)
         }
     }
 
@@ -334,17 +379,24 @@ final class WatermarkController {
         let windows = WindowServer.onScreen()
         let mouseDown = NSEvent.pressedMouseButtons & 1 != 0
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let terminalActive = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == terminalBundle
+        let frontTerminalWindow = focusMode ? self.frontTerminalWindow(windows) : nil
         var settling = false
 
         for (id, target) in targets {
             let overlay = overlays[id] ?? makeOverlay(id, target)
-            let mine = windows[overlay.window.windowNumber]
+            let covered = target.cover != nil &&
+                FocusRule.covers(status: target.status, windowIsFront: id == frontTerminalWindow, terminalActive: terminalActive)
+            let wanted: Presentation = covered ? .cover : settings.enabled ? .watermark : .none
+            if wanted != overlay.presentation { present(overlay, wanted, target: target, reduceMotion: reduceMotion) }
+            guard let window = overlay.current else { continue }
+            let mine = windows[window.windowNumber]
             guard let seen = windows[id] else {
                 // Not on screen: a background tab, minimized, closed or on another desktop. If the
                 // overlay is on this desktop, its window isn't: hide it. Else both are elsewhere
                 // (and it's still in place when you come back).
-                if overlay.window.isVisible, mine != nil {
-                    overlay.window.orderOut(nil)
+                if window.isVisible, mine != nil {
+                    window.orderOut(nil)
                     overlay.shown = false
                     overlay.bounds = nil
                 }
@@ -374,30 +426,81 @@ final class WatermarkController {
             }
             // Shown: keep it directly above its window (clicking a window raises it over the overlay).
             if mine == nil {
-                overlay.window.orderOut(nil)   // it belongs to another desktop: order it in here
-                overlay.window.order(.above, relativeTo: id)
+                window.orderOut(nil)   // it belongs to another desktop: order it in here
+                window.order(.above, relativeTo: id)
             } else if mine!.index + 1 != seen.index {
-                overlay.window.order(.above, relativeTo: id)
+                window.order(.above, relativeTo: id)
             }
         }
         for (id, overlay) in overlays where targets[id] == nil {
             overlay.window.orderOut(nil)
+            overlay.coverWindow?.orderOut(nil)
             overlays[id] = nil
         }
         noticeUnknownWindows(windows)
+        animate(overlays.values.contains { $0.presentation == .cover && $0.shown }, still: reduceMotion)
 
-        let terminalFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == terminalBundle
-        schedule(after: settling ? 0.1 : (terminalFront ? 0.25 : 1.0))
+        schedule(after: settling ? 0.1 : (terminalActive ? 0.25 : 1.0))
+    }
+
+    /// Terminal's frontmost window on this desktop (the one you'd type into).
+    private func frontTerminalWindow(_ windows: [Int: WindowServer.Entry]) -> Int? {
+        guard let pid = terminalProcess() else { return nil }
+        return windows.filter { $0.value.pid == pid }.min { $0.value.index < $1.value.index }?.key
+    }
+
+    private func terminalProcess() -> Int? {
+        if Date().timeIntervalSince(terminalPid.at) > 5 {
+            let pid = NSRunningApplication.runningApplications(withBundleIdentifier: terminalBundle).first?.processIdentifier
+            terminalPid = (pid.map(Int.init), Date())
+        }
+        return terminalPid.pid
+    }
+
+    /// Switches what's over a window (watermark ↔ cover ↔ nothing). The new one shows at once
+    /// if the window's on screen (else when it comes back).
+    private func present(_ overlay: Overlay, _ next: Presentation, target: Target, reduceMotion: Bool) {
+        if let old = overlay.current, overlay.shown || old.isVisible {
+            if overlay.presentation == .cover {
+                // Lifting the cover: out of the mouse's way at once, then a quick fade.
+                old.ignoresMouseEvents = true
+                if reduceMotion {
+                    old.alphaValue = 0
+                    old.orderOut(nil)
+                } else {
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.16
+                        old.animator().alphaValue = 0
+                    }, completionHandler: { [weak old] in
+                        MainActor.assumeIsolated {
+                            guard let old, old.alphaValue == 0 else { return }
+                            old.orderOut(nil)
+                        }
+                    })
+                }
+            } else {
+                old.alphaValue = 0
+                old.orderOut(nil)
+            }
+        }
+        overlay.presentation = next
+        overlay.shown = false
+        overlay.bounds = nil
+        if next == .cover, let content = target.cover {
+            let cover = overlay.cover
+            cover.cover.content = content
+            cover.ignoresMouseEvents = false
+            cover.cover.onClick = { [weak self] in
+                self?.onCoverClick?(content.sessionId)
+                self?.poke(after: 0.3)
+            }
+        }
     }
 
     /// A Terminal window on screen that no known tab lives in: a tab just moved into its own
     /// window (tiling does that). Ask the store to look again, once per window.
     private func noticeUnknownWindows(_ windows: [Int: WindowServer.Entry]) {
-        if Date().timeIntervalSince(terminalPid.at) > 5 {
-            let pid = NSRunningApplication.runningApplications(withBundleIdentifier: terminalBundle).first?.processIdentifier
-            terminalPid = (pid.map(Int.init), Date())
-        }
-        guard let pid = terminalPid.pid else { return }
+        guard let pid = terminalProcess() else { return }
         let unknown = windows.filter { number, entry in
             entry.pid == pid && entry.bounds.width > 150 && entry.bounds.height > 100 &&
                 !knownWindows.contains(number) && !askedAbout.contains(number)
@@ -418,30 +521,85 @@ final class WatermarkController {
     }
 
     private func show(_ overlay: Overlay, above id: Int, bounds: CGRect, onThisDesktop: Bool, reduceMotion: Bool) {
-        overlay.window.setFrame(WindowServer.cocoaFrame(bounds), display: false)
+        guard let window = overlay.current else { return }
+        var frame = WindowServer.cocoaFrame(bounds)
+        if overlay.presentation == .cover {
+            // Only the content: the title bar (and tab bar) stay yours to click.
+            let fullScreen = NSScreen.screens.contains { $0.frame == frame }
+            let inset = (fullScreen ? 0 : TerminalChrome.titleBar) + (inTabGroup(id, bounds: bounds) ? TerminalChrome.tabBar : 0)
+            frame.size.height = max(0, frame.height - inset)
+            overlay.cover.cover.cornerRadius = fullScreen ? 0 : TerminalChrome.cornerRadius
+        }
+        window.setFrame(frame, display: false)
         // An overlay left on another desktop is ordered out first, so it's ordered in on this one.
-        if !onThisDesktop { overlay.window.orderOut(nil) }
-        overlay.window.order(.above, relativeTo: id)
+        if !onThisDesktop { window.orderOut(nil) }
+        window.order(.above, relativeTo: id)
         overlay.shown = true
         fade(overlay, in: true, reduceMotion: reduceMotion)
     }
 
+    /// Another of Terminal's windows (a tab in the background) has exactly this frame: they're
+    /// tabs of one window, which shows a tab bar.
+    private func inTabGroup(_ id: Int, bounds: CGRect) -> Bool {
+        let others = knownWindows.subtracting([id]).map { NSNumber(value: CGWindowID($0)) }
+        guard !others.isEmpty,
+              let list = CGWindowListCreateDescriptionFromArray(others as CFArray) as? [[String: Any]] else { return false }
+        return list.contains { info in
+            var rect = CGRect.zero
+            guard let dictionary = info[kCGWindowBounds as String] as? NSDictionary,
+                  CGRectMakeWithDictionaryRepresentation(dictionary as CFDictionary, &rect) else { return false }
+            return rect == bounds
+        }
+    }
+
     private func fade(_ overlay: Overlay, in visible: Bool, reduceMotion: Bool) {
         overlay.shown = visible
+        guard let window = overlay.current else { return }
         let target: CGFloat = visible ? 1 : 0
         guard !reduceMotion else {
-            overlay.window.alphaValue = target
+            window.alphaValue = target
             return
         }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = visible ? 0.28 : 0.12
-            overlay.window.animator().alphaValue = target
+            window.animator().alphaValue = target
         }
     }
 
     private func removeAll() {
-        for overlay in overlays.values { overlay.window.orderOut(nil) }
+        for overlay in overlays.values {
+            overlay.window.orderOut(nil)
+            overlay.coverWindow?.orderOut(nil)
+        }
         overlays = [:]
+    }
+
+    // MARK: Focus mode's spinners
+
+    /// One timer for every cover, only while one shows: 10 frames a second, or a once-a-second
+    /// clock with still spinners under Reduce Motion.
+    private func animate(_ on: Bool, still: Bool = false) {
+        guard on else {
+            animation?.invalidate()
+            animation = nil
+            return
+        }
+        if animation != nil, still == animationStill { return }
+        animation?.invalidate()
+        animationStill = still
+        let interval: TimeInterval = still ? 1 : 0.1
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                for overlay in self.overlays.values where overlay.presentation == .cover && overlay.shown {
+                    overlay.cover.cover.still = self.animationStill
+                    overlay.cover.cover.advance()
+                }
+            }
+        }
+        timer.tolerance = interval * 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        animation = timer
     }
 
     // MARK: Events that move windows
@@ -488,16 +646,19 @@ final class WatermarkController {
     func debugState() -> String {
         let windows = WindowServer.onScreen()
         let rows = overlays.map { id, overlay -> String in
+            let window = overlay.current ?? overlay.window
             let above: String
-            if let mine = windows[overlay.window.windowNumber], let target = windows[id] {
+            if let mine = windows[window.windowNumber], let target = windows[id] {
                 above = mine.index + 1 == target.index ? "directly above" : "at \(mine.index), window at \(target.index)"
             } else {
                 above = windows[id] == nil ? "window off screen" : "overlay off screen"
             }
-            return "  window \(id) “\(targets[id]?.text ?? "?")” shown=\(overlay.shown) alpha=\(String(format: "%.2f", overlay.window.alphaValue)) " +
-                "frame=\(NSStringFromRect(overlay.window.frame)) overlay=\(overlay.window.windowNumber) \(above)"
+            return "  window \(id) “\(targets[id]?.text ?? "?")” \(overlay.presentation) shown=\(overlay.shown) " +
+                "alpha=\(String(format: "%.2f", window.alphaValue)) frame=\(NSStringFromRect(window.frame)) " +
+                "overlay=\(window.windowNumber) \(above)"
         }
-        return "watermark enabled=\(settings.enabled) targets=\(targets.count) overlays=\(overlays.count) " +
-            "active=\(NSApp.isActive)\n" + rows.sorted().joined(separator: "\n")
+        return "watermark enabled=\(settings.enabled) focusMode=\(focusMode) targets=\(targets.count) " +
+            "overlays=\(overlays.count) animating=\(animation != nil) active=\(NSApp.isActive)\n" +
+            rows.sorted().joined(separator: "\n")
     }
 }

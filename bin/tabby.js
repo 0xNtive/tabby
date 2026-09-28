@@ -296,6 +296,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby island [install|update|stop|login|setup|permissions|status]   the macOS session island
                               (install: the ready-made download; build: compile it here)
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
+  tabby focus-mode on|off     while Claude works, other Terminal windows show only their topic
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
