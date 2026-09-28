@@ -29,3 +29,42 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash island/build.sh
       - run: bash island/test.sh
+
+  # The whole installer on a clean machine: a fresh home, no Node of its own (the installer's
+  # private copy), this checkout as the plugin, then doctor must pass and uninstall must work.
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: The island download, from this checkout (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          bash island/build.sh
+          cd island/build
+          ditto -c -k --norsrc --noextattr --keepParent "Tabby Island.app" "$RUNNER_TEMP/TabbyIsland.zip"
+          shasum -a 256 "$RUNNER_TEMP/TabbyIsland.zip" | awk '{print $1}' > "$RUNNER_TEMP/TabbyIsland.zip.sha256"
+      - name: Install, check, uninstall
+        env:
+          TABBY_MARKETPLACE: ${{ github.workspace }}
+          TABBY_NODE_DOWNLOAD: force
+          TABBY_NO_TERMINAL_PROFILES: '1'
+          TABBY_ISLAND_SANDBOX: '1'
+          TABBY_ISLAND_URL: file://${{ runner.temp }}/TabbyIsland.zip
+        run: |
+          export HOME="$(mktemp -d)"
+          bash install.sh --yes
+          T="$HOME/.claude/tabby/bin/tabby"
+          sh "$T" doctor --json > "$RUNNER_TEMP/doctor.json"
+          node -e 'const d = require(process.argv[1]); const bad = d.checks.filter((c) => c.status === "fail"); console.log(d.checks.map((c) => `${c.status} ${c.id}: ${c.detail}`).join("\n")); if (bad.length) process.exit(1)' "$RUNNER_TEMP/doctor.json"
+          test -x "$HOME/.claude/tabby/node/bin/node"
+          if [ "$RUNNER_OS" = macOS ]; then test -d "$HOME/Applications/Tabby Island.app"; fi
+          sh "$T" uninstall
+          test ! -e "$HOME/.claude/tabby/node"
