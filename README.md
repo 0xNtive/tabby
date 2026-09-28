@@ -79,6 +79,16 @@ Other ways: from a checkout, `git clone https://github.com/0xNtive/tabby && node
 
 Something not working? Ask Claude to **"fix tabby"**, or run `tabby doctor`.
 
+### Updating
+
+When a new version is out, the island shows an **Update** button, and a new Claude session mentions it once a day. Update from wherever you are:
+
+- **In the island:** click **Update** at the top (or **Update to tabby x.y.z…** in its menu-bar menu, or Settings › General › Updates). The island restarts on the new version.
+- **In Claude:** `/tab update` (it runs in the background).
+- **In a terminal:** `tabby update`, or `tabby update --check` to only look.
+
+An update gets the plugin, refreshes the parts of setup you have (nothing you turned off comes back) and Tabby Island. Afterwards, type `/reload-plugins` in the sessions that were already open.
+
 ## Use it
 
 In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
@@ -92,6 +102,7 @@ In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
 /tab tile active             tile the sessions that are working or need you
 /tab focus-mode on           cover the Terminal windows you're not in while Claude works
 /tab watermark off           hide the watermarks (on brings them back)
+/tab update                  get the newest tabby, in the background
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
 ```
 
@@ -115,6 +126,7 @@ tabby tile screens        # list your displays; tabby tile screens 2 puts sessio
 tabby new --list          # recent and frequent folders, best first
 tabby themes              # preview all 57 themes
 tabby doctor              # check every part of the install, with the fix for each
+tabby update              # the newest tabby: plugin, setup and island (--check to only look)
 ```
 
 ## Tabby Island
@@ -249,7 +261,8 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 
 ## Privacy, cost and terms
 
-- **Nothing leaves your machine except the naming request,** which goes to Claude Haiku through your own Claude Code login: about 500 tokens (roughly $0.001), covered by Pro and Max.
+- **Nothing about you leaves your machine except the naming request,** which goes to Claude Haiku through your own Claude Code login: about 500 tokens (roughly $0.001), covered by Pro and Max.
+- **Update checks** ask github.com where tabby's latest release is, every 6 hours at most: a plain request that sends nothing about you. `tabby config updateCheck false` (or Settings › General) turns them off.
 - **No servers, no telemetry.**
 - tabby is free. Future versions may show clearly labeled sponsored messages in tabby's own UI, never in your prompts, conversations or model context. See the [Terms of Use](TERMS.md), which setup asks you to accept.
 - tabby is an independent project, **not affiliated with Anthropic**. Claude is a trademark of Anthropic.

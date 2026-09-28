@@ -39,6 +39,7 @@ enum Snapshotter {
         State(name: "minimal") { ui, _ in ui.expanded = true; ui.mode = .minimal },
         State(name: "standard") { ui, _ in ui.expanded = true; ui.mode = .standard },
         State(name: "detailed") { ui, _ in ui.expanded = true; ui.mode = .detailed },
+        State(name: "update") { ui, _ in ui.expanded = true; ui.mode = .standard; ui.update = .available("0.3.1") },
         State(name: "hover") { ui, list in
             ui.expanded = true
             ui.mode = .standard

@@ -369,6 +369,7 @@ struct IslandRootView: View {
 
     private func controls(themeName: Bool) -> some View {
         HStack(spacing: 8) {
+            if let badge = ui.update { UpdatePill(badge: badge) { actions.update() } }
             ModePicker(mode: ui.mode, reduceMotion: ui.reduceMotion) { actions.setMode($0) }
             FooterIconButton(symbol: "square.grid.2x2", help: help("Tile session windows", .tile)) { actions.tileMenu() }
             themeButton(showName: themeName)
