@@ -148,6 +148,53 @@
     });
   }
 
+  // Hero: the screen tilts a few degrees toward the pointer.
+  const heroSection = $('.hero');
+  const screen = $('#hero-scene .screen');
+  if (heroSection && screen && fine && !reduce) {
+    let rx = 0, ry = 0, tx = 0, ty = 0, raf = 0;
+    const step = () => {
+      rx += (tx - rx) * 0.1; ry += (ty - ry) * 0.1;
+      screen.style.setProperty('--rx', `${rx.toFixed(3)}deg`);
+      screen.style.setProperty('--ry', `${ry.toFixed(3)}deg`);
+      raf = Math.abs(tx - rx) + Math.abs(ty - ry) > 0.005 ? requestAnimationFrame(step) : 0;
+    };
+    const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
+    heroSection.addEventListener('pointermove', (e) => {
+      const b = screen.getBoundingClientRect();
+      const px = (e.clientX - b.left) / b.width - 0.5, py = (e.clientY - b.top) / b.height - 0.5;
+      tx = Math.max(-1, Math.min(1, -py)) * 5; ty = Math.max(-1, Math.min(1, px)) * 6;
+      kick();
+    });
+    heroSection.addEventListener('pointerleave', () => { tx = 0; ty = 0; kick(); });
+  }
+
+  // GitHub stars: fetched once an hour (shared through localStorage); the count ticks up when it arrives.
+  const starEls = $$('[data-stars]');
+  if (starEls.length) {
+    const KEY = 'tabby:stars';
+    const fmt = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+    const show = (n, animate) => {
+      if (!(n > 0)) return;
+      for (const el of starEls) {
+        el.hidden = false;
+        if (!animate || reduce) { el.textContent = fmt(n); continue; }
+        const t0 = performance.now();
+        const tickUp = (t) => { const p = Math.min(1, (t - t0) / 900); el.textContent = fmt(Math.round(n * (1 - (1 - p) ** 3))); if (p < 1) requestAnimationFrame(tickUp); };
+        requestAnimationFrame(tickUp);
+      }
+    };
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(KEY)); } catch {}
+    if (cached && Date.now() - cached.at < 3600e3) show(cached.n, false);
+    else {
+      fetch('https://api.github.com/repos/0xNtive/tabby', { headers: { Accept: 'application/vnd.github+json' } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (!d) return; const n = Number(d.stargazers_count) || 0; try { localStorage.setItem(KEY, JSON.stringify({ n, at: Date.now() })); } catch {} show(n, true); })
+        .catch(() => {});
+    }
+  }
+
   // Tabs: the zoomed-in tab cycles through its states; the status row and the status line just tick.
   const big = $('.bigtab-tab');
   if (big) {
