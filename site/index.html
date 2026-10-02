@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tabby: every Claude Code tab, at a glance</title>
 <meta name="description" content="Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all. Free, local and native to Claude.">
-<meta name="theme-color" content="#0f3a3c">
+<meta name="theme-color" content="#0b0b0e">
 <link rel="canonical" href="https://claude-tabby.vercel.app/">
 <meta property="og:site_name" content="tabby">
 <meta property="og:title" content="tabby: every Claude Code tab, at a glance">
@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;650;700&display=swap">
-<link rel="stylesheet" href="/assets/site.css?v=20261002a">
+<link rel="stylesheet" href="/assets/site.css?v=20261002b">
 <link rel="preload" as="image" href="/assets/ui/island-collapsed.webp?v=20261002a" type="image/webp">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"tabby","url":"https://claude-tabby.vercel.app/","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all. Free, local and native to Claude.","image":"https://claude-tabby.vercel.app/assets/og.png","license":"https://github.com/0xNtive/tabby/blob/main/LICENSE","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/0xNtive/tabby"]}</script>
 </head>
@@ -47,12 +47,13 @@
     <a class="nav-tab" href="#themes">Themes</a>
     <a class="nav-tab" href="#install" data-keep>Install</a>
   </nav>
-  <a class="nav-gh" href="https://github.com/0xNtive/tabby">GitHub</a>
+  <a class="star" href="https://github.com/0xNtive/tabby" aria-label="Star tabby on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.8.8-5 4.6 1.3 6.7L12 17.5l-6 3.3 1.3-6.7-5-4.6 6.8-.8z"/></svg><span>Star</span><span class="star-count" data-stars hidden></span></a>
 </header>
 
 <main id="main">
   <!-- Hero: a live mock of a Mac desktop. A new Claude tab gets named while the island announces the others. -->
   <section id="top" class="hero" aria-labelledby="hero-title">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="hero-copy">
       <p class="eyebrow hero-eyebrow">A Claude Code plugin · macOS and Linux</p>
       <h1 id="hero-title" class="hero-title">Every Claude tab, at a&nbsp;glance.</h1>
@@ -62,14 +63,13 @@
           <span class="readout-prompt" aria-hidden="true">&gt;_</span>
           <span class="readout-slot" aria-hidden="true"><span class="readout-label">Install tabby</span><span class="readout-cmd">paste into Claude</span></span>
         </a>
-        <a href="https://github.com/0xNtive/tabby" class="pathlink">
-          <span>View on GitHub</span><span class="pathlink-arrow" aria-hidden="true">→</span>
-          <svg viewBox="0 0 100 9" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M0 8 H38 Q41 8 42 5 L43.5 2 Q44.5 1 46 1 H62 Q63.5 1 64.5 2 L66 5 Q67 8 70 8 H100"/></svg>
-        </a>
+        <a class="star star-lg" href="https://github.com/0xNtive/tabby"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.8.8-5 4.6 1.3 6.7L12 17.5l-6 3.3 1.3-6.7-5-4.6 6.8-.8z"/></svg><span>Star on GitHub</span><span class="star-count" data-stars hidden></span></a>
       </div>
     </div>
 
     <div class="scene" id="hero-scene" aria-label="A Mac desktop: a Terminal window with four Claude Code tabs named and colored by tabby, and Tabby Island at the top of the screen announcing which session needs you" role="img">
+      <div class="scene-halo" aria-hidden="true"></div>
+      <div class="scene-glow" aria-hidden="true"></div>
       <div class="screen">
         <div class="menubar" aria-hidden="true">
           <span class="mb-apple"></span><span class="mb-app">Terminal</span><span>Shell</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
@@ -508,6 +508,12 @@
       </div>
     </div>
   </section>
+  <section id="star" class="star-band" aria-labelledby="star-title">
+    <img class="reveal" src="/assets/cat.webp?v=20260928a" alt="" width="76" height="76">
+    <h2 id="star-title" class="h2 reveal">Saves you a glance? Star it.</h2>
+    <p class="reveal">tabby is free, MIT licensed and built in the open. A star on GitHub is how other Claude Code users find it.</p>
+    <a class="star star-lg reveal" href="https://github.com/0xNtive/tabby"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.2 6.8.8-5 4.6 1.3 6.7L12 17.5l-6 3.3 1.3-6.7-5-4.6 6.8-.8z"/></svg><span>Star tabby on GitHub</span><span class="star-count" data-stars hidden></span></a>
+  </section>
 </main>
 
 <footer class="footer">
@@ -522,6 +528,6 @@
     <small>MIT licensed. Not affiliated with Anthropic.</small>
   </div>
 </footer>
-<script src="/assets/site.js?v=20261002a" defer></script>
+<script src="/assets/site.js?v=20261002b" defer></script>
 </body>
 </html>
