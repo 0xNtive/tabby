@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tabby: every Claude Code tab, at a glance</title>
-<meta name="description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta name="description" content="Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all. Free, local and native to Claude.">
 <meta name="theme-color" content="#0f3a3c">
 <link rel="canonical" href="https://claude-tabby.vercel.app/">
 <meta property="og:site_name" content="tabby">
 <meta property="og:title" content="tabby: every Claude Code tab, at a glance">
-<meta property="og:description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta property="og:description" content="Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all. Free, local and native to Claude.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://claude-tabby.vercel.app/">
 <meta property="og:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260928a">
@@ -18,7 +18,7 @@
 <meta property="og:image:alt" content="The tabby cat logo, the line Every Claude Code tab, at a glance, and a wall of terminal windows with colored tabs.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="tabby: every Claude Code tab, at a glance">
-<meta name="twitter:description" content="Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.">
+<meta name="twitter:description" content="Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all.">
 <meta name="twitter:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260928a">
 <link rel="icon" href="/assets/favicon.svg?v=20260928a" type="image/svg+xml">
 <link rel="icon" href="/assets/favicon-32.png?v=20260928a" sizes="32x32" type="image/png">
@@ -29,9 +29,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;650;700&display=swap">
-<link rel="stylesheet" href="/assets/site.css?v=20260928a">
-<link rel="preload" as="image" href="/assets/hero.webp?v=20260928a" type="image/webp">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"tabby","url":"https://claude-tabby.vercel.app/","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Names, calm colors and live status for every Claude Code session. Free, local and native to Claude.","image":"https://claude-tabby.vercel.app/assets/og.png","license":"https://github.com/0xNtive/tabby/blob/main/LICENSE","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/0xNtive/tabby"]}</script>
+<link rel="stylesheet" href="/assets/site.css?v=20261002a">
+<link rel="preload" as="image" href="/assets/ui/island-collapsed.webp?v=20261002a" type="image/webp">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"tabby","url":"https://claude-tabby.vercel.app/","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","description":"Names, calm colors and live status for every Claude Code session, and a Mac island that shows them all. Free, local and native to Claude.","image":"https://claude-tabby.vercel.app/assets/og.png","license":"https://github.com/0xNtive/tabby/blob/main/LICENSE","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"sameAs":["https://github.com/0xNtive/tabby"]}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -39,9 +39,11 @@
 <header class="nav">
   <a href="#top" class="nav-brand" aria-label="tabby, back to the top"><img src="/assets/logo.svg?v=20260928a" alt="" width="30" height="30"><span>tabby</span></a>
   <nav aria-label="Sections" class="nav-tabs">
-    <a class="nav-tab" href="#anatomy">Tabs</a>
+    <a class="nav-tab" href="#tabs">Tabs</a>
     <a class="nav-tab" href="#island">Island</a>
-    <a class="nav-tab" href="#tile">Tile</a>
+    <a class="nav-tab" href="#focus">Focus</a>
+    <a class="nav-tab" href="#windows">Windows</a>
+    <a class="nav-tab" href="#commands">Commands</a>
     <a class="nav-tab" href="#themes">Themes</a>
     <a class="nav-tab" href="#install" data-keep>Install</a>
   </nav>
@@ -49,17 +51,12 @@
 </header>
 
 <main id="main">
-  <!-- Hero: the wall of terminals starts dormant; tabby's colors follow your cursor. -->
+  <!-- Hero: a live mock of a Mac desktop. A new Claude tab gets named while the island announces the others. -->
   <section id="top" class="hero" aria-labelledby="hero-title">
-    <div class="hero-art" data-mode="spot">
-      <img class="hero-dormant" src="/assets/hero-dormant.webp?v=20260928a" alt="" width="1920" height="1080" fetchpriority="high">
-      <img class="hero-lit" src="/assets/hero.webp?v=20260928a" alt="A tidy wall of terminal windows, each with its own colored tab, with tabby's orange cat sitting on top" width="1920" height="1080" fetchpriority="high">
-      <video class="hero-lit hero-video" muted loop playsinline preload="none" aria-hidden="true" data-src="/assets/hero-loop.mp4?v=20260928a" width="1920" height="1080"></video>
-    </div>
     <div class="hero-copy">
-      <div class="hero-copy-inner">
+      <p class="eyebrow hero-eyebrow">A Claude Code plugin · macOS and Linux</p>
       <h1 id="hero-title" class="hero-title">Every Claude tab, at a&nbsp;glance.</h1>
-      <p class="hero-sub">Names, calm colors and live status for every Claude Code session.</p>
+      <p class="hero-sub">An AI-written name, a calm color and a live status for every Claude Code session. On a Mac, an island that shows them all.</p>
       <div class="hero-ctas">
         <a href="#install" class="readout" aria-label="Install tabby">
           <span class="readout-prompt" aria-hidden="true">&gt;_</span>
@@ -70,83 +67,287 @@
           <svg viewBox="0 0 100 9" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M0 8 H38 Q41 8 42 5 L43.5 2 Q44.5 1 46 1 H62 Q63.5 1 64.5 2 L66 5 Q67 8 70 8 H100"/></svg>
         </a>
       </div>
+    </div>
+
+    <div class="scene" id="hero-scene" aria-label="A Mac desktop: a Terminal window with four Claude Code tabs named and colored by tabby, and Tabby Island at the top of the screen announcing which session needs you" role="img">
+      <div class="screen">
+        <div class="menubar" aria-hidden="true">
+          <span class="mb-apple"></span><span class="mb-app">Terminal</span><span>Shell</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+          <span class="mb-right"><span class="mb-cat"><img src="/assets/logo.svg?v=20260928a" alt=""></span><span>Thu 14:02</span></span>
+        </div>
+        <div class="pill" aria-hidden="true">
+          <img data-state="collapsed" class="is-on" src="/assets/ui/island-collapsed.webp?v=20261002a" alt="" width="866" height="136" decoding="async">
+          <img data-state="waiting" src="/assets/ui/island-announce-waiting.webp?v=20261002a" alt="" width="1562" height="136" loading="lazy" decoding="async">
+          <img data-state="done" src="/assets/ui/island-announce-done.webp?v=20261002a" alt="" width="1514" height="136" loading="lazy" decoding="async">
+        </div>
+        <div class="mac-window" aria-hidden="true">
+          <div class="mac-head"><span class="lights"><i></i><i></i><i></i></span><span class="mac-title">docs</span></div>
+          <div class="mac-tabs">
+            <div class="mtab" data-tab="auth"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+            <div class="mtab" data-tab="web"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+            <div class="mtab" data-tab="billing"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+            <div class="mtab is-active" data-tab="docs"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+          </div>
+          <div class="mac-body">
+            <div class="term">
+              <div class="tline is-on"><span class="t-claude">✻</span> Welcome to Claude Code</div>
+              <div class="tline is-on t-dim">~/Dev/docs · Sonnet 5</div>
+              <div class="tline t-echo"><span class="t-prompt">&gt;</span> <span class="t-echo-text"></span></div>
+              <div class="tline"><span class="t-claude">✻</span> <span class="t-dim">Thinking…</span></div>
+              <div class="tline"><span class="t-bullet">●</span> I'll read the changelog and draft the notes, shortcuts first.</div>
+              <div class="tline t-dim">  Read CHANGELOG.md</div>
+              <div class="tline t-dim">  Wrote docs/release-notes-2.0.md</div>
+              <div class="tline is-on t-box"><span class="t-prompt">&gt;</span> <span class="tprompt-text"></span><span class="t-cursor"></span></div>
+            </div>
+            <div class="term-status"><span class="ts-dot">●</span> <b class="ts-title">Write the 2.0 release notes</b> <span class="ts-glyph mglyph" data-status="busy">◐</span><span class="ts-sep"></span><span class="ts-ctx">3%</span> <span class="t-dim">context</span><span class="ts-sep"></span><span class="t-dim">Sonnet 5 · $0.04 · docs</span></div>
+          </div>
+        </div>
+        <img class="scene-cat" src="/assets/cat.webp?v=20260928a" alt="" width="512" height="512" aria-hidden="true">
       </div>
+    </div>
+    <p class="hero-foot reveal"><span>Terminal.app and iTerm2 get everything. Ghostty, WezTerm, kitty, Alacritty, VS Code and tmux get names, colors and status.</span></p>
+  </section>
+
+  <!-- Tabs: one tab, zoomed in, with the three things tabby adds. -->
+  <section id="tabs" class="section" aria-labelledby="tabs-title">
+    <span id="anatomy" class="anchor-alias"></span>
+    <div class="center reveal">
+      <p class="eyebrow">Tabs</p>
+      <h2 id="tabs-title" class="h2">Know every tab without clicking.</h2>
+      <p class="lede narrow">After your first prompt, Claude Haiku names the session in about two seconds. tabby keeps the title current, so the tab bar tells you what every Claude is doing.</p>
+    </div>
+    <figure class="bigtab reveal" aria-label="A zoomed-in Terminal tab: a purple dot, a working spinner and the name Write the 2.0 release notes">
+      <div class="bigtab-bar">
+        <div class="mtab bigtab-tab is-active" data-tab="big"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span><span class="mtab-x">×</span></div>
+      </div>
+      <figcaption class="callouts">
+        <div class="callout callout-color"><span class="callout-label"><img src="/assets/icons/drop.png?v=20260928a" alt="" width="22" height="22">Color</span><span class="callout-body">A calm color no other open session has, with the background tinted to match.</span></div>
+        <div class="callout callout-name"><span class="callout-label"><img src="/assets/icons/tag.png?v=20260928a" alt="" width="22" height="22">Name</span><span class="callout-body">Written from what you're doing. Rename it any time with <code>/tab</code>.</span></div>
+        <div class="callout callout-status"><span class="callout-label"><img src="/assets/icons/pulse.png?v=20260928a" alt="" width="22" height="22">Status</span><span class="callout-body">Working, your turn, or needs you. Animated, so it reads from across the room.</span></div>
+      </figcaption>
+    </figure>
+    <ul class="status-row reveal" aria-label="The four states a tab can show">
+      <li><span class="mtab mini" style="--accent:#e79e6b"><i class="mdot" style="background:#e79e6b"></i><b class="mglyph" data-status="busy">◐</b><span class="mname">Migrate billing</span></span><span class="status-name">Working</span><span class="status-desc">The spinner turns while Claude works.</span></li>
+      <li><span class="mtab mini" style="--accent:#7fc489"><i class="mdot" style="background:#7fc489"></i><b class="mglyph" data-status="idle">✳</b><span class="mname">Fix flaky test</span></span><span class="status-name">Your turn</span><span class="status-desc">Claude is done and waiting for your next prompt.</span></li>
+      <li><span class="mtab mini" style="--accent:#77b7f4"><i class="mdot" style="background:#77b7f4"></i><b class="mglyph" data-status="waiting">🔔</b><span class="mname">Refactor auth</span></span><span class="status-name">Needs you</span><span class="status-desc">A permission or a question. The bell blinks until you answer.</span></li>
+      <li><span class="mtab mini" style="--accent:#48c7c3"><i class="mdot" style="background:#48c7c3"></i><b class="mglyph" data-status="error">⚠</b><span class="mname">Benchmark tokenizer</span></span><span class="status-name">Error</span><span class="status-desc">Claude stopped on an error. Worth a look.</span></li>
+    </ul>
+    <div class="statusline-note reveal">
+      <div class="term-status is-on standalone"><span class="ts-dot" style="color:#e79e6b">●</span> <b class="ts-title">Migrate billing to Stripe v3</b> <span class="ts-glyph mglyph" data-status="busy">◐</span><span class="ts-sep"></span><span class="ts-ctx" style="color:#e79e6b">45%</span> <span class="t-dim">context</span><span class="ts-sep"></span><span class="t-dim">Opus 5.5 · $3.20 · billing</span></div>
+      <p>Inside Claude too: the status line shows the name, the color and how much context is used, in every terminal.</p>
     </div>
   </section>
 
-  <!-- One tab, annotated. Callout anchors are measured from tab-macro.webp. -->
-  <section id="anatomy" class="section" aria-labelledby="anatomy-title">
-    <div class="center">
-      <h2 id="anatomy-title" class="h2">Know every tab without clicking.</h2>
-      <p class="lede narrow">tabby writes each session's title for you and keeps it current, so the tab bar tells you what every Claude is doing.</p>
+  <!-- Island: real renders of Tabby Island (its snapshot mode, demo sessions). -->
+  <section id="island" class="section island" aria-labelledby="island-title">
+    <div class="center reveal">
+      <p class="eyebrow">macOS · Tabby Island</p>
+      <h2 id="island-title" class="h2">All your sessions, one glance up.</h2>
+      <p class="lede narrow">Tabby Island sits at the top of your screen, under the notch. Collapsed, it is one dot per session. It speaks up when a session finishes or needs you.</p>
     </div>
-    <figure class="tabmacro">
-      <img src="/assets/tab-macro.webp?v=20260928a" alt="A close-up of one terminal tab with a blue color dot and an orange working spinner" width="2400" height="520" loading="lazy">
-      <span class="tabmacro-title" aria-hidden="true">Stripe Webhook Retries</span>
-      <svg class="tabmacro-lines" viewBox="0 0 1000 216.67" preserveAspectRatio="none" aria-hidden="true">
-        <line x1="150" y1="104" x2="177" y2="150"/><circle cx="177" cy="150" r="2.4"/>
-        <line x1="470" y1="104" x2="470" y2="145"/><circle cx="470" cy="145" r="2.4"/>
-        <line x1="790" y1="104" x2="778" y2="150"/><circle cx="778" cy="150" r="2.4"/>
-      </svg>
-      <figcaption class="callout" style="left:4%"><span class="callout-label"><img src="/assets/icons/drop.png?v=20260928a" alt="" width="22" height="22">Color</span><span class="callout-body">A calm color no other open session has.</span></figcaption>
-      <figcaption class="callout" style="left:36.5%"><span class="callout-label"><img src="/assets/icons/tag.png?v=20260928a" alt="" width="22" height="22">Name</span><span class="callout-body">Written from what you're doing. Rename it any time.</span></figcaption>
-      <figcaption class="callout" style="left:70%"><span class="callout-label"><img src="/assets/icons/pulse.png?v=20260928a" alt="" width="22" height="22">Status</span><span class="callout-body">Working, your turn, or needs you.</span></figcaption>
-    </figure>
-    <ul class="callout-list">
-      <li><img src="/assets/icons/drop.png?v=20260928a" alt="" width="36" height="36"><span><b>Color</b>A calm color no other open session has.</span></li>
-      <li><img src="/assets/icons/tag.png?v=20260928a" alt="" width="36" height="36"><span><b>Name</b>Written from what you're doing. Rename it any time.</span></li>
-      <li><img src="/assets/icons/pulse.png?v=20260928a" alt="" width="36" height="36"><span><b>Status</b>Working, your turn, or needs you.</span></li>
+    <div class="pillrow reveal" aria-label="The collapsed island: five session dots, then an announcement that Refactor auth middleware needs you, then that Fix flaky checkout e2e test is done" role="img">
+      <div class="pill pill-big">
+        <img data-state="collapsed" class="is-on" src="/assets/ui/island-collapsed.webp?v=20261002a" alt="" width="866" height="136" loading="lazy" decoding="async">
+        <img data-state="waiting" src="/assets/ui/island-announce-waiting.webp?v=20261002a" alt="" width="1562" height="136" loading="lazy" decoding="async">
+        <img data-state="done" src="/assets/ui/island-announce-done.webp?v=20261002a" alt="" width="1514" height="136" loading="lazy" decoding="async">
+      </div>
+    </div>
+
+    <div class="island-grid">
+      <div class="modes reveal">
+        <div class="segmented" role="tablist" aria-label="Island detail level">
+          <button type="button" role="tab" class="seg" data-mode="minimal" aria-selected="false">Minimal</button>
+          <button type="button" role="tab" class="seg is-on" data-mode="standard" aria-selected="true">Standard</button>
+          <button type="button" role="tab" class="seg" data-mode="detailed" aria-selected="false">Detailed</button>
+        </div>
+        <div class="mode-frame">
+          <img data-mode="minimal" src="/assets/ui/island-minimal.webp?v=20261002a" alt="Tabby Island in Minimal mode: one line per session with its dot, name, status and context used" width="976" height="586" loading="lazy" decoding="async">
+          <img data-mode="standard" class="is-on" src="/assets/ui/island-standard.webp?v=20261002a" alt="Tabby Island in Standard mode: five sessions with a status chip (needs you, error, working with a progress estimate, your turn) and the context used" width="1104" height="882" loading="lazy" decoding="async">
+          <img data-mode="detailed" src="/assets/ui/island-detailed.webp?v=20261002a" alt="Tabby Island in Detailed mode: every session with its summary, current task, last prompt, tokens and cost" width="1168" height="1360" loading="lazy" decoding="async">
+        </div>
+        <p class="mode-caption" data-for="minimal">One line per session: dot, name, status, context. <kbd class="kbd">⌃⌥M</kbd> switches.</p>
+        <p class="mode-caption is-on" data-for="standard">Status chips, how far along a working session is, and the context it has used.</p>
+        <p class="mode-caption" data-for="detailed">Everything, always: summary, current task, your last prompt, tokens and cost.</p>
+      </div>
+      <div class="island-copy reveal">
+        <h3 class="h3">Open it with a hover, or <kbd class="kbd">⌃⌥Space</kbd>.</h3>
+        <p class="lede">Every session's name and status, how far along it is, and how much context it has used. A working session shows "2 of 5 tasks · ~3m left" from Claude's task list, or "~2m left · usually 6m" from how long its turns take. Click a row to jump to its tab.</p>
+        <dl class="shortcuts">
+          <div><dt><kbd class="kbd">⌃⌥Space</kbd></dt><dd>open the island from the keyboard</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥N</kbd></dt><dd>jump to the session that needs you</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥1–9</kbd></dt><dd>jump to a session</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥L</kbd></dt><dd>start a session in a recent folder</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥G</kbd></dt><dd>tile your windows</dd></div>
+          <div><dt><kbd class="kbd">⌃⌥M</kbd></dt><dd>switch the detail level</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <ul class="cards cards-island">
+      <li class="card reveal" style="--i:0">
+        <div class="card-shot shot-dropdown"><img src="/assets/ui/island-dropdown.webp?v=20261002a" alt="A session's dropdown: Needs your permission to continue, click the row to answer in its terminal, the summary, what you asked, tokens and cost, and Open Tab and End Session buttons" width="1104" height="1294" loading="lazy" decoding="async"></div>
+        <h3>Rest on a session for the full picture.</h3>
+        <p>What it needs and what to do about it, its summary, your last prompt, tokens, cost, folder and terminal. <b>Open Tab</b> jumps there.</p>
+      </li>
+      <li class="card reveal" style="--i:1">
+        <div class="card-shot shot-end"><img src="/assets/ui/island-end.webp?v=20261002a" alt="End Migrate billing to Stripe v3? Claude stops, even mid-task, and its Terminal tab closes. Cancel or End Session." width="1104" height="1108" loading="lazy" decoding="async"></div>
+        <h3>End a session, with a safety catch.</h3>
+        <p>It asks first. The conversation stays in history, so <code>claude --resume</code> brings it back.</p>
+      </li>
+      <li class="card reveal" style="--i:2">
+        <div class="card-shot shot-rename"><img src="/assets/ui/island-rename.webp?v=20261002a" alt="Renaming a session in place inside the island, with a hint: leave it empty to let AI name it" width="1104" height="942" loading="lazy" decoding="async"></div>
+        <h3>Rename, recolor, re-theme in place.</h3>
+        <p>Right-click a row, or press <kbd class="kbd">R</kbd>, <kbd class="kbd">C</kbd> or <kbd class="kbd">T</kbd> with the keyboard open.</p>
+      </li>
+      <li class="card reveal" style="--i:3">
+        <div class="card-shot shot-keyboard"><img src="/assets/ui/island-keyboard.webp?v=20261002a" alt="The island open with keyboard focus, showing its key hints: arrows to select, return to open, R rename, C color, T theme, M mode, G tile" width="976" height="646" loading="lazy" decoding="async"></div>
+        <h3>Keyboard first.</h3>
+        <p><kbd class="kbd">⌃⌥Space</kbd>, then arrows and <kbd class="kbd">↩</kbd>. Every global shortcut can be changed.</p>
+      </li>
+      <li class="card reveal" style="--i:4">
+        <div class="card-shot shot-update"><img src="/assets/ui/island-update.webp?v=20261002a" alt="The island's top bar with an orange Update button next to the mode picker" width="1104" height="882" loading="lazy" decoding="async"></div>
+        <h3>Updates in one click.</h3>
+        <p>When a new version is out, the island shows a button. Or <code>/tab update</code> in Claude. It updates the plugin and the island together.</p>
+      </li>
+      <li class="card card-text reveal" style="--i:5">
+        <h3>Under 1% CPU, always.</h3>
+        <p>SwiftUI for layout, Core Animation for anything that loops, nothing polled. Tabby Island idles like a menu-bar clock.</p>
+        <p class="card-foot">No servers, no telemetry, no accounts.</p>
+      </li>
     </ul>
   </section>
 
-  <!-- Real renders of Tabby Island (its snapshot mode, demo sessions). -->
-  <section id="island" class="section" aria-labelledby="island-title">
-    <div class="island-grid">
-      <div class="island-copy">
-        <p class="eyebrow">macOS</p>
-        <h2 id="island-title" class="h2">All your sessions, one glance up.</h2>
-        <p class="lede">Tabby Island sits at the top of your screen. Hover for every session's name, status and context, rest on one to see what it needs, then click to jump to its tab. Turn on Focus mode and the windows you're not in show only their topic and what's running, until Claude needs you.</p>
-        <dl class="shortcuts">
-          <div><dt><kbd class="kbd">⌃⌥Space</kbd></dt><dd>open it from the keyboard</dd></div>
-          <div><dt><kbd class="kbd">⌃⌥N</kbd></dt><dd>jump to the session that needs you</dd></div>
-          <div><dt><kbd class="kbd">⌃⌥L</kbd></dt><dd>start a session in a recent folder</dd></div>
-          <div><dt><kbd class="kbd">⌃⌥G</kbd></dt><dd>tile your windows</dd></div>
-          <div><dt><kbd class="kbd">⌃⌥M</kbd></dt><dd>switch between three levels of detail</dd></div>
-          <div><dt><kbd class="kbd">⌃⌥W</kbd></dt><dd>show or hide the watermark</dd></div>
-        </dl>
-      </div>
-      <div class="island-stack">
-        <img class="island-detailed" src="/assets/island-detailed.webp?v=20260927a" alt="Tabby Island in its detailed mode: each session with its status, progress estimate and current task, context used and cost, summary and last prompt" width="1168" height="1360" loading="lazy">
-        <img class="island-standard" src="/assets/island-standard.webp?v=20260927a" alt="Tabby Island expanded: five sessions, each saying whether it is working, waiting for you or done, with progress estimates and the context used" width="1104" height="882" loading="lazy">
-        <img class="island-waiting" src="/assets/island-waiting.webp?v=20260927a" alt="The collapsed island announcing: Refactor auth middleware needs you" width="1562" height="136" loading="lazy">
-      </div>
+  <!-- Focus mode and the watermark: real renders of the cover over mock Terminal windows. -->
+  <section id="focus" class="section focus" aria-labelledby="focus-title">
+    <div class="focus-head reveal">
+      <p class="eyebrow">Focus mode</p>
+      <h2 id="focus-title" class="h2">Five windows, one voice.</h2>
+      <p class="lede">With several sessions running, their scrolling output competes for your eyes. Turn on Focus mode, and while Claude works, every Terminal window you're not in shows only its topic and what's running: one line per agent, with a spinner and how long it has been at it. The window opens again the moment Claude needs you.</p>
+      <p class="cmdline"><code>/tab focus-mode on</code><span class="sep">·</span>Settings › Focus<span class="sep">·</span>the menu-bar cat</p>
+    </div>
+    <div class="focus-grid">
+      <figure class="focus-demo reveal" id="focus-demo">
+        <div class="mac-window focus-term" aria-hidden="true">
+          <div class="mac-head"><span class="lights"><i></i><i></i><i></i></span><span class="mac-title">Migrate billing to Stripe v3</span></div>
+          <div class="mac-body">
+            <div class="term">
+              <div class="tline"><span class="t-bullet">●</span> Porting the invoice webhooks to v3.</div>
+              <div class="tline t-dim">  Read src/webhooks/invoice.ts</div>
+              <div class="tline t-dim">  Edit src/webhooks/invoice.ts (+41 −18)</div>
+              <div class="tline"><span class="t-bullet">●</span> Running the handler tests…</div>
+              <div class="tline t-dim">  Bash npm test -- webhooks</div>
+              <div class="tline t-dim">  14 of 22 handlers pass, 8 to go.</div>
+              <div class="tline"><span class="t-bullet">●</span> Next: the refund handler.</div>
+              <div class="tline t-dim">  Read src/webhooks/refund.ts</div>
+              <div class="tline t-dim">  Edit src/webhooks/refund.ts (+27 −9)</div>
+              <div class="tline"><span class="t-bullet">●</span> Writing the migration tests.</div>
+            </div>
+          </div>
+        </div>
+        <img class="focus-cover" src="/assets/ui/focus-dark.webp?v=20261002a" alt="Focus mode: a Terminal window showing only its topic, Migrate billing to Stripe v3, in a large box, with four one-line agents and their spinners below" width="1520" height="920" loading="lazy" decoding="async">
+        <figcaption>While Claude works, the window shows its topic and its agents. Click it to open.</figcaption>
+      </figure>
+      <figure class="focus-light reveal" style="--i:1">
+        <img src="/assets/ui/focus-light.webp?v=20261002a" alt="Focus mode on a light theme: the topic box and the agent lines on a warm off-white window" width="1520" height="920" loading="lazy" decoding="async">
+        <figcaption>It follows the session's theme, light or dark.</figcaption>
+      </figure>
+      <figure class="focus-wm reveal" style="--i:2">
+        <img src="/assets/ui/watermark.webp?v=20261002a" alt="The watermark: the topic Migrate billing to Stripe v3 in large, faint orange letters behind a Terminal window's text" width="1520" height="920" loading="lazy" decoding="async">
+        <figcaption>Or just a watermark: the topic in large, faint letters in the session's color. Clicks and typing go straight through. <kbd class="kbd">⌃⌥W</kbd></figcaption>
+      </figure>
     </div>
   </section>
 
-  <!-- tabby tile: the numerals pick a count; the diagram is tabby's real grid for it. -->
-  <section id="tile" class="section tile" aria-labelledby="tile-title">
-    <h2 id="tile-title" class="h2">Fill the screen in one key.</h2>
-    <div class="numerals" role="radiogroup" aria-label="Number of windows">
+  <!-- Windows: tiling (the numerals pick a count; the windows fly into tabby's real grid), screens, the tile picker and quick launch. -->
+  <section id="windows" class="section tile" aria-labelledby="windows-title">
+    <span id="tile" class="anchor-alias"></span>
+    <div class="center reveal">
+      <p class="eyebrow">Windows</p>
+      <h2 id="windows-title" class="h2">Fill the screen in one key.</h2>
+      <p class="lede narrow"><kbd class="kbd">⌃⌥G</kbd> turns tabs into windows and tiles them. Pick how many.</p>
+    </div>
+    <div class="numerals reveal" role="radiogroup" aria-label="Number of windows">
       <button type="button" class="numeral" role="radio" aria-checked="false" data-n="2" aria-label="2 windows">2</button>
       <button type="button" class="numeral" role="radio" aria-checked="false" data-n="3" aria-label="3 windows">3</button>
       <button type="button" class="numeral" role="radio" aria-checked="true" data-n="4" aria-label="4 windows">4</button>
       <button type="button" class="numeral" role="radio" aria-checked="false" data-n="6" aria-label="6 windows">6</button>
       <button type="button" class="numeral" role="radio" aria-checked="false" data-n="8" aria-label="8 windows">8</button>
     </div>
-    <div class="tile-detail">
-      <svg class="grid-diagram" viewBox="0 0 160 100" role="img" aria-label="4 windows in a 2 by 2 grid">
-        <rect x="0.75" y="0.75" width="158.5" height="98.5" rx="7" fill="none" stroke="rgb(238 246 242 / 0.35)" stroke-width="1.5"/>
-        <g class="grid-cells"><rect x="4" y="4" width="74" height="44" rx="3.5" fill="#f4913e"/><rect x="82" y="4" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="4" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/><rect x="82" y="52" width="74" height="44" rx="3.5" fill="rgb(238 246 242 / 0.14)" stroke="rgb(238 246 242 / 0.6)"/></g>
-      </svg>
+    <div class="tile-stage reveal" id="tile-stage">
+      <div class="tile-screen" role="img" aria-label="A screen with session windows tiled in a grid">
+        <div class="twin" style="--c:#77b7f4"><span class="twin-head"><i></i>Refactor auth middleware</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#e79e6b"><span class="twin-head"><i></i>Migrate billing to Stripe v3</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#bea0eb"><span class="twin-head"><i></i>Write the 2.0 release notes</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#7fc489"><span class="twin-head"><i></i>Fix flaky checkout e2e test</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#48c7c3"><span class="twin-head"><i></i>Benchmark the tokenizer</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#e394c1"><span class="twin-head"><i></i>Design tokens</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#c7b05a"><span class="twin-head"><i></i>Onboarding emails</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+        <div class="twin" style="--c:#ef9491"><span class="twin-head"><i></i>Rate limiter</span><span class="twin-body"><b></b><b></b><b></b></span></div>
+      </div>
       <code class="tile-cmd"><img src="/assets/icons/grid.png?v=20260928a" alt="" width="28" height="28"><span>tabby tile <span class="tile-n">4</span></span></code>
-      <p class="tile-note">Tabs become windows, full-screen windows come back, and every session gets its own cell, on the screens you pick: keep your main screen free if you like. Tile them all, only the active ones, or the ones you choose.</p>
-      <p class="tile-jump"><img src="/assets/icons/bell.png?v=20260928a" alt="" width="28" height="28"><span><kbd class="kbd">⌃⌥N</kbd> jumps to the one that needs you.</span></p>
     </div>
+    <p class="tile-note reveal">Full-screen windows come back, every session gets its own cell, and a portrait screen stacks them in rows. Tile them all, only the active ones, or the ones you choose. <kbd class="kbd">⌃⌥N</kbd> jumps to the one that needs you.</p>
+
+    <ul class="cards cards-windows">
+      <li class="card reveal" style="--i:0">
+        <div class="card-shot shot-screens"><img src="/assets/ui/screens.webp?v=20261002a" alt="Settings › Windows: a map of three displays, with only the vertical Dell monitor picked for Claude sessions" width="1200" height="720" loading="lazy" decoding="async"></div>
+        <h3>Keep your main screen free.</h3>
+        <p>Choose which screens get sessions: the one you're on, all of them, or the ones you pick. Tick only your vertical monitor, and your main screen stays yours.</p>
+      </li>
+      <li class="card reveal" style="--i:1">
+        <div class="card-shot shot-picker"><img src="/assets/ui/tile-picker.webp?v=20261002a" alt="Tile which sessions? A list with checkboxes, Active 2, All 4 and None buttons, and a Tile 2 Sessions button" width="840" height="796" loading="lazy" decoding="async"></div>
+        <h3>Or pick the sessions.</h3>
+        <p>Active ones, all of them, or checkboxes. <code>tabby tile --active</code> does the same from a terminal.</p>
+      </li>
+      <li class="card reveal" style="--i:2">
+        <div class="card-shot shot-launch"><img src="/assets/ui/quick-launch.webp?v=20261005a" alt="Quick launch: folders matching wild with how many sessions run in each, a name field with Billing bug, Skip permissions ticked with its warning, and a Start button" width="1240" height="940" loading="lazy" decoding="async"></div>
+        <h3>A new session in two keystrokes.</h3>
+        <p><kbd class="kbd">⌃⌥L</kbd> lists your recent and most-used folders. Type to filter, name it if you like, press <kbd class="kbd">↩</kbd>. It opens on the screen you chose.</p>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Commands: a live mock of /tab. Pick a command on the left; the tabs on the right react. -->
+  <section id="commands" class="section commands" aria-labelledby="commands-title">
+    <div class="center reveal">
+      <p class="eyebrow">/tab</p>
+      <h2 id="commands-title" class="h2">One line of control.</h2>
+      <p class="lede narrow"><code>/tab</code> is answered by a hook, so it's instant and never costs tokens. The same words work as <code>tabby</code> in a terminal, and as flags when you launch Claude.</p>
+    </div>
+    <div class="cmd-grid reveal">
+      <ol class="cmd-list" aria-label="Commands">
+        <li><button type="button" class="cmd-item is-on" data-step="0"><code>/tab Auth refactor</code><span>rename this tab</span></button></li>
+        <li><button type="button" class="cmd-item" data-step="1"><code>/tab color teal</code><span>a new color and tint</span></button></li>
+        <li><button type="button" class="cmd-item" data-step="2"><code>/tab theme nord all</code><span>re-theme every tab</span></button></li>
+        <li><button type="button" class="cmd-item" data-step="3"><code>/tab auto</code><span>back to AI names</span></button></li>
+        <li><button type="button" class="cmd-item" data-step="4"><code>/tab ls</code><span>every session, one line each</span></button></li>
+        <li><button type="button" class="cmd-item" data-step="5"><code>claude --tab "API docs" --color blue --theme ember</code><span>at launch</span></button></li>
+      </ol>
+      <div class="mac-window cmd-window" id="cmd-window" aria-hidden="true">
+        <div class="mac-head"><span class="lights"><i></i><i></i><i></i></span><span class="mac-title">Write the 2.0 release notes</span></div>
+        <div class="mac-tabs">
+          <div class="mtab" data-tab="auth"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+          <div class="mtab is-active" data-tab="docs"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+          <div class="mtab" data-tab="web"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+          <div class="mtab mtab-extra" data-tab="api"><i class="mdot"></i><b class="mglyph"></b><span class="mname"></span></div>
+        </div>
+        <div class="mac-body">
+          <div class="term">
+            <div class="tline t-echo"><span class="t-prompt cmd-echo-mark">&gt;</span> <span class="cmd-echo"></span></div>
+            <pre class="tline cmd-out"></pre>
+            <div class="tline is-on t-box"><span class="t-prompt">&gt;</span> <span class="cmd-typed"></span><span class="t-cursor"></span></div>
+          </div>
+          <div class="term-status is-on"><span class="ts-dot">●</span> <b class="ts-title"></b> <span class="ts-glyph mglyph" data-status="busy">◐</span><span class="ts-sep"></span><span class="ts-ctx">45%</span> <span class="t-dim">context</span><span class="ts-sep"></span><span class="t-dim ts-tail">Sonnet 5 · $5.08 · docs</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="cmd-more reveal"><span>/tab note waiting on design</span><span>/tab tile active</span><span>/tab focus-mode on</span><span>/tab watermark off</span><span>/tab next</span><span>/tab update</span><span>/tab off</span><span>tabby doctor</span></p>
   </section>
 
   <!-- A sample of the themes, from lib/themes.js (npm run export rewrites this block). -->
   <section id="themes" class="themes" aria-labelledby="themes-title">
-    <div class="themes-head">
+    <div class="themes-head reveal">
+      <p class="eyebrow">Themes</p>
       <h2 id="themes-title" class="h2"><!-- themes:total -->57<!-- /themes:total --> calm themes, contrast-checked.</h2>
       <p class="lede">Text reads at WCAG AA or better in every theme, and <!-- themes:aaa -->46<!-- /themes:aaa --> of them reach AAA. A session's tint never makes it harder to read. <a href="https://github.com/0xNtive/tabby/blob/main/docs/contrast.md">Read the audit</a></p>
     </div>
@@ -226,46 +427,79 @@
       </div></li>
 <!-- /themes:chips -->
     </ul>
-    <p class="themes-cmds"><span>/tab theme nord<span class="sep">·</span>one tab</span><span>/tab theme nord all<span class="sep">·</span>every tab</span></p>
+    <p class="themes-cmds"><span>/tab theme nord<span class="sep">·</span>one tab</span><span>/tab theme nord all<span class="sep">·</span>every tab</span><span>tabby themes<span class="sep">·</span>preview all 57</span></p>
+  </section>
+
+  <!-- Settings: every pane, real renders. -->
+  <section id="settings" class="section settings" aria-labelledby="settings-title">
+    <div class="center reveal">
+      <p class="eyebrow">Settings</p>
+      <h2 id="settings-title" class="h2">Every knob, one window.</h2>
+      <p class="lede narrow">The island's cog, the menu-bar cat, or <kbd class="kbd">⌃⌥,</kbd>. Tab names, tint, markers, the watermark, Focus mode, screens, shortcuts and permissions.</p>
+    </div>
+    <div class="settings-demo reveal">
+      <div class="segmented" role="tablist" aria-label="Settings panes">
+        <button type="button" role="tab" class="seg is-on" data-pane="general" aria-selected="true">General</button>
+        <button type="button" role="tab" class="seg" data-pane="watermark" aria-selected="false">Watermark</button>
+        <button type="button" role="tab" class="seg" data-pane="focus" aria-selected="false">Focus</button>
+        <button type="button" role="tab" class="seg" data-pane="windows" aria-selected="false">Windows</button>
+        <button type="button" role="tab" class="seg" data-pane="shortcuts" aria-selected="false">Shortcuts</button>
+        <button type="button" role="tab" class="seg" data-pane="permissions" aria-selected="false">Permissions</button>
+      </div>
+      <div class="settings-frame">
+        <img data-pane="general" class="is-on" src="/assets/ui/settings-general.webp?v=20261002a" alt="Settings › General: show the island, detail level, announcements, open at login, updates, and the theme, tint and marker for tabs" width="1200" height="1149" loading="lazy" decoding="async">
+        <img data-pane="watermark" src="/assets/ui/settings-watermark.webp?v=20261002a" alt="Settings › Watermark: a preview, then strength, size, color and position" width="1200" height="1149" loading="lazy" decoding="async">
+        <img data-pane="focus" src="/assets/ui/settings-focus.webp?v=20261002a" alt="Settings › Focus: Focus mode with a preview, and when a window opens again" width="1200" height="1149" loading="lazy" decoding="async">
+        <img data-pane="windows" src="/assets/ui/settings-windows.webp?v=20261002a" alt="Settings › Windows: which screens get sessions, how tiling picks sessions, and quick launch" width="1200" height="1149" loading="lazy" decoding="async">
+        <img data-pane="shortcuts" src="/assets/ui/settings-shortcuts.webp?v=20261002a" alt="Settings › Shortcuts: every global shortcut, each one changeable, and the keys that work inside the island" width="1200" height="1149" loading="lazy" decoding="async">
+        <img data-pane="permissions" src="/assets/ui/settings-permissions.webp?v=20261002a" alt="Settings › Permissions: Accessibility allowed, Control Terminal, Control iTerm2 and Control System Events checked live, with Allow buttons" width="1200" height="1149" loading="lazy" decoding="async">
+      </div>
+    </div>
   </section>
 
   <section id="install" class="section install" aria-labelledby="install-title">
     <div class="install-inner">
-      <h2 id="install-title" class="h2 install-title">Let Claude install it.</h2>
-      <p class="install-note"><img src="/assets/icons/lock.png?v=20260928a" alt="" width="28" height="28"><span>Paste this into Claude Code. Claude shows you the terms, installs tabby, and walks you through the Mac permissions. <code>tabby uninstall</code> undoes everything it changes.</span></p>
-      <div class="cmd-frame">
+      <h2 id="install-title" class="h2 install-title reveal">Let Claude install it.</h2>
+      <p class="install-note reveal"><img src="/assets/icons/lock.png?v=20260928a" alt="" width="28" height="28"><span>Paste this into Claude Code. Claude shows you the terms, installs tabby, and walks you through the Mac permissions. <code>tabby uninstall</code> undoes everything it changes.</span></p>
+      <div class="cmd-frame reveal">
         <img class="cmd-cat" src="/assets/cat.webp?v=20260928a" alt="" width="64" height="64">
         <div class="cmd-box cmd-box--prompt">
           <code id="install-cmd"><span class="cmd-prompt">&gt;</span>Install tabby for me: run <span class="cmd-hl">curl -fsSL https://claude-tabby.vercel.app/install.md</span> and follow&nbsp;it.</code>
           <button type="button" class="stamp" data-copy="Install tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it."><span aria-live="polite">Copy</span></button>
         </div>
       </div>
-      <div class="install-alt">
-        <div>
-          <p class="install-alt-title">Or in a terminal</p>
-          <pre class="wrap">curl -fsSL https://claude-tabby.vercel.app/install | bash</pre>
-        </div>
-        <div>
-          <p class="install-alt-title">Or with Claude Code&rsquo;s /plugin</p>
-          <pre>/plugin marketplace add 0xNtive/tabby
+      <div class="install-grid">
+        <div class="install-alt reveal">
+          <div>
+            <p class="install-alt-title">Or in a terminal</p>
+            <pre class="wrap">curl -fsSL https://claude-tabby.vercel.app/install | bash</pre>
+          </div>
+          <div>
+            <p class="install-alt-title">Or with Claude Code&rsquo;s /plugin</p>
+            <pre>/plugin marketplace add 0xNtive/tabby
 /plugin install tabby@tabby
 /tabby:setup</pre>
+          </div>
+          <p class="install-alt-note">Needs Claude Code on macOS or Linux; Node.js is set up for you if it&rsquo;s missing. About 15 seconds. Something off? Ask Claude to &ldquo;fix tabby&rdquo;.</p>
         </div>
+        <figure class="install-setup reveal" style="--i:1">
+          <img src="/assets/ui/setup-permissions.webp?v=20261002a" alt="Tabby Island's setup window, A few permissions: Accessibility allowed, Control Terminal waiting for the macOS dialog, Control System Events with an Allow button, and Open at login" width="1440" height="1120" loading="lazy" decoding="async">
+          <figcaption>On a Mac, Tabby Island arrives ready to run, no Xcode, and asks only for the permissions your terminal needs. Each one is checked live.</figcaption>
+        </figure>
       </div>
-      <p class="install-alt-note">Needs Claude Code on macOS or Linux; Node.js is set up for you if it&rsquo;s missing. On a Mac, Tabby Island arrives ready to run (no Xcode) and asks only for the permissions your terminal needs. Something off? Ask Claude to &ldquo;fix tabby&rdquo;.</p>
     </div>
   </section>
 
   <section id="questions" class="section" aria-labelledby="questions-title">
     <div class="q-grid">
       <div class="q-rail"><span>Free. Local. MIT.</span></div>
-      <div>
+      <div class="reveal">
         <h2 id="questions-title" class="h2">Questions, answered.</h2>
         <div class="qa-list">
           <details class="qa" open><summary>Does it cost anything?<span class="qa-toggle" aria-hidden="true"></span></summary><p>No. tabby is free and MIT licensed. Tab names come from Claude Haiku through your own Claude Code login, about 500 tokens each, which Pro and Max cover.</p></details>
           <details class="qa"><summary>What leaves my machine?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Only the naming request, sent through your own Claude login, and a check with github.com for a newer release every few hours, which sends nothing about you (you can turn it off). No servers, no telemetry, no accounts. Everything else lives in ~/.claude/tabby.</p></details>
           <details class="qa"><summary>How do I update?<span class="qa-toggle" aria-hidden="true"></span></summary><p>When a new version is out, the island shows an Update button. Or type /tab update in Claude, or run tabby update in a terminal. It updates the plugin and the island together.</p></details>
-          <details class="qa"><summary>Which terminals work?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Terminal.app and iTerm2 get everything, including the island and tiling. Ghostty, WezTerm, kitty, Alacritty, VS Code and tmux get names, colors and live status.</p></details>
+          <details class="qa"><summary>Which terminals work?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Terminal.app and iTerm2 get everything, including the island, Focus mode and tiling. Ghostty, WezTerm, kitty, Alacritty, VS Code and tmux get names, colors and live status.</p></details>
           <details class="qa"><summary>Why does tiling ask for Accessibility?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Moving a tab into its own window and bringing a full-screen window back use macOS window controls. tabby asks once, for Tabby Island, and never records your screen.</p></details>
           <details class="qa"><summary>Something isn't working?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Ask Claude to “fix tabby”: it runs tabby doctor, which checks every part of the install, and fixes what it finds. Running the installer again is safe too.</p></details>
           <details class="qa"><summary>How do I turn it off?<span class="qa-toggle" aria-hidden="true"></span></summary><p>Type /tab off for one tab, or run tabby uninstall to revert every change. Your Claude settings file is backed up first.</p></details>
@@ -288,6 +522,6 @@
     <small>MIT licensed. Not affiliated with Anthropic.</small>
   </div>
 </footer>
-<script src="/assets/site.js?v=20260928a" defer></script>
+<script src="/assets/site.js?v=20261002a" defer></script>
 </body>
 </html>
