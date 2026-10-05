@@ -6,7 +6,7 @@ import tty from 'node:tty';
 import { spawnSync } from 'node:child_process';
 import {
   readConfig, writeConfig, readSession, patchSession, listSessions, liveSessions,
-  readRegistry, isAlive, projectName, ensureDirs, log, rememberProjectColor,
+  readRegistry, isAlive, projectName, ensureDirs, log, rememberProjectColor, plain,
 } from '../lib/state.js';
 import { THEMES, getTheme, themesExport } from '../lib/themes.js';
 import { detectTerminal, ownTty, ttyOfPid, focusTab, terminalTitles } from '../lib/term.js';
@@ -170,13 +170,13 @@ function printLs() {
   for (const [i, s] of rows.entries()) {
     const accent = s.accent || '#8b949e';
     const glyph = cfg.status[s.status] || ' ';
-    const title = s.title || s.claudeName || s.project;
+    const title = plain(s.title || s.claudeName || s.project);
     const swatch = s.bg ? c(ansiBg(s.bg) + ansiFg(accent), ' ● ') : c(ansiFg(accent), ' ● ');
     const status = s.status === 'waiting' ? c(ansiFg('#e5c07b'), pad(words.waiting, 10)) : c(DIM, pad(words[s.status] || s.status || '', 10));
     // The number is what tabby focus <n> and tabby tile --only <n,…> use.
-    const line = `${c(DIM, String(i + 1).padStart(2))} ${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(s.project, 12))} ${contextUsed(s.context?.usedPct)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
+    const line = `${c(DIM, String(i + 1).padStart(2))} ${swatch} ${pad(glyph, 2)} ${c(BOLD, pad(title, 28))} ${c(DIM, pad(plain(s.project), 12))} ${contextUsed(s.context?.usedPct)}  ${status} ${c(DIM, pad(ago(s.statusAt || s.startedAt || Date.now()), 4))}`;
     console.log(line);
-    const about = s.note || s.summary || (s.prompts || []).at(-1);
+    const about = plain(s.note || s.summary || (s.prompts || []).at(-1));
     if (about) console.log(`         ${c(DIM, pad(about, 96))}`);
     if (!s.tracked) console.log(`         ${c(DIM, 'not tracked yet — restart this session (or run: tabby adopt)')}`);
   }
@@ -205,7 +205,7 @@ function adopt() {
     if (only && !`${r.cwd} ${r.name} ${r.pid} ${titles.get(ttyOfPid(r.pid)) || ''}`.toLowerCase().includes(only)) continue;
     const rec = adoptOne(r, titles);
     if (!rec) continue;
-    console.log(`  ${markerFor(rec.accent, 'circle')} ${pad(rec.title || rec.project, 34)} ${rec.accentKey} · ${getTheme(rec.theme).name}  (${rec.tty})`);
+    console.log(`  ${markerFor(rec.accent, 'circle')} ${pad(plain(rec.title || rec.project), 34)} ${rec.accentKey} · ${getTheme(rec.theme).name}  (${rec.tty})`);
     n++;
   }
   console.log(n ? `Adopted ${n} running session${n === 1 ? '' : 's'} (colors now; AI names, status and /tab after a restart — claude --continue keeps the conversation).` : 'Nothing to adopt — every running session is already tracked.');
@@ -310,6 +310,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
                               (install: the ready-made download; build: compile it here)
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby focus-mode on|off     while Claude works, other Terminal windows show only their topic
+  tabby focus-mode idle on|off   …and stay covered when it's your turn, with a Your turn button
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use

@@ -69,13 +69,14 @@ extension Snapshotter {
         let host = NSHostingView(rootView: backdrop.frame(width: size.width, height: size.height))
         host.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.moveToRetinaScreen()
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: appearance)
         window.contentView = host
         RunLoop.main.run(until: Date().addingTimeInterval(0.5))
         host.layoutSubtreeIfNeeded()
         host.display()
-        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        guard let rep = host.snapshotRep() else { return }
         host.cacheDisplay(in: host.bounds, to: rep)
         if let data = rep.representation(using: .png, properties: [:]) {
             try? data.write(to: file)

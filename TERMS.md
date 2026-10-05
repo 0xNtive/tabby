@@ -10,9 +10,10 @@ tabby names, colors and tracks the terminal tabs of your Claude Code sessions. I
 
 ## 2. Your data
 
-- **tabby has no servers and collects nothing.** No telemetry, analytics or tracking. Your prompts, code, file names and session data stay on your machine.
-- **AI names.** To name a tab, tabby sends your recent prompts in that session (up to about 6, each trimmed) and a short excerpt of Claude's last reply to Anthropic's Claude Haiku model, using *your own* Claude Code login. This is the same provider and account you already use with Claude Code, and Anthropic's terms and privacy policy apply to those requests. Turn it off with `tabby config namer heuristic`, which names tabs locally, or `off`.
-- **The website** sets no cookies and runs no analytics, unless a future version of these terms says so.
+- **tabby has no servers and collects nothing.** No telemetry, analytics or tracking. Your prompts, code, file names and session data stay on your machine, in files only your account can read, with the one exception below.
+- **AI names.** To name a tab, tabby sends your recent prompts in that session (up to about 6, each trimmed), a short excerpt of Claude's last reply and the name of the project's folder (not its path) to the Claude Haiku model, using *your own* Claude Code login. This goes to the same provider and account you already use with Claude Code (Anthropic, unless you have set Claude Code up with another), and that provider's terms and privacy policy apply to those requests. The request can use no tools and returns only a name. Turn it off with `tabby config namer heuristic`, which names tabs locally, or `off`.
+- **Updates.** tabby asks github.com which release is the latest (every 6 hours at most; `tabby config updateCheck false` turns that off) and downloads Tabby Island and its updates from this project's GitHub releases. These are plain downloads that send nothing about you or your sessions. Tabby Island itself makes no network requests.
+- **The website** sets no cookies and runs no analytics, unless a future version of these terms says so. Its home page asks GitHub's public API for the project's star count.
 
 ## 3. Sponsored content
 

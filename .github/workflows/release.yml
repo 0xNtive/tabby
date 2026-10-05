@@ -1,18 +1,22 @@
 name: release
 # Push a tag vX.Y.Z (matching package.json) and this publishes the ready-made Tabby Island that
 # `tabby island install` downloads: universal (Apple silicon + Intel), ad-hoc signed with the
-# stable requirement, zipped with a .sha256 next to it.
+# stable requirement, zipped with a .sha256 next to it and a build provenance attestation
+# (gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby). Only commits on main are built,
+# and a release's files are never replaced: a fix is a new version.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to (re)build, e.g. v0.3.0
+        description: Existing tag to build (only if its release has no island yet), e.g. v0.3.0
         required: true
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   island:
@@ -23,8 +27,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
+          fetch-depth: 0
       - name: The tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "$TAG"
+      - name: The tag is a commit on main
+        run: git merge-base --is-ancestor HEAD origin/main
       - run: bash island/build.sh --universal
       - run: bash island/test.sh
       - name: Check the app
@@ -41,6 +48,10 @@ jobs:
           ditto -c -k --norsrc --noextattr --keepParent "Tabby Island.app" TabbyIsland.zip
           shasum -a 256 TabbyIsland.zip | awk '{print $1}' > TabbyIsland.zip.sha256
           cat TabbyIsland.zip.sha256
+      - name: Attest where the zip was built
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: island/build/TabbyIsland.zip
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,7 +61,7 @@ jobs:
           notes=$(printf '%s\n\n---\n%s\n' "${notes:-See CHANGELOG.md}" "$install")
           files=(island/build/TabbyIsland.zip island/build/TabbyIsland.zip.sha256)
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release upload "$TAG" "${files[@]}" # fails if the release already has them
           else
             gh release create "$TAG" "${files[@]}" --title "tabby ${TAG#v}" --notes "$notes"
           fi

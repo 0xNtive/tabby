@@ -348,7 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate()
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "tabby",
-            .applicationVersion: Brand.version,
+            .applicationVersion: "\(Brand.version) beta",
             .version: "",
             .credits: credits,
         ])

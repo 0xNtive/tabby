@@ -1,6 +1,25 @@
 # Security
 
-tabby runs entirely on your machine: it has no servers and sends nothing anywhere, except the AI tab-naming request that goes to Anthropic through your own Claude Code login (see [TERMS.md](TERMS.md)).
+tabby runs on your machine and has no servers. This page says what it sends, what it trusts and how to report a problem. The plain-language version is in [TERMS.md](TERMS.md).
+
+## What leaves your machine
+
+- **The AI naming request**, and nothing else you typed: the session's last few prompts (each trimmed to 400 characters), up to 600 characters of Claude's last reply and the project folder's name go to Claude Haiku through your own Claude Code login (`claude -p --safe-mode --tools ""`: no tools, hooks, plugins or MCP, no saved transcript, the prompt passed on stdin). It runs only while the namer is `ai`; `tabby config namer heuristic` names tabs on your machine, `off` not at all.
+- **An update check**: one `HEAD` request to github.com for the latest release, every 6 hours at most. `tabby config updateCheck false` turns it off.
+- **Downloads**, when you install or update: the plugin (through Claude Code's own plugin commands), Tabby Island's zip from this repository's GitHub releases, and Node.js from nodejs.org only if the machine has none.
+
+None of these carries your prompts, paths or an identifier, apart from the naming request. Tabby Island has no network code at all; `test/privacy.test.js` fails the build if network code appears anywhere outside the updater and the island download.
+
+## What stays on it
+
+`~/.claude/tabby` holds tabby's state: one record per session (title, summary, the last 8 prompts trimmed to 400 characters, the working directory, status and context use), your settings and a log. The folder is `0700` and its files `0600`: only your account can read them. Records of ended sessions are removed after 30 days. `tabby uninstall` reverts the changes to your Claude settings, shell file and Terminal profiles and says what it leaves behind.
+
+## What tabby trusts
+
+- **GitHub and this repository.** The plugin, the installer and Tabby Island all come from `0xNtive/tabby`. Tabby Island's zip has a SHA-256 checksum next to it, which catches a damaged download, and a build provenance attestation that ties it to the workflow run that built it: `gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`. The release workflow builds only commits on `main` and never replaces a release's files: a fix is a new version.
+- **Tabby Island is ad-hoc signed and not notarized yet** (the project has no Apple Developer ID while it is in beta). macOS ties the Accessibility and Automation permissions you grant to the app's bundle identifier, not to a developer certificate, so software already running under your account could present itself as Tabby Island and use those permissions. Grant them only on a machine whose other software you trust.
+- **Your own account.** Files under `~/.claude` and environment variables such as `TABBY_ROOT` are taken at their word: anything that can change them can already run code as you. Text that comes from elsewhere is not trusted: names from the model, folder names and transcript content are stripped of control characters before they reach a terminal, and are passed to AppleScript and the shell as arguments, never as code.
+- **The private Node.js** the installer downloads when a machine has none is one fixed version, checked against a SHA-256 written in `install.sh`.
 
 ## Reporting a vulnerability
 
@@ -10,4 +29,4 @@ Please report it privately through [GitHub's security advisories](https://github
 
 - The hooks, the CLI and the installer (`install.sh`): anything that runs code or changes files it shouldn't, or trusts input it shouldn't (session files, transcripts, terminal titles).
 - Tabby Island: the macOS permissions it asks for (Accessibility, Automation) and what it does with them.
-- The release download: the island ships as a zip with a SHA-256 checksum next to it, and the installer rejects a download that doesn't match.
+- The release download and the update path.

@@ -155,6 +155,27 @@ check(!FocusRule.covers(status: .new, windowIsFront: false, terminalActive: fals
 check(!FocusRule.covers(status: .ended, windowIsFront: false, terminalActive: false), "ended: open")
 check(IslandConfig(raw: [:]).focusMode == false, "focus mode is off by default")
 check(IslandConfig(raw: ["focusMode": .bool(true)]).focusMode, "focusMode from config")
+// "Stay covered when it's your turn" (focusIdle): idle windows keep their cover, nothing else changes
+check(FocusRule.covers(status: .idle, windowIsFront: false, terminalActive: true, idle: true), "your turn, staying covered: covered")
+check(FocusRule.covers(status: .idle, windowIsFront: true, terminalActive: false, idle: true), "your turn, you're in another app: covered")
+check(!FocusRule.covers(status: .idle, windowIsFront: true, terminalActive: true, idle: true), "your turn in the window you type in: open")
+check(FocusRule.covers(status: .busy, windowIsFront: false, terminalActive: true, idle: true), "working, staying covered: covered")
+for status in [SessionStatus.waiting, .error, .new, .ended, .unknown] {
+    check(!FocusRule.covers(status: status, windowIsFront: false, terminalActive: false, idle: true), "\(status), staying covered: open")
+}
+check(IslandConfig(raw: [:]).focusIdle == false, "staying covered is off by default")
+// A tty from a record is handed to osascript: only a device path gets there
+check(SnapshotLoader.devicePath("/dev/ttys003") == "/dev/ttys003" && SnapshotLoader.devicePath("/dev/pts/4") == "/dev/pts/4", "a tty is a device path")
+for bad in ["-e", "-e do shell script \"id\"", "ttys003", "/dev/ttys003; rm -rf ~", "/dev/tty s", "/tmp/x", "/dev/" + String(repeating: "a", count: 80)] {
+    check(SnapshotLoader.devicePath(bad) == nil, "not a tty: \(bad)")
+}
+// A hand-edited config can't bind a global shortcut that swallows a plain key
+let bareKey = IslandConfig(raw: ["islandShortcuts": .object(["watermark": .string("w"), "toggle": .string("shift+a"), "next": .string("f5"), "tile": .string("ctrl+opt+g")])])
+check(bareKey.shortcuts[.watermark] == ShortcutAction.watermark.defaultCombo, "a shortcut without ⌃, ⌥ or ⌘ keeps the default")
+check(bareKey.shortcuts[.toggle] == ShortcutAction.toggle.defaultCombo, "shift alone isn't enough")
+check(bareKey.shortcuts[.next] == KeyCombo(spec: "f5"), "a function key may stand alone")
+check(bareKey.shortcuts[.tile] == KeyCombo(spec: "ctrl+opt+g"), "a full shortcut from config")
+check(IslandConfig(raw: ["focusIdle": .bool(true)]).focusIdle, "focusIdle from config")
 
 // Subagents: running until their transcript ends with a final answer (shapes from real transcripts)
 let agentStart = [
@@ -251,6 +272,35 @@ MainActor.assumeIsolated {
     check(narrow != nil, "a long word still fits a narrow window")
     check(FocusLayout.make(cover, in: CGRect(x: 0, y: 0, width: 400, height: 180), agentCount: 1)?.compact == true, "short window: title only")
     check(FocusCoverView.elapsed(9) == "9s" && FocusCoverView.elapsed(125) == "2m 05s" && FocusCoverView.elapsed(3_900) == "1h 05m", "elapsed format")
+    // Your turn: a button under one line, inside the cover and clear of the box, the line and the hint
+    cover.title = "Migrate billing to Stripe v3"
+    check(FocusLayout.make(cover, in: CGRect(x: 0, y: 0, width: 760, height: 460), agentCount: 1)?.button == nil, "no button while Claude works")
+    cover.yourTurn = true
+    for size in [CGSize(width: 760, height: 460), CGSize(width: 845, height: 1316), CGSize(width: 1400, height: 380), CGSize(width: 480, height: 620),
+                 CGSize(width: 760, height: 300), CGSize(width: 420, height: 220), CGSize(width: 300, height: 400)] {
+        let bounds = CGRect(origin: .zero, size: size)
+        guard let layout = FocusLayout.make(cover, in: bounds, agentCount: 1), layout.button != nil else {
+            check(false, "your turn: a button at \(size)")
+            continue
+        }
+        check(bounds.contains(layout.buttonRect), "your turn: button inside at \(size)")
+        check(!layout.buttonRect.intersects(layout.titleRect) && !layout.buttonRect.intersects(layout.box), "your turn: button clear of the title at \(size)")
+        check(layout.maxLines <= 1, "your turn: one line at most at \(size)")
+        if layout.maxLines == 1 {
+            let line = CGRect(x: layout.lines.minX, y: layout.lines.minY, width: layout.lines.width, height: layout.rowHeight)
+            check(!layout.buttonRect.intersects(line), "your turn: button under the line at \(size)")
+        }
+        if layout.hint != nil { check(!layout.buttonRect.intersects(layout.hintRect), "your turn: button clear of the hint at \(size)") }
+        check((layout.button?.size().width ?? 0) <= layout.buttonRect.width, "your turn: label fits its button at \(size)")
+    }
+    var session = working
+    session.status = .idle
+    session.activityAt = 1_000_000
+    let turn = FocusCoverContent.make(session, themes: [], globalTheme: nil, now: Date(timeIntervalSince1970: 1_600))
+    check(turn.yourTurn && turn.doneAt == 1_000 && turn.agents.isEmpty, "an idle session's cover says your turn")
+    session.status = .busy
+    check(!FocusCoverContent.make(session, themes: [], globalTheme: nil).yourTurn, "a working session's cover doesn't")
+    cover.yourTurn = false
     check(FocusCoverView.who("general-purpose") == "agent" && FocusCoverView.who("Explore") == "explore"
           && FocusCoverView.who("code-reviewer") == "code-re…" && FocusCoverView.who(nil) == "agent", "agent type column")
     // The cover leaves Terminal's title bar (and tab bar) uncovered: measured, never shown.

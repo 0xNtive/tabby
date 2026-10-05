@@ -72,11 +72,13 @@ enum Actions {
                 status = process.terminationStatus
                 output = String(decoding: data, as: UTF8.self)
                 if status != 0 {
-                    NSLog("tabby island: `tabby %@` exited %d: %@", args.joined(separator: " "), status, output)
+                    // The system log is readable beyond this app: the subcommand, never its
+                    // arguments or output (a typed name, a folder's path).
+                    NSLog("tabby island: `tabby %@` exited %d", args.first ?? "", status)
                 }
             } catch {
                 output = "Could not run tabby: \(error.localizedDescription)"
-                NSLog("tabby island: could not run %@ %@: %@", node, script, error.localizedDescription)
+                NSLog("tabby island: could not run the tabby CLI: %@", error.localizedDescription)
             }
             let result = (status, output)
             DispatchQueue.main.async {
@@ -153,16 +155,17 @@ enum Actions {
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            var arguments: [String] = []
-            for line in source.split(separator: "\n", omittingEmptySubsequences: true) {
-                arguments += ["-e", String(line)]
-            }
-            process.arguments = arguments + args
+            // The script goes in on stdin ("-"): what follows is only ever an argument to it.
+            process.arguments = ["-"] + args
+            let stdin = Pipe()
+            process.standardInput = stdin
             process.standardOutput = FileHandle.nullDevice
             let stderr = Pipe()
             process.standardError = stderr
             do {
                 try process.run()
+                stdin.fileHandleForWriting.write(Data(source.utf8))
+                try? stdin.fileHandleForWriting.close()
                 let errorOutput = stderr.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
                 if process.terminationStatus != 0 {

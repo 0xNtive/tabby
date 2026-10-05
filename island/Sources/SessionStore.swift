@@ -340,7 +340,7 @@ final class SnapshotLoader: @unchecked Sendable {
             }
         }
 
-        var tty = str(record?["tty"])
+        var tty = str(record?["tty"]).flatMap(Self.devicePath)
         var term = str(record?["term"])
         if tty == nil || term == nil {
             let probe = processInfo(pid)
@@ -421,7 +421,7 @@ final class SnapshotLoader: @unchecked Sendable {
     // MARK: Transcript fallback (context usage, model, last prompt)
 
     private func transcriptPath(record: [String: Any]?, cwd: String, sessionId: String?) -> String? {
-        if let path = str(record?["transcriptPath"]), fm.fileExists(atPath: path) { return path }
+        if let path = str(record?["transcriptPath"]), isTranscript(path) { return path }
         guard let sessionId, !cwd.isEmpty else { return nil }
         let projects = claudeDir.appendingPathComponent("projects", isDirectory: true)
         let alnum = String(cwd.map { ($0.isASCII && ($0.isLetter || $0.isNumber)) ? $0 : "-" })
@@ -432,6 +432,15 @@ final class SnapshotLoader: @unchecked Sendable {
             if fm.fileExists(atPath: path) { return path }
         }
         return nil
+    }
+
+    /// A transcript is a regular file inside Claude's projects folder: a record can't point the
+    /// island at a device, a pipe (reading one never returns) or a file somewhere else.
+    private func isTranscript(_ path: String) -> Bool {
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        let projects = claudeDir.appendingPathComponent("projects", isDirectory: true).resolvingSymlinksInPath().path
+        guard resolved.hasPrefix(projects + "/") else { return false }
+        return (try? fm.attributesOfItem(atPath: resolved))?[.type] as? FileAttributeType == .typeRegular
     }
 
     private func transcriptInfo(_ path: String) -> TranscriptInfo? {
@@ -664,17 +673,30 @@ final class SnapshotLoader: @unchecked Sendable {
             let repo = Bundle.main.bundleURL.deletingLastPathComponent()
                 .deletingLastPathComponent().deletingLastPathComponent()
             let bundled = repo.appendingPathComponent("bin/tabby.js").path
-            cli = fm.fileExists(atPath: bundled)
-                ? bundled
-                : home.appendingPathComponent("Dev/tabby/bin/tabby.js").path
+            // None: the island says tabby's CLI wasn't found, and runs nothing.
+            cli = fm.fileExists(atPath: bundled) ? bundled : ""
         }
         return CLIConfig(node: node!, cli: cli!)
     }
 
+    /// A tty as a record names it, only if it's a device path ("/dev/ttys003"): it's handed to
+    /// osascript as an argument, where anything else could be read as an option.
+    static func devicePath(_ tty: String) -> String? {
+        guard tty.hasPrefix("/dev/"), tty.count < 64,
+              tty.unicodeScalars.allSatisfy({ $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "/._-".unicodeScalars.contains($0)) })
+        else { return nil }
+        return tty
+    }
+
     // MARK: Helpers
 
+    /// Regular files only (a pipe or a device with a .json name would never finish reading),
+    /// and none larger than a state file could be.
     private func readJSON(_ url: URL) -> [String: Any]? {
-        guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
+        guard let attributes = try? fm.attributesOfItem(atPath: url.resolvingSymlinksInPath().path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = (attributes[.size] as? NSNumber)?.uint64Value, size > 0, size <= 16 * 1024 * 1024,
+              let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
@@ -685,17 +707,21 @@ final class SnapshotLoader: @unchecked Sendable {
     }
 }
 
+/// A number from a JSON file, if it's one a session could have (finite, and far inside what an
+/// Int holds): everything downstream converts and formats it without checking again.
 private func num(_ value: Any?) -> Double? {
+    let double: Double?
     switch value {
-    case let number as NSNumber: return number.doubleValue
-    case let string as String: return Double(string)
-    default: return nil
+    case let number as NSNumber: double = number.doubleValue
+    case let string as String: double = Double(string)
+    default: double = nil
     }
+    guard let double, double.isFinite, abs(double) < 1e15 else { return nil }
+    return double
 }
 
 private func int(_ value: Any?) -> Int? {
-    guard let double = num(value), double.isFinite else { return nil }
-    return Int(double)
+    num(value).flatMap { Int(exactly: $0.rounded(.towardZero)) }
 }
 
 private func str(_ value: Any?) -> String? {

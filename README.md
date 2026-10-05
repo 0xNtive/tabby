@@ -14,6 +14,7 @@ and a Mac island that shows them all. Free, local and open source.</p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2f6f6a" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-d97757" alt="A Claude Code plugin">
   <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Linux-lightgrey" alt="macOS and Linux">
+  <img src="https://img.shields.io/badge/status-beta-f28c38" alt="Status: beta">
 </p>
 
 <p align="center"><a href="https://claude-tabby.vercel.app">Website</a> · <a href="#install">Install</a> · <a href="#use-it">Commands</a> · <a href="#tabby-island">Island</a> · <a href="#troubleshooting">Troubleshooting</a> · <a href="CONTRIBUTING.md">Contributing</a></p>
@@ -30,6 +31,8 @@ With five Claude sessions running, every tab looks the same. tabby gives each on
 - **a color**, with a background tinted to match, different from your other open sessions;
 - **a live status** in the title: `◐` working (animated), `✳` your turn, `🔔` needs you (blinking);
 - **one-line control** with `/tab`, launch flags and keyboard shortcuts.
+
+tabby is in **beta**: it works day to day, and it still changes quickly. [Tell us what breaks.](https://github.com/0xNtive/tabby/issues)
 
 On a Mac, **Tabby Island** lists every session at the top of your screen. It can also hide what Claude writes in the windows you're not using (Focus mode), tile sessions across the screens you choose, and start a new session in a recent folder with one shortcut.
 
@@ -101,6 +104,7 @@ In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
 /tab note waiting on design  a note shown in the island
 /tab tile active             tile the sessions that are working or need you
 /tab focus-mode on           cover the Terminal windows you're not in while Claude works
+/tab focus-mode idle on      …and keep them covered when it's your turn, with a Your turn button
 /tab watermark off           hide the watermarks (on brings them back)
 /tab update                  get the newest tabby, in the background
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
@@ -154,6 +158,8 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 ### Focus mode
 
 With several sessions running, their scrolling output competes for your eyes. Turn on Focus mode (Settings › Focus, the menu-bar menu, or `/tab focus-mode on`), and while Claude works, every Terminal window you're not in shows only its topic in a big box. Below it, one line per running agent (Claude and each subagent) has a small spinner, what it's doing and for how long. A window opens again as soon as Claude needs you or it's your turn, and the window you're typing in is never covered. Click a covered window to go to it.
+
+Want it calmer still? Tick **Stay covered when it's your turn** in Settings › Focus (or `/tab focus-mode idle on`): when Claude is done, the window keeps its cover and shows a **Your turn** button with how long ago it finished. Click it to open the window and reply. Windows where Claude asks a question or hits an error still open on their own.
 
 ### Tiling across your screens
 
@@ -256,14 +262,16 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 - **Animation.** While a session works or waits, one small background process redraws those titles about 6 times a second, then exits a minute after everything is idle.
 - **Status** comes from the hooks, plus Claude's own session registry. **Context** comes from the status line, or else from the transcript. **Subagents** (for Focus mode) come from each session's `subagents/` transcripts.
 - **Terminal.app titles.** Terminal adds the folder, process, arguments and size to every title, and reads its title settings only at launch. So while a session runs, its tab uses a copy of its own profile ("Basic · tabby") with just those title parts turned off. `tabby terminal-titles off` puts the tabs back and deletes the copies.
-- **The island** is a native SwiftUI + AppKit app. It reads `~/.claude/tabby` and Claude's registry, and runs the tabby CLI for anything that changes state. Each [release](https://github.com/0xNtive/tabby/releases) ships it universal (Apple silicon and Intel) with a SHA-256 checksum, and the installer rejects a download that doesn't match.
+- **The island** is a native SwiftUI + AppKit app. It reads `~/.claude/tabby` and Claude's registry, and runs the tabby CLI for anything that changes state. Each [release](https://github.com/0xNtive/tabby/releases) ships it universal (Apple silicon and Intel) with a SHA-256 checksum, which the installer checks, and a build attestation (`gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`).
 - **Exit.** On exit a tab gets its profile colors back (`OSC 110/111/112`), and in Terminal.app its own profile; `/clear` keeps its identity.
 
 ## Privacy, cost and terms
 
-- **Nothing about you leaves your machine except the naming request,** which goes to Claude Haiku through your own Claude Code login: about 500 tokens (roughly $0.001), covered by Pro and Max.
-- **Update checks** ask github.com where tabby's latest release is, every 6 hours at most: a plain request that sends nothing about you. `tabby config updateCheck false` (or Settings › General) turns them off.
-- **No servers, no telemetry.**
+- **Nothing you typed leaves your machine except the naming request:** that session's last few prompts (trimmed), a short excerpt of Claude's last reply and the project folder's name go to Claude Haiku through your own Claude Code login, to the provider you already use. About 500 tokens (roughly $0.001), covered by Pro and Max. The request can use no tools and returns only a name. `/tab namer heuristic` names tabs on your machine instead; `off` not at all.
+- **Update checks** ask github.com where tabby's latest release is, every 6 hours at most: a plain request that sends nothing about you. `tabby config updateCheck false` (or Settings › General) turns them off. Tabby Island and its updates are downloaded from this repository's releases.
+- **No servers, no telemetry.** Tabby Island has no network code at all, and a test fails the build if network code appears anywhere but the updater.
+- **Your files stay yours.** tabby's state in `~/.claude/tabby` (session names, the last few prompts, settings) is readable only by your account.
+- **What it trusts, and what it doesn't yet do** (the island isn't notarized while tabby is in beta) is in [SECURITY.md](SECURITY.md).
 - tabby is free. Future versions may show clearly labeled sponsored messages in tabby's own UI, never in your prompts, conversations or model context. See the [Terms of Use](TERMS.md), which setup asks you to accept.
 - tabby is an independent project, **not affiliated with Anthropic**. Claude is a trademark of Anthropic.
 

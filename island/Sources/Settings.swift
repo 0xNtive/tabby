@@ -107,6 +107,8 @@ struct SettingsView: View {
             }
             .padding(.top, 8)
             .padding(.bottom, 6)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topTrailing) { BetaTag().padding(.top, 10).padding(.trailing, 12) }
             Divider()
             Group {
                 switch state.tab {
@@ -121,6 +123,21 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 600, height: 640)
+    }
+}
+
+/// tabby is in beta: said once, in the corner of the Settings window.
+struct BetaTag: View {
+    var body: some View {
+        Text("BETA")
+            .font(.system(size: 9, weight: .bold, design: .rounded))
+            .tracking(0.8)
+            .foregroundStyle(Color(nsColor: Brand.marmalade))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(Capsule().fill(Color(nsColor: Brand.marmalade).opacity(0.16)))
+            .help("tabby is in beta. Found a bug? github.com/0xNtive/tabby/issues")
+            .accessibilityLabel("Beta")
     }
 }
 
@@ -441,6 +458,8 @@ struct FocusPane: View {
 
     var body: some View {
         let on = state.config.focusMode
+        let idle = state.config.focusIdle
+        let sample = FocusPane.sample(store)
         return Form {
             Section {
                 Toggle(isOn: setting(on) { island.setFocusMode($0) }) {
@@ -451,14 +470,25 @@ struct FocusPane: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                FocusPreview(content: FocusPane.sample(store))
-                    .frame(height: 232)
+                FocusPreview(content: sample, yourTurn: idle ? FocusPane.yourTurn(sample) : nil)
+                    .frame(height: 204)
                     .opacity(on ? 1 : 0.45)
-                    .accessibilityLabel("Preview of a covered Terminal window")
+                    .accessibilityLabel(idle ? "Preview of a covered Terminal window: working, then your turn"
+                                             : "Preview of a covered Terminal window")
+                Toggle(isOn: setting(idle) { island.setFocusIdle($0) }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Stay covered when it's your turn")
+                        Text("When Claude is done, the cover stays and shows a Your turn button to click.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .toggleStyle(.checkbox)
+                .disabled(!on)
             }
             Section("A window opens") {
                 FocusReason(symbol: "bell.fill", text: "When Claude needs you: a question or a permission")
-                FocusReason(symbol: "checkmark.circle", text: "When it's your turn: Claude is done")
+                if !idle { FocusReason(symbol: "checkmark.circle", text: "When it's your turn: Claude is done") }
                 FocusReason(symbol: "cursorarrow.click", text: "When you click it, or switch to it: the window you type in is never covered")
             }
             .disabled(!on)
@@ -511,6 +541,17 @@ struct FocusPane: View {
         ]
         return content
     }
+
+    /// The same window once Claude is done, as "Stay covered when it's your turn" shows it.
+    static func yourTurn(_ working: FocusCoverContent) -> FocusCoverContent {
+        var content = working
+        content.yourTurn = true
+        content.mainText = "Done · waiting for your reply"
+        content.mainDetail = nil
+        content.agents = []
+        content.doneAt = Date().timeIntervalSince1970 - 180
+        return content
+    }
 }
 
 private struct FocusReason: View {
@@ -527,9 +568,11 @@ private struct FocusReason: View {
 }
 
 /// A small Terminal window with focus mode's cover over it, drawn by the same view the covers
-/// use; its spinners turn while it's on screen.
+/// use; its spinners turn while it's on screen. With `yourTurn`, it shows the two in turn:
+/// Claude working, then done.
 struct FocusPreview: NSViewRepresentable {
     var content: FocusCoverContent
+    var yourTurn: FocusCoverContent?
 
     func makeNSView(context: Context) -> FocusMockView {
         let view = FocusMockView()
@@ -538,7 +581,7 @@ struct FocusPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ view: FocusMockView, context: Context) {
-        view.cover.content = content
+        view.states = [content] + (yourTurn.map { [$0] } ?? [])
         view.needsDisplay = true
     }
 }
@@ -549,6 +592,22 @@ final class FocusMockView: NSView {
     let cover = FocusCoverView()
     var animates = true
     var scaledFrom: CGFloat? { didSet { needsLayout = true } }
+    /// What the cover shows; more than one are shown in turn, a few seconds each (standing
+    /// still, the last one).
+    var states: [FocusCoverContent] = [] {
+        didSet {
+            guard states != oldValue else { return }
+            if states.count != oldValue.count {
+                // A state was added (the option was just ticked): show it first.
+                shown = max(0, states.count - 1)
+                ticks = 0
+            }
+            cover.content = states.indices.contains(shown) ? states[shown] : states.first
+        }
+    }
+    private var shown = 0
+    private var ticks = 0
+    private static let ticksPerState = 36
     private var timer: Timer?
     private var observers: [NSObjectProtocol] = []
     private static let titleBar: CGFloat = 26
@@ -595,13 +654,33 @@ final class FocusMockView: NSView {
         guard wanted != (timer != nil) else { return }
         timer?.invalidate()
         timer = nil
-        guard wanted else { return }
+        guard wanted else { return show(max(0, states.count - 1)) }
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.cover.advance() }
+            MainActor.assumeIsolated { self?.tick() }
         }
         timer.tolerance = 0.02
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    private func tick() {
+        cover.advance()
+        ticks += 1
+        if states.count > 1, ticks >= Self.ticksPerState { show((shown + 1) % states.count) }
+    }
+
+    /// Switches to another of `states`, with a short fade.
+    private func show(_ index: Int) {
+        ticks = 0
+        guard states.indices.contains(index), index != shown else { return }
+        shown = index
+        if timer != nil, let layer = cover.layer {
+            let fade = CATransition()
+            fade.type = .fade
+            fade.duration = 0.3
+            layer.add(fade, forKey: "state")
+        }
+        cover.content = states[index]
     }
 
     override func draw(_ dirtyRect: NSRect) {

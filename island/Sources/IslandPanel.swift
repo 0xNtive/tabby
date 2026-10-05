@@ -416,7 +416,7 @@ final class IslandController {
             announcements.removeAll { $0.kind != .info }
             if ui.announcement?.kind != .info { endAnnouncement() }
         }
-        if first || next.watermark != old.watermark || next.focusMode != old.focusMode { updateWatermark(snapshot) }
+        if first || next.watermark != old.watermark || next.focusMode != old.focusMode || next.focusIdle != old.focusIdle { updateWatermark(snapshot) }
         if first || next.updateCheck != old.updateCheck { updates.setAutomatic(next.updateCheck) }
     }
 
@@ -478,13 +478,14 @@ final class IslandController {
     // MARK: Focus mode
 
     func setFocusMode(_ on: Bool) { setSetting("focusMode", .bool(on)) }
+    func setFocusIdle(_ on: Bool) { setSetting("focusIdle", .bool(on)) }
     func setUpdateCheck(_ on: Bool) { setSetting("updateCheck", .bool(on)) }
 
     private func updateWatermark(_ snapshot: StoreSnapshot) {
         guard !inert else { return }
         var settings = config.watermark
         if let watermarkPreview { settings.opacity = watermarkPreview }
-        watermark.apply(settings, focusMode: config.focusMode)
+        watermark.apply(settings, focusMode: config.focusMode, focusIdle: config.focusIdle)
         watermark.update(snapshot) { session in
             settings.tint(for: session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId)
         }

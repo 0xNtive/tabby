@@ -285,8 +285,11 @@ final class WatermarkController {
     private let terminalBundle = "com.apple.Terminal"
     private var settings = WatermarkSettings()
     private var focusMode = false
-    /// Spins the covers' spinners while any cover shows.
+    /// Covers stay when it's your turn (`focusIdle`).
+    private var focusIdle = false
+    /// Spins the covers' spinners (and keeps their times current) while any cover shows.
     private var animation: Timer?
+    private var animationInterval: TimeInterval = 0
     private var animationStill = false
     private var targets: [Int: Target] = [:]
     private var overlays: [Int: Overlay] = [:]
@@ -307,12 +310,13 @@ final class WatermarkController {
 
     private var active: Bool { (settings.enabled || focusMode) && !targets.isEmpty }
 
-    func apply(_ settings: WatermarkSettings, focusMode: Bool = false) {
-        guard settings != self.settings || focusMode != self.focusMode else { return }
+    func apply(_ settings: WatermarkSettings, focusMode: Bool = false, focusIdle: Bool = false) {
+        guard settings != self.settings || focusMode != self.focusMode || focusIdle != self.focusIdle else { return }
         let restyle = settings.size != self.settings.size || settings.opacity != self.settings.opacity ||
             settings.color != self.settings.color || settings.position != self.settings.position
         self.settings = settings
         self.focusMode = focusMode
+        self.focusIdle = focusIdle
         if restyle { overlays.values.forEach { $0.view.settings = settings } }
         refreshActivity()
     }
@@ -358,7 +362,7 @@ final class WatermarkController {
             timer = nil
             stopObserving()
             removeAll()
-            animate(false)
+            animate(every: nil)
         }
     }
 
@@ -394,7 +398,8 @@ final class WatermarkController {
         for (id, target) in targets {
             let overlay = overlays[id] ?? makeOverlay(id, target)
             let covered = target.cover != nil &&
-                FocusRule.covers(status: target.status, windowIsFront: id == frontTerminalWindow, terminalActive: terminalActive)
+                FocusRule.covers(status: target.status, windowIsFront: id == frontTerminalWindow, terminalActive: terminalActive,
+                                 idle: focusIdle)
             let wanted: Presentation = covered ? .cover : settings.enabled ? .watermark : .none
             if wanted != overlay.presentation { present(overlay, wanted, id: id, target: target, reduceMotion: reduceMotion) }
             guard let window = overlay.current else { continue }
@@ -446,7 +451,7 @@ final class WatermarkController {
             overlays[id] = nil
         }
         noticeUnknownWindows(windows)
-        animate(overlays.values.contains(where: Self.coverVisible), still: reduceMotion)
+        animateCovers(reduceMotion: reduceMotion)
 
         schedule(after: settling ? 0.1 : (terminalActive ? 0.25 : 1.0))
     }
@@ -630,18 +635,26 @@ final class WatermarkController {
         overlay.presentation == .cover && overlay.shown && overlay.coverWindow?.occlusionState.contains(.visible) == true
     }
 
-    /// One timer for every cover, only while one shows: 10 frames a second, or a once-a-second
-    /// clock with still spinners under Reduce Motion.
-    private func animate(_ on: Bool, still: Bool = false) {
-        guard on else {
+    /// One timer for every cover, only while one shows: 10 frames a second while Claude works
+    /// under one (a once-a-second clock with still spinners under Reduce Motion); twice a minute
+    /// when every cover says "Your turn", to keep "done 12m ago" current.
+    private func animateCovers(reduceMotion: Bool) {
+        let visible = overlays.values.filter(Self.coverVisible)
+        if visible.isEmpty { return animate(every: nil) }
+        let working = visible.contains { $0.cover.cover.content?.yourTurn == false }
+        animate(every: working ? (reduceMotion ? 1 : 0.1) : 30, still: reduceMotion)
+    }
+
+    private func animate(every interval: TimeInterval?, still: Bool = false) {
+        guard let interval else {
             animation?.invalidate()
             animation = nil
             return
         }
-        if animation != nil, still == animationStill { return }
+        if animation != nil, interval == animationInterval, still == animationStill { return }
         animation?.invalidate()
+        animationInterval = interval
         animationStill = still
-        let interval: TimeInterval = still ? 1 : 0.1
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -711,7 +724,7 @@ final class WatermarkController {
                 "alpha=\(String(format: "%.2f", window.alphaValue)) frame=\(NSStringFromRect(window.frame)) " +
                 "overlay=\(window.windowNumber) \(above)"
         }
-        return "watermark enabled=\(settings.enabled) focusMode=\(focusMode) targets=\(targets.count) " +
+        return "watermark enabled=\(settings.enabled) focusMode=\(focusMode) focusIdle=\(focusIdle) targets=\(targets.count) " +
             "overlays=\(overlays.count) animating=\(animation != nil) active=\(NSApp.isActive)\n" +
             rows.sorted().joined(separator: "\n")
     }

@@ -1,7 +1,6 @@
 ---
 description: Turn tabby on — review and accept the terms, then one-time setup (short /tab, tab titles, status line, launch flags). On a Mac it also installs Tabby Island (/tabby:setup island to reinstall it).
 argument-hint: "[accept | island]"
-allowed-tools: Bash(sh:*)
 ---
 
 tabby answers `/tabby:setup` instantly in its UserPromptSubmit hook, so this text only runs when that hook is not active in this session (for example right after installing, before /reload-plugins).

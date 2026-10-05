@@ -210,7 +210,14 @@ The top bar's grid button (and the status menu's **Tile Windows**) offers "Tile 
 
 ## Data it reads
 
+Everything here is read on your Mac and stays there: the app has no network code.
+
 - `~/.claude/sessions/<pid>.json`: Claude Code's live registry (status, waitingFor, times).
+- Each session's transcript in `~/.claude/projects/` (the last 256 KB, for context use, the model
+  and turn times) and, while Focus mode is on, its `subagents/` transcripts (the last 64 KB each).
+  Only regular files inside that folder are read.
+- `~/.claude.json`: Claude Code's theme, nothing else.
+- The Claude process's environment, for `TERM_PROGRAM` only (which terminal a session runs in).
 - `~/.claude/tabby/sessions/<sessionId>.json`: tabby's record (title, summary, note, theme,
   accent, `dot`, `cursor`, context, prompts, tty).
 - `~/.claude/tabby/themes.json`: themes with `group`, `dots`, `tints`; parsed again only when
@@ -240,10 +247,15 @@ Screen Recording isn't needed: `--snapshot <dir>` renders the SwiftUI tree with
 - `settings-<pane>-<light|dark>.png`: each Settings pane (drawn without the window's own
   background, so the tab bar is transparent)
 - `watermark-*.png`: demo sessions' watermarks over a mock terminal, in each size and position
+- `focus-*.png`: Focus mode's cover in several window shapes and themes, working (`1`–`8`) and
+  staying covered when it's your turn (`9`–`14`)
 - `onboarding-*.png`: each page of the setup window (permissions part-way: one allowed, one
   asking, one not asked yet), and `onboarding-done-ready.png` with everything allowed
 
 Core Animation (the working rings turning, pops, blinks) isn't captured; snapshots show the resting state.
+Every PNG is 2× whatever display the Mac has (the website shows them at Retina size); on a Mac
+with a Retina screen attached the text is drawn at 2×, otherwise it's scaled up. The `island-*`
+files show your real sessions (titles, summaries, last prompts): keep that folder to yourself.
 
 ## Debugging
 

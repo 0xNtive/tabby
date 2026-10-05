@@ -168,7 +168,8 @@ enum Snapshotter {
     }
 
     /// Focus mode's cover over mock Terminal windows: the main agent alone and with subagents,
-    /// on dark and light themes, in a few window shapes.
+    /// on dark and light themes, in a few window shapes; then the cover that stays when it's
+    /// your turn.
     private static func renderFocus(_ snapshot: StoreSnapshot, folder: URL) {
         let now = Date().timeIntervalSince1970
         let working = snapshot.sessions.first { $0.status == .busy } ?? snapshot.sessions[0]
@@ -192,6 +193,12 @@ enum Snapshotter {
                                           now: Date(timeIntervalSince1970: now))
         }
         let long = snapshot.sessions.first { $0.title.count > 24 } ?? working
+        func done(_ session: IslandSession, theme: ThemeInfo?) -> FocusCoverContent {
+            var session = session
+            session.status = .idle
+            session.activityAt = (now - 12 * 60) * 1000
+            return content(session, theme: theme, agents: [])
+        }
         let cases: [(String, FocusCoverContent, CGSize)] = [
             ("1-main-dark", content(working, theme: nil, agents: []), CGSize(width: 760, height: 460)),
             ("2-agents-dark", content(working, theme: nil, agents: agents), CGSize(width: 760, height: 460)),
@@ -201,6 +208,12 @@ enum Snapshotter {
             ("6-wide", content(long, theme: nil, agents: Array(agents.prefix(1))), CGSize(width: 1400, height: 380)),
             ("7-small", content(working, theme: nil, agents: agents), CGSize(width: 420, height: 220)),
             ("8-narrow", content(long, theme: nil, agents: agents), CGSize(width: 480, height: 620)),
+            ("9-your-turn-dark", done(working, theme: nil), CGSize(width: 760, height: 460)),
+            ("10-your-turn-light", done(long, theme: light), CGSize(width: 760, height: 460)),
+            ("11-your-turn-small", done(working, theme: nil), CGSize(width: 420, height: 220)),
+            ("12-your-turn-narrow", done(long, theme: nil), CGSize(width: 480, height: 620)),
+            ("13-your-turn-wide", done(working, theme: nil), CGSize(width: 1400, height: 380)),
+            ("14-your-turn-short", done(working, theme: nil), CGSize(width: 760, height: 300)),
         ]
         for (name, content, size) in cases {
             let view = FocusMockView(frame: NSRect(origin: .zero, size: size))
@@ -209,12 +222,13 @@ enum Snapshotter {
             view.cover.frameIndex = 3
             view.cover.content = content
             let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.moveToRetinaScreen()
             window.isReleasedWhenClosed = false
             window.contentView = view
             view.layoutSubtreeIfNeeded()
             view.layout()
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            guard let rep = view.snapshotRep() else { continue }
             view.cacheDisplay(in: view.bounds, to: rep)
             write(rep, to: folder.appendingPathComponent("focus-\(name).png"))
             window.close()
@@ -243,13 +257,14 @@ enum Snapshotter {
                                                               island: island, finish: {}))
             host.frame = NSRect(x: 0, y: 0, width: 720, height: 560)
             let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.moveToRetinaScreen()
             window.isReleasedWhenClosed = false
             window.appearance = NSAppearance(named: .darkAqua)
             window.contentView = host
             RunLoop.main.run(until: Date().addingTimeInterval(0.4))
             host.layoutSubtreeIfNeeded()
             host.display()
-            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+            guard let rep = host.snapshotRep() else { continue }
             host.cacheDisplay(in: host.bounds, to: rep)
             write(rep, to: folder.appendingPathComponent("onboarding-\(name).png"))
             window.close()
@@ -267,13 +282,14 @@ enum Snapshotter {
                 let host = NSHostingView(rootView: SettingsView(island: island, store: store, state: island.settingsState))
                 host.frame = NSRect(x: 0, y: 0, width: 600, height: 640)
                 let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+                window.moveToRetinaScreen()
                 window.isReleasedWhenClosed = false
                 window.appearance = NSAppearance(named: appearance)
                 window.contentView = host
                 RunLoop.main.run(until: Date().addingTimeInterval(0.5))
                 host.layoutSubtreeIfNeeded()
                 host.display()
-                guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+                guard let rep = host.snapshotRep() else { continue }
                 host.cacheDisplay(in: host.bounds, to: rep)
                 let name = appearance == .darkAqua ? "dark" : "light"
                 write(rep, to: folder.appendingPathComponent("settings-\(tab.rawValue)-\(name).png"))
@@ -306,12 +322,13 @@ enum Snapshotter {
             view.watermark.tint = settings.tint(for: session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId)
             view.watermark.settings = settings
             let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.moveToRetinaScreen()
             window.isReleasedWhenClosed = false
             window.contentView = view
             view.layoutSubtreeIfNeeded()
             view.layout()
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            guard let rep = view.snapshotRep() else { continue }
             view.cacheDisplay(in: view.bounds, to: rep)
             let name = "watermark-\(index + 1)-\(item.0.rawValue)-\(item.1.rawValue)-\(item.2.rawValue).png"
             write(rep, to: folder.appendingPathComponent(name))
@@ -342,6 +359,7 @@ enum Snapshotter {
             let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, detail: detail))
             host.frame = NSRect(origin: .zero, size: panelSize)
             let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.moveToRetinaScreen()
             window.isReleasedWhenClosed = false
             window.isOpaque = false
             window.backgroundColor = .clear
@@ -349,7 +367,7 @@ enum Snapshotter {
             RunLoop.main.run(until: Date().addingTimeInterval(0.35))
             host.layoutSubtreeIfNeeded()
             host.display()
-            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+            guard let rep = host.snapshotRep() else { continue }
             host.cacheDisplay(in: host.bounds, to: rep)
             let composed = composite(rep, size: panelSize, barHeight: sized.barHeight)
             // Crop to the island plus a margin, so the PNGs stay easy to inspect.
@@ -429,12 +447,13 @@ enum Snapshotter {
             x += side + 14
         }
         let window = NSWindow(contentRect: container.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.moveToRetinaScreen()
         window.isReleasedWhenClosed = false
         window.contentView = container
         container.layoutSubtreeIfNeeded()
         container.subviews.forEach { $0.layout() }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        if let rep = container.bitmapImageRepForCachingDisplay(in: container.bounds) {
+        if let rep = container.snapshotRep() {
             container.cacheDisplay(in: container.bounds, to: rep)
             write(rep, to: folder.appendingPathComponent("brand-cat.png"))
         }
@@ -571,5 +590,28 @@ enum DemoData {
         snapshot.configRaw["focusMode"] = .bool(true)
         snapshot.config = IslandConfig(raw: snapshot.configRaw)
         return snapshot
+    }
+}
+
+extension NSView {
+    /// A bitmap to draw this view into at 2×, whatever display this Mac has: the renders go on the
+    /// website, where they're shown at Retina size.
+    func snapshotRep() -> NSBitmapImageRep? {
+        let scale: CGFloat = 2
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int((bounds.width * scale).rounded()), pixelsHigh: Int((bounds.height * scale).rounded()),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        rep.size = bounds.size
+        return rep
+    }
+}
+
+extension NSWindow {
+    /// Offscreen windows take their scale from the screen their frame is on: a Retina one where
+    /// this Mac has it, so text is drawn at 2× rather than scaled up.
+    func moveToRetinaScreen() {
+        guard backingScaleFactor < 2, let screen = NSScreen.screens.first(where: { $0.backingScaleFactor >= 2 }) else { return }
+        setFrameOrigin(screen.frame.origin)
     }
 }

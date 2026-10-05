@@ -21,6 +21,8 @@
 # CLAUDE_BIN=/path/to/claude when Claude Code lives somewhere unusual.
 set -uo pipefail
 
+{ # the whole script is read before any of it runs: a download cut short does nothing
+
 REPO=0xNtive/tabby
 YES=0
 ISLAND=1
@@ -37,7 +39,7 @@ done
 
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 TABBY_DIR="${TABBY_HOME:-$CLAUDE_HOME/tabby}"
-mkdir -p "$TABBY_DIR"
+mkdir -p "$TABBY_DIR" && chmod 700 "$TABBY_DIR" # session records live here: the owner's alone
 LOG="$TABBY_DIR/install.log"
 { echo; echo "=== tabby install $(date '+%Y-%m-%d %H:%M:%S') · $(uname -sm) · args: $*"; } >> "$LOG"
 
@@ -93,18 +95,27 @@ for n in "$(command -v node 2> /dev/null)" "$TABBY_DIR/node/bin/node" /opt/homeb
   [ -n "$NODE" ] && break
 done
 
-# No Node 18+: a private copy of the current Node 22 LTS, checked against nodejs.org's checksums,
-# used only by tabby (nothing on your PATH changes). tabby uninstall removes it.
+# No Node 18+: a private copy of Node 22 LTS, used only by tabby (nothing on your PATH changes).
+# One fixed version, checked against the SHA-256 written here (from nodejs.org's SHASUMS256.txt for
+# that version), so the download can't vouch for itself. tabby uninstall removes it.
+NODE_VERSION=22.23.3
+node_sha256() {
+  case "$1" in
+    darwin-arm64) echo 23b25245dcfb9af7262f8ff142e9e2e0af025368117329e7a7458a51e5922f53 ;;
+    darwin-x64) echo 8a677b0219178efd6eb0e475457c4afb452b521a92f6e67845a73bd85727f2a8 ;;
+    linux-arm64) echo 5ced2d48d1d7198739b7f86804de0171aefb6823b684b12341d3321afc3cb0b2 ;;
+    linux-x64) echo 1084aa36196bba4c3a5e69a1ee388a6e4ff729dad09445fbcd434b28fe3c24af ;;
+  esac
+}
 install_private_node() {
-  local os arch sums file sum tmp
+  local os arch file sum tmp
   case "$OS" in Darwin) os=darwin ;; Linux) os=linux ;; esac
   case "$(uname -m)" in arm64 | aarch64) arch=arm64 ;; x86_64 | amd64) arch=x64 ;; *) return 1 ;; esac
-  sums=$(curl -fsSL --retry 2 https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt) || return 1
-  file=$(printf '%s\n' "$sums" | awk -v want="-$os-$arch.tar.gz" 'substr($2, length($2) - length(want) + 1) == want { print $2; exit }')
-  sum=$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f { print $1; exit }')
-  [ -n "$file" ] && [ -n "$sum" ] || return 1
+  file="node-v$NODE_VERSION-$os-$arch.tar.gz"
+  sum=$(node_sha256 "$os-$arch")
+  [ -n "$sum" ] || return 1
   tmp=$(mktemp -d)
-  curl -fsSL --retry 2 -o "$tmp/$file" "https://nodejs.org/dist/latest-v22.x/$file" || { rm -rf "$tmp"; return 1; }
+  curl -fsSL --retry 2 --proto '=https' -o "$tmp/$file" "https://nodejs.org/dist/v$NODE_VERSION/$file" || { rm -rf "$tmp"; return 1; }
   local got
   got=$( (shasum -a 256 "$tmp/$file" 2> /dev/null || sha256sum "$tmp/$file") | awk '{print $1}')
   [ "$got" = "$sum" ] || { echo "checksum mismatch for $file" >> "$LOG"; rm -rf "$tmp"; return 1; }
@@ -160,7 +171,8 @@ elif git_works; then
 else
   SRC="$TABBY_DIR/src"
   rm -rf "$SRC" && mkdir -p "$SRC"
-  if quiet sh -c "curl -fsSL --retry 2 https://codeload.github.com/$REPO/tar.gz/refs/heads/main | tar -xz -C '$SRC'"; then
+  fetch_source() { curl -fsSL --retry 2 --proto '=https' "https://codeload.github.com/$REPO/tar.gz/refs/heads/main" | tar -xz -C "$1"; }
+  if quiet fetch_source "$SRC"; then
     quiet "$CLAUDE" plugin marketplace remove tabby || true
     quiet "$CLAUDE" plugin marketplace add "$SRC/tabby-main" || true
     warn "no git here, so tabby came as a download (updates: run this installer again)"
@@ -229,3 +241,6 @@ printf '\n%sDone.%s Open a new Claude Code session (or type /reload-plugins in o
 printf '  its tab gets a name and a color after your first prompt'
 [ "$OS" = Darwin ] && [ "$ISLAND" = 1 ] && printf ', and every session shows in the island at the top center of your screen'
 printf '.\n  /tab in Claude for commands · tabby doctor to check · tabby uninstall to remove everything\n'
+
+exit 0
+} # the whole script is read before any of it runs

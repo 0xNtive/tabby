@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — 2026-10-05
+
+tabby is now labeled **beta** (the website, the README, the island's Settings and About).
+
+**Focus mode can stay on when it's your turn.** Tick **Stay covered when it's your turn** in Settings › Focus, or type `/tab focus-mode idle on`. When Claude is done, the window keeps its cover: the topic, one line saying it's done and how long ago, and a **Your turn** button in the session's color. Click it to open the window and reply.
+
+- Windows where Claude asks a question or hits an error still open on their own, and the window you're typing in is never covered.
+- The Settings preview shows both states in turn while the box is ticked.
+- It's off by default: without it, Focus mode works as before.
+
+**Privacy and security audit.** Every part was read for what it sends, stores and trusts. Nothing was sending your content anywhere it shouldn't, and these are fixed:
+
+- **tabby's files are yours alone.** `~/.claude/tabby` (session names, the last few prompts, settings, the log) is now readable only by your account; existing folders are tightened the next time tabby runs.
+- **The naming request sends less.** It no longer includes the folder's path, only its name, and the prompt is passed on stdin, so other accounts on the machine can't see it in the process list.
+- **`namer heuristic` and `off` now always mean no model call.** `/tab auto` and `/tab reset` used to ask the model anyway; with `heuristic` they name the tab on your machine.
+- **Names can't carry control characters into a terminal.** Titles and summaries from the model, folder names, `--tab` names and Claude's own session names are stripped of escape sequences and bidi overrides before they reach a title, the status line or `tabby ls`. In tmux, `#` in a name is no longer expanded.
+- **A broken `settings.json` is left alone.** If it isn't valid JSON, setup no longer rewrites it. A symlinked `settings.json` stays a symlink and keeps its permissions.
+- **`/tab` runs no shell when its hook is off.** The fallback command no longer pre-approves `sh`; it says how to turn tabby back on.
+- **The installer** pins the Node.js it downloads (when a machine has none) to one version with its SHA-256 written in the script, and can't act on a download that was cut short.
+- **Tabby Island** validates what it reads from session files before using it: a tty must be a device path, a transcript must be a regular file inside Claude's projects folder, and numbers of any size no longer crash it. It no longer writes command arguments to the system log, a hand-edited shortcut needs ⌃, ⌥ or ⌘, and it never falls back to running a CLI from `~/Dev/tabby`.
+- **Releases** are built only from commits on `main`, their files are never replaced, and each zip has a build attestation: `gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`.
+- **A test keeps it that way:** the build fails if network code appears anywhere but the updater and the island download, and the island has none at all.
+
+Known and not fixed yet: Tabby Island isn't notarized (the project has no Apple Developer ID while in beta). [SECURITY.md](SECURITY.md) says what that means and what tabby trusts.
+
+**Website.**
+
+- A new social card, and a search pass: title, description, structured data, `robots.txt`, a sitemap and `llms.txt`.
+- No third-party requests except the GitHub star count: fonts are served from the site, and a Content-Security-Policy blocks everything else.
+- The pattern behind "Let Claude install it" no longer runs under the text.
+- The answer to "What leaves my machine?" now lists exactly what the naming request contains.
+
 ## 0.3.2 — 2026-09-28
 
 Tabby Island fixes from the adversarial review:

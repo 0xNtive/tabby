@@ -135,6 +135,8 @@ struct IslandConfig: Equatable, Sendable {
     var watermark = WatermarkSettings()
     /// Terminal windows you're not in show only their topic while Claude works (`focusMode`).
     var focusMode = false
+    /// Focus mode keeps a window covered when it's your turn, with a "Your turn" button (`focusIdle`).
+    var focusIdle = false
     /// Look for a newer tabby every 6 h (`updateCheck`, on by default).
     var updateCheck = true
 
@@ -173,6 +175,7 @@ struct IslandConfig: Equatable, Sendable {
         }
         watermark = WatermarkSettings(raw: raw)
         focusMode = raw["focusMode"]?.bool ?? false
+        focusIdle = raw["focusIdle"]?.bool ?? false
         updateCheck = raw["updateCheck"]?.bool ?? true
         theme = raw["theme"]?.string
         namer = raw["namer"]?.string ?? "ai"
@@ -193,9 +196,13 @@ struct IslandConfig: Equatable, Sendable {
         case .string(let spec):
             let trimmed = spec.trimmingCharacters(in: .whitespaces).lowercased()
             if ["", "none", "off", "false"].contains(trimmed) { return nil }
-            if let combo = KeyCombo(spec: trimmed) { return combo }
             // The jump digits may be given as modifiers alone: "ctrl+opt".
-            if action == .jump, let combo = KeyCombo(spec: trimmed + "+1") { return combo }
+            let parsed = KeyCombo(spec: trimmed) ?? (action == .jump ? KeyCombo(spec: trimmed + "+1") : nil)
+            // The recorder's rule holds for a hand-edited file too: a global shortcut without
+            // ⌃, ⌥ or ⌘ would swallow that key in every app.
+            if let parsed, !parsed.modifiers.intersection([.control, .option, .command]).isEmpty || parsed.isFunctionKey {
+                return parsed
+            }
             return action.defaultCombo
         default:
             return action.defaultCombo

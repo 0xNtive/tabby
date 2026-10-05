@@ -3,6 +3,7 @@ import Foundation
 // Focus mode (`focusMode` in config.json): while Claude works in a Terminal window you're not
 // in, that window shows only its topic and what's running (FocusCover.swift draws it); what
 // Claude writes stays hidden until it needs you, it's your turn, or you click the window.
+// With `focusIdle`, a window stays covered when it's your turn and its cover says so.
 
 // MARK: - The rule
 
@@ -10,9 +11,10 @@ enum FocusRule {
     /// Whether focus mode covers a session's window right now. Covered while Claude works;
     /// open when it needs you (waiting, error), when it's your turn (idle), and whenever you're
     /// working in that window (Terminal is the active app and this is its front window).
-    static func covers(status: SessionStatus, windowIsFront: Bool, terminalActive: Bool) -> Bool {
+    /// `idle`: stay covered when it's your turn too (the cover then shows a "Your turn" button).
+    static func covers(status: SessionStatus, windowIsFront: Bool, terminalActive: Bool, idle: Bool = false) -> Bool {
         if windowIsFront && terminalActive { return false }
-        return status == .busy
+        return status == .busy || (idle && status == .idle)
     }
 }
 
@@ -72,6 +74,7 @@ final class SubagentScanner: @unchecked Sendable {
         for name in names where name.hasPrefix("agent-") && name.hasSuffix(".jsonl") {
             let path = dir + "/" + name
             guard let attributes = try? fm.attributesOfItem(atPath: path),
+                  attributes[.type] as? FileAttributeType == .typeRegular,
                   let mtime = attributes[.modificationDate] as? Date,
                   let size = (attributes[.size] as? NSNumber)?.uint64Value else { continue }
             guard now.timeIntervalSince(mtime) < Self.staleAfter else {

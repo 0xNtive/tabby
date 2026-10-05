@@ -2,7 +2,8 @@ import AppKit
 
 // Focus mode's cover: an opaque panel over a Terminal window's content, in the tab's own
 // background color. A box drawn in box-drawing characters holds the session's topic in large
-// letters; under it, one line per running agent with a spinner and how long it has run.
+// letters; under it, one line per running agent with a spinner and how long it has run. A cover
+// that stays when it's your turn (`focusIdle`) shows a "Your turn" button there instead.
 // WatermarkController places it (Watermark.swift); FocusRule decides when (FocusMode.swift).
 
 // MARK: - Content
@@ -22,6 +23,10 @@ struct FocusCoverContent: Equatable {
     /// When this turn's work began (seconds since 1970).
     var turnStartedAt: TimeInterval?
     var agents: [FocusAgent]
+    /// Claude is done and it's your turn: the cover shows a "Your turn" button, not what's running.
+    var yourTurn = false
+    /// When Claude finished (seconds since 1970).
+    var doneAt: TimeInterval?
 
     static func make(_ session: IslandSession, themes: [ThemeInfo], globalTheme: String?, now: Date = Date()) -> FocusCoverContent {
         let theme = themes.first { $0.id == (session.theme ?? globalTheme) }
@@ -29,13 +34,16 @@ struct FocusCoverContent: Equatable {
         let foreground = NSColor(hexString: session.fgHex ?? theme?.fg) ?? NSColor(white: 0.88, alpha: 1)
         let accent = NSColor(hexString: session.cursorHex ?? session.accentHex ?? session.dotHex) ?? foreground
         let progress = session.progress(now: now)
+        let yourTurn = session.status == .idle
         return FocusCoverContent(
             sessionId: session.id, title: session.title, project: session.project,
             background: background, foreground: foreground, accent: accent,
-            mainText: session.tasks?.current.map { Fmt.oneLine($0, max: 120) } ?? "working",
+            mainText: yourTurn ? "Done · waiting for your reply" : session.tasks?.current.map { Fmt.oneLine($0, max: 120) } ?? "working",
             mainDetail: progress?.caption,
             turnStartedAt: session.workElapsed(now: now).map { now.timeIntervalSince1970 - $0 },
-            agents: session.agents
+            agents: yourTurn ? [] : session.agents,
+            yourTurn: yourTurn,
+            doneAt: yourTurn ? session.activityAt.map { $0 / 1000 } : nil
         )
     }
 
@@ -43,7 +51,7 @@ struct FocusCoverContent: Equatable {
     func sameCard(as other: FocusCoverContent?) -> Bool {
         guard let other else { return false }
         return title == other.title && project == other.project && background == other.background &&
-            foreground == other.foreground && accent == other.accent
+            foreground == other.foreground && accent == other.accent && yourTurn == other.yourTurn
     }
 }
 
@@ -118,6 +126,9 @@ struct FocusLayout {
     var maxLines: Int
     var hint: NSAttributedString?
     var hintRect: CGRect
+    /// The "Your turn" button (your turn only, where there's room for it).
+    var button: NSAttributedString?
+    var buttonRect = CGRect.zero
 
     static let spinner = Array("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
@@ -151,7 +162,7 @@ struct FocusLayout {
         // watermark's size.
         let padX = compact ? 0 : cellWidth * 4
         let maxWidth = width - margin * 2 - padX * 2
-        let maxHeight = compact ? height * 0.7 : height * 0.3
+        let maxHeight = compact ? height * (content.yourTurn ? 0.5 : 0.7) : height * 0.3
         func attributed(_ size: CGFloat) -> NSAttributedString {
             NSAttributedString(string: title, attributes: [
                 .font: titleFont(size), .foregroundColor: content.foreground,
@@ -178,12 +189,39 @@ struct FocusLayout {
         let titleSize = measure(size) ?? measure(low) ?? CGSize(width: maxWidth, height: size)
         let titleString = attributed(size)
 
+        // Your turn: a button in the session's color, the one thing on the cover to act on. The
+        // short label where the long one doesn't fit.
+        var button: NSAttributedString?
+        var buttonSize = CGSize.zero
+        if content.yourTurn {
+            for text in ["Your turn · click to reply", "Your turn"] {
+                let string = NSAttributedString(string: text, attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: cellSize, weight: .bold), .foregroundColor: content.background,
+                ])
+                let size = CGSize(width: ceil(string.size().width + cellWidth * 4), height: ceil(lineHeight * 2.2))
+                guard size.width <= width - margin * 2 else { continue }
+                button = string
+                buttonSize = size
+                break
+            }
+        }
+
         if compact {
-            let rect = CGRect(x: (width - maxWidth) / 2, y: ((height - titleSize.height) / 2).rounded(),
+            var rect = CGRect(x: (width - maxWidth) / 2, y: ((height - titleSize.height) / 2).rounded(),
                               width: maxWidth, height: titleSize.height + 2)
+            var buttonRect = CGRect.zero
+            let total = titleSize.height + lineHeight + buttonSize.height
+            if button != nil, total <= height * 0.9 {
+                rect.origin.y = ((height - total) / 2).rounded()
+                buttonRect = CGRect(x: ((width - buttonSize.width) / 2).rounded(), y: (rect.maxY + lineHeight).rounded(),
+                                    width: buttonSize.width, height: buttonSize.height)
+            } else {
+                button = nil
+            }
             return FocusLayout(compact: true, cell: cell, cellWidth: cellWidth, lineHeight: lineHeight, box: .zero,
                                title: titleString, titleRect: rect, label: nil, labelOrigin: .zero, lines: .zero,
-                               rowHeight: lineHeight, maxLines: 0, hint: nil, hintRect: .zero)
+                               rowHeight: lineHeight, maxLines: 0, hint: nil, hintRect: .zero,
+                               button: button, buttonRect: buttonRect)
         }
 
         let label = content.project.isEmpty ? nil : NSAttributedString(string: " \(content.project) ", attributes: [
@@ -209,9 +247,16 @@ struct FocusLayout {
         ])
         let hintHeight = ceil(hint.size().height)
         let room = height - boxSize.height - gap - hintHeight - lineHeight * 3
-        let maxLines = max(0, min(6, Int((room / rowHeight).rounded(.down))))
-        let shownLines = min(max(agentCount, 1), maxLines)
-        let group = boxSize.height + (shownLines > 0 ? gap + CGFloat(shownLines) * rowHeight : 0)
+        var maxLines = max(0, min(6, Int((room / rowHeight).rounded(.down))))
+        if content.yourTurn {
+            // One line (done, and when), then the button; the button alone where room is short.
+            if room < buttonSize.height { button = nil }
+            maxLines = room >= rowHeight + lineHeight + buttonSize.height || button == nil ? min(maxLines, 1) : 0
+        }
+        let shownLines = min(max(content.yourTurn ? 1 : agentCount, 1), maxLines)
+        let linesHeight = shownLines > 0 ? gap + CGFloat(shownLines) * rowHeight : 0
+        let buttonGap = shownLines > 0 ? lineHeight : gap
+        let group = boxSize.height + linesHeight + (button != nil ? buttonGap + buttonSize.height : 0)
         let top = max(lineHeight, ((height - group) * 0.44).rounded())
         let box = CGRect(x: ((width - boxSize.width) / 2).rounded(), y: top, width: boxSize.width, height: boxSize.height)
 
@@ -221,10 +266,14 @@ struct FocusLayout {
         let lines = CGRect(x: box.minX + cellWidth, y: box.maxY + gap, width: box.width - cellWidth * 2,
                            height: CGFloat(maxLines) * rowHeight)
         let hintRect = CGRect(x: 0, y: height - hintHeight - lineHeight * 1.2, width: width, height: hintHeight)
+        let buttonRect = button == nil ? .zero : CGRect(
+            x: ((width - buttonSize.width) / 2).rounded(), y: (box.maxY + linesHeight + buttonGap).rounded(),
+            width: buttonSize.width, height: buttonSize.height)
         return FocusLayout(compact: false, cell: cell, cellWidth: cellWidth, lineHeight: lineHeight, box: box,
                            title: titleString, titleRect: titleRect, label: label, labelOrigin: labelOrigin,
                            lines: lines, rowHeight: rowHeight, maxLines: maxLines,
-                           hint: room > lineHeight * 2 ? hint : nil, hintRect: hintRect)
+                           hint: room > lineHeight * 2 ? hint : nil, hintRect: hintRect,
+                           button: button, buttonRect: buttonRect)
     }
 }
 
@@ -304,6 +353,15 @@ final class FocusCoverView: NSView {
             hint.draw(with: layout.hintRect, options: [.usesLineFragmentOrigin])
         }
         if layout.maxLines > 0, dirtyRect.intersects(layout.lines) { drawLines(layout, content) }
+        if let button = layout.button, dirtyRect.intersects(layout.buttonRect) {
+            // Filled with the session's color, its label in the tab's own background.
+            let radius = layout.cellWidth * 0.7
+            content.accent.setFill()
+            NSBezierPath(roundedRect: layout.buttonRect, xRadius: radius, yRadius: radius).fill()
+            let size = button.size()
+            button.draw(at: NSPoint(x: (layout.buttonRect.midX - size.width / 2).rounded(),
+                                    y: (layout.buttonRect.midY - size.height / 2).rounded()))
+        }
     }
 
     /// ╭─ project ──╮ │ │ ╰──╯ in the session's color, drawn the way a terminal joins box-drawing
@@ -333,7 +391,7 @@ final class FocusCoverView: NSView {
         label.draw(at: origin)
     }
 
-    /// One line per agent: spinner, who, what, how long.
+    /// One line per agent: spinner, who, what, how long. Your turn: one still line, done and when.
     private func drawLines(_ layout: FocusLayout, _ content: FocusCoverContent) {
         let now = clock ?? Date().timeIntervalSince1970
         var rows: [(who: String, what: String, detail: String?, since: TimeInterval?)] = [
@@ -361,13 +419,16 @@ final class FocusCoverView: NSView {
         let baseline = ((layout.rowHeight - layout.lineHeight) / 2).rounded()
         for (index, row) in rows.enumerated() {
             let y = layout.lines.minY + CGFloat(index) * layout.rowHeight + baseline
-            let glyph = still ? "•" : String(FocusLayout.spinner[(frameIndex + index * 3) % FocusLayout.spinner.count])
+            let glyph = content.yourTurn ? "✓" : still ? "•" : String(FocusLayout.spinner[(frameIndex + index * 3) % FocusLayout.spinner.count])
             let glyphSize = (glyph as NSString).size(withAttributes: [.font: spinnerFont])
             (glyph as NSString).draw(at: NSPoint(x: left, y: y + (layout.lineHeight - glyphSize.height) / 2),
                                      withAttributes: [.font: spinnerFont, .foregroundColor: content.accent])
             (row.who as NSString).draw(at: NSPoint(x: whoX, y: y), withAttributes: [.font: font, .foregroundColor: dim])
             var trailing = row.since.map { Self.elapsed(max(0, now - $0)) } ?? ""
             if let detail = row.detail, !detail.isEmpty { trailing = trailing.isEmpty ? detail : "\(detail)  \(trailing)" }
+            if content.yourTurn {
+                trailing = content.doneAt.flatMap { Fmt.ago($0 * 1000, now: Date(timeIntervalSince1970: now)) } ?? ""
+            }
             let trailingWidth = (trailing as NSString).size(withAttributes: [.font: font]).width
             (trailing as NSString).draw(at: NSPoint(x: right - trailingWidth, y: y), withAttributes: [.font: font, .foregroundColor: faint])
             let whatWidth = right - trailingWidth - cw * 2 - whatX
