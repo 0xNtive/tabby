@@ -1,0 +1,21 @@
+# tabby
+
+> tabby is a free, open-source Claude Code plugin (in beta) for macOS and Linux. It gives every Claude Code session's terminal tab an AI-written name, a calm color and a live status, and on a Mac it adds Tabby Island: a panel at the top of the screen that lists every session and shows which one needs you. It runs on the user's machine: no servers, no telemetry, no accounts.
+
+Install by pasting this into Claude Code: Install tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it. Or in a terminal: `curl -fsSL https://claude-tabby.vercel.app/install | bash`. `tabby uninstall` reverts every change.
+
+What leaves the machine: only the tab-naming request (the session's last few prompts, a short excerpt of Claude's last reply and the project folder's name), sent to Claude Haiku through the user's own Claude Code login; `/tab namer heuristic` turns that off. An update check asks github.com for the latest release.
+
+## Docs
+
+- [Home page](https://claude-tabby.vercel.app/): what tabby does, with live demos
+- [README](https://github.com/0xNtive/tabby/blob/main/README.md): install, every `/tab` command, the island, Focus mode, tiling, themes
+- [Install guide for Claude](https://claude-tabby.vercel.app/install.md): the steps Claude Code follows to install tabby
+- [Tabby Island](https://github.com/0xNtive/tabby/blob/main/island/README-island.md): the macOS app, its shortcuts, settings and permissions
+- [Security](https://github.com/0xNtive/tabby/blob/main/SECURITY.md): what tabby sends, stores and trusts
+- [Terms of Use](https://claude-tabby.vercel.app/terms)
+- [Changelog](https://github.com/0xNtive/tabby/blob/main/CHANGELOG.md)
+
+## Source
+
+- [GitHub repository](https://github.com/0xNtive/tabby): MIT licensed, zero dependencies

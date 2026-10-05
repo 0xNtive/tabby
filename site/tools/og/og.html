@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- The social card (assets/og.png, 1200×630). Serve site/ locally, open /tools/og/og.html at 1200×630 and
+     screenshot it (see ../../README.md). The backdrop and the peeking cat were generated with Higgsfield
+     (GPT Image 2.5, the cat from brand/logo-2048.png); the island is a real snapshot render. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tabby social card</title>
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+  html, body { margin: 0; background: #0b0b0e; }
+  body { width: 1200px; height: 630px; overflow: hidden; }
+  .og { position: relative; width: 1200px; height: 630px; overflow: hidden; background: var(--ink); color: var(--text); font-family: var(--display); }
+  .og-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.9; }
+  .og-shade { position: absolute; inset: 0; background: radial-gradient(ellipse 210px 150px at 1085px 96px, rgb(11 11 14 / 0.78), rgb(11 11 14 / 0) 100%), linear-gradient(90deg, #0b0b0e 0%, rgb(11 11 14 / 0.92) 38%, rgb(11 11 14 / 0) 64%); }
+
+  .og-copy { position: absolute; left: 68px; top: 0; bottom: 0; width: 500px; display: flex; flex-direction: column; justify-content: center; padding-bottom: 6px; }
+  .og-brand { display: flex; align-items: center; gap: 14px; font-size: 40px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; }
+  .og-brand img { width: 50px; height: 50px; }
+  .og-beta { margin-left: 2px; padding: 5px 11px 6px; border: 1.5px solid rgb(244 145 62 / 0.55); border-radius: 999px; background: rgb(244 145 62 / 0.12); color: var(--marmalade); font: 500 16px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+  .og-title { margin: 44px 0 0; font-size: 72px; font-weight: 650; line-height: 0.98; letter-spacing: -0.035em; }
+  .og-sub { margin: 26px 0 0; max-width: 460px; font-size: 26px; line-height: 1.32; color: #b9bac0; }
+  .og-foot { display: flex; align-items: center; gap: 14px; margin-top: 40px; font: 500 19px/1 var(--mono); color: var(--marmalade); }
+  .og-foot i { width: 5px; height: 5px; border-radius: 50%; background: rgb(255 255 255 / 0.35); }
+  .og-foot span + i + span { color: #a9aab0; }
+
+  /* A Mac screen, bleeding off the right and bottom edges: the island hangs from its top, a Terminal window below. */
+  .og-screen { position: absolute; left: 612px; top: 150px; width: 660px; height: 520px; overflow: hidden; border-radius: 18px 0 0 0; background: linear-gradient(165deg, #1d2b45 0%, #10202c 42%, #1f1829 100%); box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 40px 90px -20px rgb(0 0 0 / 0.85), 0 0 120px -30px rgb(244 145 62 / 0.35); }
+  .og-menubar { display: flex; align-items: center; gap: 12px; height: 26px; padding: 0 14px; background: rgb(255 255 255 / 0.09); font: 500 12px/1 var(--mac); color: rgb(255 255 255 / 0.78); }
+  .og-menubar b { font-weight: 700; color: #fff; }
+  .og-menubar .apple { width: 11px; height: 11px; border-radius: 50%; background: rgb(255 255 255 / 0.85); }
+  .og-menubar .right { position: absolute; left: 516px; font-variant-numeric: tabular-nums; }
+  .og-island { position: absolute; left: 294px; top: 0; width: 456px; height: auto; margin-left: -228px; }
+  .og-term { position: absolute; left: 34px; right: -40px; top: 368px; height: 240px; overflow: hidden; border-radius: 11px; background: #15171c; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 30px 60px -20px rgb(0 0 0 / 0.65); font-family: var(--mac); }
+  .og-term-head { display: flex; align-items: center; height: 30px; padding: 0 13px; background: #2b2b2e; }
+  .og-term-head i { width: 11px; height: 11px; margin-right: 7px; border-radius: 50%; background: #ff5f57; }
+  .og-term-head i:nth-child(2) { background: #febc2e; }
+  .og-term-head i:nth-child(3) { background: #28c840; }
+  .og-tabs { display: flex; height: 30px; background: #232326; border-bottom: 1px solid rgb(0 0 0 / 0.5); }
+  .og-tab { display: flex; flex: none; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; border-right: 1px solid rgb(0 0 0 / 0.45); color: rgb(255 255 255 / 0.62); font-size: 12.5px; white-space: nowrap; }
+  .og-tab.is-active { background: #3a3a3e; color: rgb(255 255 255 / 0.95); }
+  .og-tab i { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .og-body { padding: 14px 20px; color: #ced1d6; font: 400 13px/1.7 var(--mono); }
+  .og-cat { position: absolute; left: 1010px; top: 150px; width: 150px; height: auto; transform: translateY(-97%); filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.4)); }
+</style>
+</head>
+<body>
+<div class="og">
+  <img class="og-backdrop" src="backdrop.jpg" alt="">
+  <div class="og-shade"></div>
+  <div class="og-copy">
+    <div class="og-brand"><img src="/assets/logo.svg" alt=""><span>tabby</span><span class="og-beta">beta</span></div>
+    <h1 class="og-title">Every Claude tab, at a&nbsp;glance.</h1>
+    <p class="og-sub">A name, a calm color and a live status for every Claude Code session.</p>
+    <div class="og-foot"><span>claude-tabby.vercel.app</span><i></i><span>free and local</span></div>
+  </div>
+  <img class="og-cat" src="cat-peek.png" alt="">
+  <div class="og-screen">
+    <div class="og-menubar"><span class="apple"></span><b>Terminal</b><span class="right">Thu 14:02</span></div>
+    <div class="og-term">
+      <div class="og-term-head"><i></i><i></i><i></i></div>
+      <div class="og-tabs">
+        <div class="og-tab is-active"><i style="background:#e79e6b"></i><span>Migrate billing to Stripe v3</span></div>
+        <div class="og-tab"><i style="background:#77b7f4"></i><span>Refactor auth middleware</span></div>
+        <div class="og-tab"><i style="background:#7fc489"></i><span>Fix flaky checkout e2e test</span></div>
+        <div class="og-tab"><i style="background:#bea0eb"></i><span>Write the 2.0 release notes</span></div>
+      </div>
+      <div class="og-body"><span style="color:#7fc489">●</span> Porting the invoice webhooks to v3.<br><span style="opacity:.6">&nbsp;&nbsp;Updated 3 files, 42 tests pass.</span></div>
+    </div>
+    <img class="og-island" src="/assets/ui/island-standard.webp" alt="">
+  </div>
+</div>
+</body>
+</html>

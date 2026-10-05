@@ -6,26 +6,25 @@
 <title>Terms of Use: tabby</title>
 <meta name="description" content="Plain-language terms for tabby: local, free, no telemetry, and what future sponsored messages may and may not do.">
 <meta name="theme-color" content="#0b0b0e">
+<meta name="color-scheme" content="dark">
 <link rel="canonical" href="https://claude-tabby.vercel.app/terms">
 <meta property="og:title" content="Terms of Use: tabby">
 <meta property="og:description" content="Plain-language terms for tabby: local, free, no telemetry.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://claude-tabby.vercel.app/terms">
-<meta property="og:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260928a">
+<meta property="og:image" content="https://claude-tabby.vercel.app/assets/og.jpg?v=20261005a">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://claude-tabby.vercel.app/assets/og.png?v=20260928a">
+<meta name="twitter:image" content="https://claude-tabby.vercel.app/assets/og.jpg?v=20261005a">
 <link rel="icon" href="/assets/favicon.svg?v=20260928a" type="image/svg+xml">
 <link rel="icon" href="/assets/favicon-32.png?v=20260928a" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png?v=20260928a">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;650;700&display=swap">
-<link rel="stylesheet" href="/assets/site.css?v=20261002b">
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/outfit-v15-latin.woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css?v=20261005a">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="page-head"><a href="/" class="nav-brand"><img src="/assets/logo.svg?v=20260928a" alt="" width="30" height="30"><span>tabby</span></a></header>
+<header class="page-head"><a href="/" class="nav-brand"><img src="/assets/logo.svg?v=20260928a" alt="" width="30" height="30"><span>tabby</span><span class="beta">beta</span></a></header>
 <main id="main" class="prose">
 <h1>tabby Terms of Use</h1>
 <p><strong>Version 2026-09-25.</strong> Plain-language terms for the tabby plugin, command-line tool, macOS island app and website ("tabby"). tabby asks you to accept these terms once, during setup, before it does anything. If a later version changes them materially, tabby asks again.</p>
@@ -34,9 +33,10 @@
 <p>tabby names, colors and tracks the terminal tabs of your Claude Code sessions. It runs on your computer. It reads Claude Code's local session files and writes to your terminal, your Claude Code settings (only the changes <code>tabby install</code> lists) and <code>~/.claude/tabby</code>.</p>
 <h2 id="2-your-data">2. Your data</h2>
 <ul>
-  <li><strong>tabby has no servers and collects nothing.</strong> No telemetry, analytics or tracking. Your prompts, code, file names and session data stay on your machine.</li>
-  <li><strong>AI names.</strong> To name a tab, tabby sends your recent prompts in that session (up to about 6, each trimmed) and a short excerpt of Claude's last reply to Anthropic's Claude Haiku model, using <em>your own</em> Claude Code login. This is the same provider and account you already use with Claude Code, and Anthropic's terms and privacy policy apply to those requests. Turn it off with <code>tabby config namer heuristic</code>, which names tabs locally, or <code>off</code>.</li>
-  <li><strong>The website</strong> sets no cookies and runs no analytics, unless a future version of these terms says so.</li>
+  <li><strong>tabby has no servers and collects nothing.</strong> No telemetry, analytics or tracking. Your prompts, code, file names and session data stay on your machine, in files only your account can read, with the one exception below.</li>
+  <li><strong>AI names.</strong> To name a tab, tabby sends your recent prompts in that session (up to about 6, each trimmed), a short excerpt of Claude's last reply and the name of the project's folder (not its path) to the Claude Haiku model, using <em>your own</em> Claude Code login. This goes to the same provider and account you already use with Claude Code (Anthropic, unless you have set Claude Code up with another), and that provider's terms and privacy policy apply to those requests. The request can use no tools and returns only a name. Turn it off with <code>tabby config namer heuristic</code>, which names tabs locally, or <code>off</code>.</li>
+  <li><strong>Updates.</strong> tabby asks github.com which release is the latest (every 6 hours at most; <code>tabby config updateCheck false</code> turns that off) and downloads Tabby Island and its updates from this project's GitHub releases. These are plain downloads that send nothing about you or your sessions. Tabby Island itself makes no network requests.</li>
+  <li><strong>The website</strong> sets no cookies and runs no analytics, unless a future version of these terms says so. Its home page asks GitHub's public API for the project's star count.</li>
 </ul>
 <h2 id="3-sponsored-content">3. Sponsored content</h2>
 <p>tabby is free. To keep it that way, <strong>future versions may show sponsored messages or ads inside tabby's own interface</strong>: the island, the status line, the CLI, or messages tabby prints in your terminal.</p>
