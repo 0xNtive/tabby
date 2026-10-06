@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 — 2026-10-06
+
+Tiling fixes:
+
+- **Windows no longer overlap on a second display.** macOS reports a second display's usable area without its menu bar (every display has one when displays have separate Spaces), so the first row was placed under it and pushed down into the next. tabby now leaves the menu bar out itself.
+- **A window Terminal rounds up fits its cell.** Terminal sizes windows in whole rows and columns, sometimes one more than asked; such a window overlapped the one below. tabby now asks for a little less until it fits.
+- **No false "Allow Accessibility".** When sessions were left in place because their windows sit on another desktop or in full screen, the note mentioned Accessibility and the island read it as a missing permission, asking you to allow what was already allowed. The note now says what happened, and the island asks for Accessibility only when the permission is really missing.
+- **Windows on another desktop come along more often.** Before Terminal is brought forward, the windows that aren't on screen are made its front windows, so macOS switches to their desktop rather than staying on one that already shows a Terminal window.
+
 ## 0.4.0 — 2026-10-05
 
 tabby is now labeled **beta** (the website, the README, the island's Settings and About).

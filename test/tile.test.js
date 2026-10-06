@@ -29,6 +29,18 @@ test('screens are keyed by display UUID, or name and size when macOS has none', 
   assert.match(S.describe(screens[1]), /HP E273q {2}2560×1440 {2}\(main, current\)/);
 });
 
+test('a second display that reports no menu-bar inset gets one (its windows would be pushed down)', () => {
+  const dell = { uuid: 'DELL', name: 'DELL P2721Q', menuBar: 30, separateSpaces: true, full: { x: 2560, y: 0, w: 1080, h: 1920 }, frame: { x: 2560, y: 0, w: 1080, h: 1920 } };
+  assert.deepEqual(S.usable(dell), { x: 2560, y: 30, w: 1080, h: 1890 }, 'the menu bar is taken off the top');
+  assert.deepEqual(S.usable({ ...dell, frame: { x: 2560, y: 30, w: 1080, h: 1890 } }), { x: 2560, y: 30, w: 1080, h: 1890 }, 'an inset that is there stays as it is');
+  assert.deepEqual(S.usable({ ...dell, separateSpaces: false }), dell.frame, 'with one Space across displays only the main one has a menu bar');
+  assert.deepEqual(S.usable({ ...dell, primary: true }), dell.frame, 'the main display is measured right by AppKit');
+  assert.deepEqual(S.usable({ ...dell, notch: 32 }), { x: 2560, y: 32, w: 1080, h: 1888 }, 'a notch is taller than the menu bar');
+  // Cells on that display start under its menu bar.
+  const cell = T.cells(3, { x: 2566, y: 36, w: 1068, h: 1878 }, 6)[0];
+  assert.ok(cell[1] >= 36, 'first row below the menu bar');
+});
+
 test('picking screens by number, name or key; "all" and "current"', () => {
   assert.deepEqual(S.parseSelection('3', screens), { value: ['DELL U2720Q@1440x2560'] });
   assert.deepEqual(S.parseSelection('dell, 1', screens), { value: ['DELL U2720Q@1440x2560', 'LAPTOP'] });

@@ -90,19 +90,27 @@ enum Actions {
         }
     }
 
-    /// The line of CLI output worth showing after `tile`: an Accessibility hint first,
-    /// else anything that isn't the plain "Tiled …" success line.
+    /// The line of CLI output worth showing after `tile`: a missing Accessibility permission
+    /// first (the CLI asks to allow it), else anything that isn't the plain "Tiled …" success line.
+    /// A line that merely mentions Accessibility (sessions left on another desktop) is news, not
+    /// a permission to ask for.
     static func notice(fromTileOutput output: String) -> (text: String, accessibility: Bool)? {
         let lines = output
             .replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        if let line = lines.first(where: { $0.localizedCaseInsensitiveContains("accessibility") }) {
+        if let line = lines.first(where: { Self.asksForAccessibility($0) }) {
             return (line, true)
         }
         if let line = lines.first(where: { !$0.hasPrefix("Tiled ") }) { return (line, false) }
         return nil
+    }
+
+    /// The CLI's wording when Accessibility is missing or was taken away while tiling.
+    static func asksForAccessibility(_ line: String) -> Bool {
+        line.localizedCaseInsensitiveContains("accessibility")
+            && (line.localizedCaseInsensitiveContains("allow ") || line.localizedCaseInsensitiveContains("turned off"))
     }
 
     /// Brings the session's terminal tab to the front.
