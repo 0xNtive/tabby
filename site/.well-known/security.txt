@@ -1,0 +1,6 @@
+# Report a vulnerability in tabby privately (RFC 9116).
+Contact: https://github.com/0xNtive/tabby/security/advisories/new
+Policy: https://github.com/0xNtive/tabby/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://claude-tabby.vercel.app/.well-known/security.txt
+Expires: 2027-10-06T00:00:00.000Z
