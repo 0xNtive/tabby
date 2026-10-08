@@ -2,7 +2,8 @@
 # PostToolUse fast path (runs after every tool call): only start node when this
 # session is waiting on you (permission / question) and needs to flip back to "working".
 input=$(cat)
-id=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -n 1)
+# The first "session_id": the hook's own, never one inside a tool's input or output.
+id=$(printf '%s' "$input" | grep -oE '"session_id" *: *"[^"]*"' | head -n 1 | sed 's/.*: *"//; s/"$//')
 [ -n "$id" ] || exit 0
 file="${TABBY_HOME:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tabby}/sessions/$id.json"
 [ -f "$file" ] || exit 0

@@ -26,7 +26,7 @@ const calls = path.join(tmp, 'calls');
 fs.mkdirSync(calls);
 fs.writeFileSync(
   fakeClaude,
-  `#!/bin/sh\nn=$(ls "${calls}" | wc -l | tr -d ' ')\nprintf '%s\\n' "$@" > "${calls}/$n.argv"\ncat > "${calls}/$n.stdin"\nprintf '%s' '{"result":"{\\"title\\": \\"Stripe Webhook Retries\\", \\"summary\\": \\"Retrying failed webhooks.\\"}"}'\n`,
+  `#!/bin/sh\nn=$(ls "${calls}" | grep -c '\\.argv$')\nprintf '%s\\n' "$@" > "${calls}/$n.argv"\ncat > "${calls}/$n.stdin"\npwd > "${calls}/$n.pwd"\nprintf '%s' '{"result":"{\\"title\\": \\"Stripe Webhook Retries\\", \\"summary\\": \\"Retrying failed webhooks.\\"}"}'\n`,
   { mode: 0o755 }
 );
 process.env.CLAUDE_CODE_EXECPATH = fakeClaude;
@@ -44,29 +44,46 @@ before(async () => {
 const sources = (dir, ext) =>
   fs.readdirSync(path.join(ROOT, dir)).filter((n) => ext.some((e) => n.endsWith(e))).map((n) => path.join(dir, n));
 
-test('the CLI has no network code of its own: only curl, only in the updater and the island download', () => {
-  const files = [...sources('lib', ['.js']), ...sources('bin', ['.js', '.sh']), ...sources('hooks', ['.sh', '.json']), ...sources('shell', ['.sh']), ...sources('scripts', ['.js'])];
-  const forbidden = /from ['"](?:node:)?(?:https?|http2|net|tls|dgram|dns)['"]|require\(['"](?:node:)?(?:https?|http2|net|tls|dgram|dns)['"]\)|\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon/;
-  const curls = [];
+test('the CLI has no network code of its own: network tools run only in the updater, the island download and the installer', () => {
+  const files = [...sources('lib', ['.js']), ...sources('bin', ['.js', '.sh']), ...sources('hooks', ['.sh', '.json']), ...sources('shell', ['.sh']), ...sources('scripts', ['.js']), 'install.sh'];
+  const forbidden = /from ['"](?:node:)?(?:https?|http2|net|tls|dgram|dns)['"]|require\(['"](?:node:)?(?:https?|http2|net|tls|dgram|dns)['"]\)|\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|NSURLSession|NSURLConnection|NSURLRequest|dataWithContentsOfURL|do shell script/;
+  const TOOLS = 'curl|wget|nc|ncat|netcat|scp|sftp|rsync|ssh|ftp|telnet|gh|git';
+  // A call to a network tool, as opposed to the word in a message that says how to reinstall. In
+  // JavaScript: run()/spawn()/exec*() with the tool as the program (a path to it included), or a
+  // shell line that interpolates into it. In a shell script: the tool starting a command, once
+  // strings and comments are taken out.
+  const jsCall = new RegExp(`\\b(?:run|spawn|spawnSync|exec|execSync|execFile|execFileSync)\\(\\s*['"\`](?:[^'"\`\\n]*/)?(?:${TOOLS})['"\`]|\\b(?:${TOOLS}) -[a-zA-Z]+ [^|\\n]*\\$\\{`);
+  const shCall = new RegExp(`(?:^|[\\s;|&({])(?:${TOOLS})\\s+-`);
+  const callsTool = (file, text) =>
+    file.endsWith('.sh') ? text.split('\n').some((line) => shCall.test(line.replace(/'[^']*'|"[^"]*"/g, '').replace(/#.*$/, ''))) : jsCall.test(text);
+  // Who may, and the hosts each names (www.apple.com is the plist DTD in the launchd job).
+  const allowed = {
+    'lib/island.js': ['github.com', 'www.apple.com'],
+    'lib/update.js': ['github.com', 'codeload.github.com', 'claude-tabby.vercel.app'],
+    'install.sh': ['nodejs.org', 'codeload.github.com', 'github.com', 'claude-tabby.vercel.app', 'claude.com'],
+  };
+  const callers = [];
   for (const file of files) {
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
     assert.ok(!forbidden.test(text), `${file} uses a network API`);
-    // A call, not the word in a message telling someone how to reinstall.
-    if (/run\('curl'|spawnSync\('curl'|\bcurl -[a-zA-Z]+ [^|]*\$\{/.test(text)) curls.push(file);
-    assert.ok(!/\b(?:wget|nc|ncat|scp|rsync|ssh)\s+-/.test(text), `${file} runs a network tool`);
+    if (callsTool(file, text)) callers.push(file);
   }
-  assert.deepEqual(curls.sort(), ['lib/island.js', 'lib/update.js'], 'curl is called only by the updater and the island download');
-  // Those two talk to GitHub and nowhere else.
-  for (const file of curls) {
-    const hosts = [...fs.readFileSync(path.join(ROOT, file), 'utf8').matchAll(/https?:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]);
-    for (const host of hosts) assert.ok(['github.com', 'codeload.github.com', 'claude-tabby.vercel.app', 'www.apple.com'].includes(host), `${file} names ${host}`);
+  assert.deepEqual(callers.sort(), Object.keys(allowed).sort(), 'network tools run only in the updater, the island download and the installer');
+  for (const [file, hosts] of Object.entries(allowed)) {
+    const named = [...fs.readFileSync(path.join(ROOT, file), 'utf8').matchAll(/https?:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]);
+    for (const host of named) assert.ok(hosts.includes(host), `${file} names ${host}`);
   }
 });
 
 test('Tabby Island has no network code at all', () => {
-  const forbidden = /URLSession|URLRequest|NSURLConnection|CFNetwork|NWConnection|import Network|WKWebView|import WebKit|CFSocket|CFStream|NSURLDownload|AsyncImage/;
+  const forbidden = /URLSession|URLRequest|NSURLConnection|CFNetwork|NWConnection|NWPathMonitor|import Network|WKWebView|import WebKit|CFSocket|CFStream|NSURLDownload|AsyncImage|dataTask|downloadTask|uploadTask|String\(contentsOf|NSData\(contentsOf|NSString\(contentsOf|getaddrinfo|CFHost|sockaddr|NSSocket/;
   for (const file of sources('island/Sources', ['.swift'])) {
-    assert.ok(!forbidden.test(fs.readFileSync(path.join(ROOT, file), 'utf8')), `${file} uses a network API`);
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.ok(!forbidden.test(text), `${file} uses a network API`);
+    // Data(contentsOf:) reads files: never a URL made from a string, which could be a web address.
+    assert.ok(!/Data\(contentsOf:\s*URL\(string/.test(text), `${file} reads a URL`);
+    // Web addresses appear only as the About panel's links.
+    if (file !== 'island/Sources/Brand.swift') assert.ok(!/https?:\/\//.test(text), `${file} names a web address`);
   }
 });
 
@@ -86,6 +103,21 @@ test('state under ~/.claude/tabby is the owner’s alone', () => {
   S.ensureDirs();
   assert.equal(mode(S.paths.root), 0o700);
   assert.equal(mode(S.paths.sessions), 0o700);
+  // Files an older tabby made readable to others (logs, backups, old records) are tightened too.
+  const old = path.join(S.paths.sessions, 'OLD.json');
+  fs.writeFileSync(old, '{"sessionId":"OLD"}\n');
+  fs.chmodSync(old, 0o644);
+  fs.mkdirSync(S.paths.backups, { recursive: true });
+  fs.chmodSync(S.paths.backups, 0o755);
+  const backup = path.join(S.paths.backups, 'settings.old.json');
+  fs.writeFileSync(backup, '{}\n');
+  fs.chmodSync(backup, 0o644);
+  S.ensureDirs();
+  assert.equal(mode(old), 0o600);
+  assert.equal(mode(S.paths.backups), 0o700);
+  assert.equal(mode(backup), 0o600);
+  fs.rmSync(old);
+  fs.rmSync(backup);
 });
 
 test('rewriting a file that isn’t tabby’s keeps its mode and its symlink', () => {
@@ -125,6 +157,13 @@ test('the namer sends the prompt on stdin, the folder’s name but never its pat
   const args = argv.trimEnd().split('\n');
   assert.ok(args.includes('--safe-mode') && args.includes('--no-session-persistence'));
   assert.equal(args[args.indexOf('--tools') + 1], '', 'no tools');
+  // Only the user's own settings and no MCP: a project's .claude/settings.json in the working
+  // directory (read without a trust prompt in -p mode) could otherwise point the API, with the
+  // prompt and the login token, at another host. And that directory is tabby's own, not /tmp.
+  assert.equal(args[args.indexOf('--setting-sources') + 1], 'user', 'user settings only');
+  assert.ok(args.includes('--strict-mcp-config'), 'no MCP servers');
+  const pwd = fs.readFileSync(path.join(calls, `${before}.pwd`), 'utf8').trim();
+  assert.equal(fs.realpathSync(pwd), fs.realpathSync(S.paths.root), 'runs in ~/.claude/tabby, not a shared temporary folder');
 });
 
 test('with the namer on "heuristic" or "off", nothing calls the model', () => {

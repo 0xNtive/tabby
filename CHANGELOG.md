@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.3 — 2026-10-08
+
+A second security pass, this time adversarial: what a hostile neighbor on the same machine, a hostile transcript or a replaced download could do. One finding mattered, and it's fixed.
+
+- **The naming request can no longer be redirected by a shared folder.** The Haiku call ran in the system's temporary folder, and Claude Code reads a project's `.claude/settings.json` from wherever it runs, even with `--safe-mode`. On a machine where `/tmp` is shared (Linux, or a Mac over SSH), another account could plant one there with an `env.ANTHROPIC_BASE_URL`, and every naming request, your Claude login token included, would have gone to that address. tabby now passes `--setting-sources user` (only your own settings) and `--strict-mcp-config`, and runs the call in `~/.claude/tabby`, which is yours alone. A single-user Mac with a normal login was never exposed (its temporary folder is private), and a test holds the fix in place.
+- **Tabby Island's download is checked against its build attestation** when GitHub's `gh` is installed: `gh attestation verify` has to agree that this zip came out of this repository's release workflow, or it's thrown away. The checksum next to the zip only ever caught a damaged download. Without `gh` nothing changes; `TABBY_NO_ATTEST=1` skips the check.
+- **Every file under `~/.claude/tabby` is now yours alone**, not only the ones written since 0.4.0: logs, the Node path, old session records and settings backups are tightened the next time tabby runs, and only the five newest `settings.json` backups are kept (a backup can hold keys).
+- **"Skip permissions" in quick launch no longer sticks.** Ticking it applied to every later launch, in any folder; it now applies to that launch, and **Start with "Skip permissions" ticked** in Settings › Windows is the one way to make it the default.
+- The island hands `CLAUDE_CONFIG_DIR` to the tabby commands it runs, so a custom Claude folder works from the island too. The per-tool hook reads the session id from the hook's own field, never from a tool's input. The installer's log and the Node path are private from the first write. GitHub Actions are pinned to commits.
+
 ## 0.4.2 — 2026-10-08
 
 Tiling is easier to understand, shows its progress, and leaves every window in its own color.

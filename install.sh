@@ -41,6 +41,7 @@ CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 TABBY_DIR="${TABBY_HOME:-$CLAUDE_HOME/tabby}"
 mkdir -p "$TABBY_DIR" && chmod 700 "$TABBY_DIR" # session records live here: the owner's alone
 LOG="$TABBY_DIR/install.log"
+( umask 077; : >> "$LOG" ) && chmod 600 "$LOG" 2> /dev/null # it quotes command output: the owner's too
 { echo; echo "=== tabby install $(date '+%Y-%m-%d %H:%M:%S') · $(uname -sm) · args: $*"; } >> "$LOG"
 
 if [ -t 1 ]; then B=$'\033[1m' D=$'\033[2m' G=$'\033[32m' Y=$'\033[33m' R=$'\033[31m' N=$'\033[0m'; else B= D= G= Y= R= N=; fi
@@ -143,7 +144,7 @@ fi
 # The real binary behind a version manager's shim, so hooks keep a Node 18+ in every project.
 REAL_NODE=$("$NODE" -p 'process.execPath' 2> /dev/null)
 [ -n "$REAL_NODE" ] && [ -x "$REAL_NODE" ] && NODE="$REAL_NODE"
-printf '%s\n' "$NODE" > "$TABBY_DIR/node-path"
+( umask 077; printf '%s\n' "$NODE" > "$TABBY_DIR/node-path" )
 export TABBY_NODE="$NODE"
 
 # ---------- 2. The plugin ----------

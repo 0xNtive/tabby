@@ -147,9 +147,8 @@ final class QuickLaunchController: NSObject, NSWindowDelegate {
     private func start(_ folder: RecentFolder, island: IslandController) {
         guard !model.launching else { return }
         model.launching = true
-        if model.skipPermissions != island.config.launchSkipPermissions {
-            island.setSetting("launchSkipPermissions", .bool(model.skipPermissions))
-        }
+        // "Skip permissions" is for this launch alone: ticked once, it used to come back ticked
+        // for every later launch, in any folder. Settings › Windows is where it becomes the default.
         let args = QuickLaunchFilter.arguments(for: folder, name: model.name, skipPermissions: model.skipPermissions)
         close()
         Actions.runCLI(args) { [weak island] status, output in
@@ -278,7 +277,7 @@ struct QuickLaunchView: View {
                     Text("Skip permissions").font(.system(size: 12.5, weight: .medium))
                 }
                 .toggleStyle(.checkbox)
-                .help("Starts claude with --dangerously-skip-permissions: it runs every tool (commands, edits) without asking first. Only for folders you trust. ⌘D")
+                .help("Starts claude with --dangerously-skip-permissions: it runs every tool (commands, edits) without asking first. Only for folders you trust, and only for this launch; Settings › Windows can make it the default. ⌘D")
                 Text("⌘D").font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.35))
                 Spacer(minLength: 8)
                 HStack(spacing: 5) {

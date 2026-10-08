@@ -38,7 +38,7 @@ find_node() {
       # per project): if it goes away, the search runs again.
       real=$("$n" -p 'process.execPath' 2> /dev/null)
       [ -n "$real" ] && [ -x "$real" ] && n="$real"
-      mkdir -p "$home" 2> /dev/null && printf '%s\n' "$n" > "$home/node-path" 2> /dev/null
+      ( umask 077; mkdir -p "$home" && printf '%s\n' "$n" > "$home/node-path" ) 2> /dev/null
       echo "$n"
       return 0
     fi

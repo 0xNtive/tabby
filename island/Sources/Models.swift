@@ -70,6 +70,12 @@ enum ClaudePaths {
             : dir.appendingPathComponent(".claude.json")
     }
 
+    /// For the tabby commands the island runs: the Claude folder when it isn't the default, so
+    /// both sides read and write the same state (the island starts without the shell's variables).
+    static var environment: [String: String] {
+        custom == nil ? [:] : ["CLAUDE_CONFIG_DIR": dir.path]
+    }
+
     /// For messages: "~/.claude/tabby/update.log".
     static func display(_ url: URL) -> String { (url.path as NSString).abbreviatingWithTildeInPath }
 }

@@ -174,7 +174,7 @@ Tiling also gives each window its own color, picked as a set: every window a dif
 
 ### Quick launch
 
-⌃⌥L opens a launcher with your recent and most-used project folders. Type to filter, add a name if you like, and press Enter: a new window opens there, running Claude, on your chosen screen. Tick **Skip permissions** (⌘D) to start it with `--dangerously-skip-permissions`; it remembers your choice and warns you while it's on.
+⌃⌥L opens a launcher with your recent and most-used project folders. Type to filter, add a name if you like, and press Enter: a new window opens there, running Claude, on your chosen screen. Tick **Skip permissions** (⌘D) to start it with `--dangerously-skip-permissions`; it applies to that launch only and warns you while it's ticked. **Start with “Skip permissions” ticked** in Settings › Windows makes it the default.
 
 <table>
 <tr>
@@ -274,9 +274,9 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 
 ## Privacy, cost and terms
 
-- **Nothing you typed leaves your machine except the naming request:** that session's last few prompts (trimmed), a short excerpt of Claude's last reply and the project folder's name go to Claude Haiku through your own Claude Code login, to the provider you already use. About 500 tokens (roughly $0.001), covered by Pro and Max. The request can use no tools and returns only a name. `/tab namer heuristic` names tabs on your machine instead; `off` not at all.
+- **Nothing you typed leaves your machine except the naming request:** that session's last few prompts (trimmed), a short excerpt of Claude's last reply and the project folder's name go to Claude Haiku through your own Claude Code login, to the provider you already use. About 500 tokens (roughly $0.001), covered by Pro and Max. The request can use no tools, reads only your own Claude settings and returns only a name. `/tab namer heuristic` names tabs on your machine instead; `off` not at all.
 - **Update checks** ask github.com where tabby's latest release is, every 6 hours at most: a plain request that sends nothing about you. `tabby config updateCheck false` (or Settings › General) turns them off. Tabby Island and its updates are downloaded from this repository's releases.
-- **No servers, no telemetry.** Tabby Island has no network code at all, and a test fails the build if network code appears anywhere but the updater.
+- **No servers, no telemetry.** Tabby Island has no network code at all, and a test fails the build if network code appears anywhere but the updater, the island download and the installer.
 - **Your files stay yours.** tabby's state in `~/.claude/tabby` (session names, the last few prompts, settings) is readable only by your account.
 - **What it trusts, and what it doesn't yet do** (the island isn't notarized while tabby is in beta) is in [SECURITY.md](SECURITY.md).
 - tabby is free. Future versions may show clearly labeled sponsored messages in tabby's own UI, never in your prompts, conversations or model context. See the [Terms of Use](TERMS.md), which setup asks you to accept.

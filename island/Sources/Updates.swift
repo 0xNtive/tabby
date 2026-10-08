@@ -155,6 +155,7 @@ final class UpdateCenter: ObservableObject {
         environment["PATH"] = environment["PATH"].map { "\($0):\(extraPath)" } ?? extraPath
         environment["TABBY_SOURCE"] = "island"
         environment["NO_COLOR"] = "1"
+        environment.merge(ClaudePaths.environment) { $1 }
         process.environment = environment
         process.standardInput = FileHandle.nullDevice
         if let handle = try? FileHandle(forWritingTo: log) {
