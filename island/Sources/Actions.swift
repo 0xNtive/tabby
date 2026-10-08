@@ -103,7 +103,9 @@ enum Actions {
         if let line = lines.first(where: { Self.asksForAccessibility($0) }) {
             return (line, true)
         }
-        if let line = lines.first(where: { !$0.hasPrefix("Tiled ") }) { return (line, false) }
+        // "Nothing was tiled." says less than the reason on the line after it.
+        let news = lines.filter { !$0.hasPrefix("Tiled ") }
+        if let line = news.first(where: { $0 != "Nothing was tiled." }) ?? news.first { return (line, false) }
         return nil
     }
 
@@ -356,11 +358,13 @@ final class MenuFactory: NSObject {
         return menu
     }
 
-    /// "Tile all sessions (N)", then 2 · 3 · 4 · 6 · 8 windows.
+    /// What tiling does, "Tile all sessions (N)", then 2 · 3 · 4 · 6 · 8 windows, and whether
+    /// tiling recolors the windows.
     func tileMenu(sessionCount: Int, run: @escaping @MainActor (Int?) -> Void) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        let all = item("Tile All Sessions (\(sessionCount))", symbol: "square.grid.2x2") {
+        menu.addItem(NSMenuItem.sectionHeader(title: "Line up session windows side by side"))
+        let all = item("Tile All Sessions (\(sessionCount))", symbol: "rectangle.split.2x2") {
             // Everything, whatever the "Tile" setting says.
             if let island = IslandController.current { island.tile(nil, extra: ["--all"]) } else { run(nil) }
         }
@@ -372,6 +376,13 @@ final class MenuFactory: NSObject {
         for count in [2, 3, 4, 6, 8] {
             menu.addItem(item("\(count) Windows") { run(count) })
         }
+        menu.addItem(.separator())
+        let recolor = IslandController.current?.config.tileRecolor ?? true
+        let colors = item("Give Each Window Its Own Color", symbol: "paintpalette", checked: recolor) {
+            IslandController.current?.setSetting("tileRecolor", .bool(!recolor))
+        }
+        colors.toolTip = "Tiling picks a color for every window, with the ones side by side far apart. Colors you picked yourself stay."
+        menu.addItem(colors)
         return menu
     }
 

@@ -19,6 +19,8 @@ struct StoreSnapshot: Equatable, Sendable {
     var automationDenied = false
     /// Every Terminal.app window with a tab, when the watermark or focus mode is on.
     var terminalWindowIds: Set<Int> = []
+    /// A tile in progress, whoever started it.
+    var tiling: TileProgress?
 }
 
 // MARK: - Store (main actor)
@@ -112,8 +114,6 @@ final class SessionStore: ObservableObject {
         return snapshot.themes.first { $0.id == id }
     }
 
-    var globalThemeName: String? { theme(snapshot.globalThemeId)?.name }
-
     /// Accents offered in a session's Color menu: its own theme, else the global/default theme.
     func accents(for session: IslandSession) -> [Accent] {
         for id in [session.theme, snapshot.globalThemeId, snapshot.defaultThemeId] {
@@ -140,6 +140,9 @@ final class SnapshotLoader: @unchecked Sendable {
         var marketingName: String?
         var lastPrompt: String?
         var tasks: TaskProgress?
+        /// The step under way ("Editing tile.js"), and the gist of the reply that ended the last turn.
+        var activity: String?
+        var reply: ReplySummary?
     }
 
     /// A transcript's finished turns, read once from up to 16 MB back, then only as it grows.
@@ -192,6 +195,7 @@ final class SnapshotLoader: @unchecked Sendable {
         snapshot.sessions = loadSessions(windows: windows, focus: snapshot.config.focusMode)
         snapshot.automationDenied = titleReader.automationDenied
         if windows { snapshot.terminalWindowIds = Set(titleReader.terminalWindows().values) }
+        snapshot.tiling = TileProgress.read()
         return snapshot
     }
 
@@ -317,14 +321,19 @@ final class SnapshotLoader: @unchecked Sendable {
         let hasUsage = context?.usedPct != nil || context?.usedTokens != nil
         let stale = context?.at.map { nowMs - $0 > 60_000 } ?? true
         var tasks: TaskProgress?
+        var activity: String?
+        var reply: ReplySummary?
         var transcriptTurns: [Double] = []
-        // A working session's transcript is read for Claude's task list too (at most every 5 s).
-        if !hasUsage || stale || lastPrompt == nil || model == nil || status == .busy,
+        // A working session's transcript is read for Claude's task list and the step it's on too
+        // (at most every 3 s); with focus mode, a finished one's for the gist of its reply.
+        if !hasUsage || stale || lastPrompt == nil || model == nil || status == .busy || (focus && status == .idle),
            let path = transcriptPath(record: record, cwd: cwd, sessionId: sessionId) {
             usedTranscripts.insert(path)
             if let info = transcriptInfo(path) {
+                if status == .idle { reply = info.reply }
                 if status == .busy {
                     tasks = info.tasks
+                    activity = info.activity
                     // Until tabby's hooks have timed a few of this session's turns.
                     if ((record?["turns"] as? [Any])?.count ?? 0) < 3 { transcriptTurns = pastTurns(path, size: info.size) }
                 }
@@ -404,6 +413,8 @@ final class SnapshotLoader: @unchecked Sendable {
                 ?? ProgressGuess.typical(transcriptTurns) ?? everyones,
             lastTurnMs: num(record?["lastTurnMs"]),
             tasks: tasks,
+            activity: activity,
+            reply: reply,
             bgHex: str(record?["bg"]),
             fgHex: str(record?["fg"]),
             agents: agents
@@ -447,9 +458,9 @@ final class SnapshotLoader: @unchecked Sendable {
         guard let attributes = try? fm.attributesOfItem(atPath: path),
               let mtime = attributes[.modificationDate] as? Date,
               let size = (attributes[.size] as? NSNumber)?.uint64Value else { return nil }
-        // Busy sessions append to their transcript constantly; re-parse at most every 5 s.
+        // Busy sessions append to their transcript constantly; re-parse at most every 3 s.
         if let cached = transcripts[path],
-           (cached.mtime == mtime && cached.size == size) || Date().timeIntervalSince(cached.readAt) < 5 {
+           (cached.mtime == mtime && cached.size == size) || Date().timeIntervalSince(cached.readAt) < 3 {
             return cached
         }
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
@@ -485,6 +496,8 @@ final class SnapshotLoader: @unchecked Sendable {
         var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
         if startsMidFile, !lines.isEmpty { lines.removeFirst() }
         info.tasks = TaskParser.parse(lines)
+        info.activity = TranscriptActivity.current(lines)
+        info.reply = TranscriptActivity.lastReply(lines)
         for line in lines.reversed() {
             if info.tokens != nil && info.lastPrompt != nil { break }
             if line.contains("\"isSidechain\":true") { continue }

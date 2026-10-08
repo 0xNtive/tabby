@@ -216,8 +216,8 @@ private struct WelcomePage: View {
             HStack(alignment: .top, spacing: 14) {
                 FeatureTile(symbol: "capsule.fill", title: "The island",
                             detail: "Every session at the top of your screen. Click one to jump to its tab.")
-                FeatureTile(symbol: "square.grid.2x2.fill", title: "Tiling",
-                            detail: "One key splits tabs into windows and fills the screen with them.")
+                FeatureTile(symbol: "rectangle.split.2x2.fill", title: "Tiling",
+                            detail: "One key (⌃⌥G) or the Tile button lines your sessions up side by side, each in its own color.")
                 FeatureTile(symbol: "textformat", title: "Watermark",
                             detail: "Each session's topic, large and faint, across its window.")
             }

@@ -144,6 +144,14 @@ struct ProgressGuess: Equatable, Sendable {
     /// "2 of 5 tasks · ~3m left", "~2m left · usually 4m", "Longer than usual (4m)".
     var caption: String
 
+    /// Shorter, where the time it has run shows beside it (focus mode's cover): "~2m left",
+    /// "2 of 5 tasks · ~3m left", "longer than usual".
+    var brief: String {
+        if caption.contains(" tasks") { return caption }
+        if let remaining { return Fmt.left(remaining) }
+        return "longer than usual"
+    }
+
     /// `elapsed`: seconds of work in this turn (waits on you excluded). `typical`: the median
     /// length of this session's turns (or of all sessions', early on).
     static func make(elapsed: TimeInterval, typical: TimeInterval?, tasks: TaskProgress?) -> ProgressGuess? {

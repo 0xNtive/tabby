@@ -148,6 +148,15 @@ struct WindowsPane: View {
                     ForEach(TileScope.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.radioGroup)
+                Toggle(isOn: Binding(get: { config.tileRecolor }, set: { island.setSetting("tileRecolor", .bool($0)) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Give each window its own color")
+                        Text("Picks the colors as a set, with windows side by side far apart. Colors you picked yourself stay.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             } header: {
                 Text("Tiling")
             } footer: {

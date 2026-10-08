@@ -296,10 +296,12 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby ls                    every running session: name, status, context, summary
   tabby next                  jump to the next session that needs you
   tabby focus <n|query>       jump to session n (as listed) or by name
-  tabby tile [2|3|4|6|8]      fill the screen with session windows (tabs become windows)
+  tabby tile [2|3|4|6|8]      fill the screen with session windows (tabs become windows),
+                              each in its own color (--dry-run shows the plan, moves nothing)
     --active | --only 1,3,auth | --all   which sessions (active = working or needs you)
     --screens 2 | all | current          which screens, this once
   tabby tile screens [2|1,2|all|current]   list the displays / choose where sessions go
+  tabby tile colors on|off    whether tiling recolors the windows
   tabby themes                preview all ${THEMES.length} themes
   tabby <name|color|theme|note|auto|reset|off|on> …   same as /tab, for this tab or --session <q>
   tabby new [dir|name] [-n name] [--dangerous] [--screen s] [--color c] [--theme t]
@@ -310,7 +312,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
                               (install: the ready-made download; build: compile it here)
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby focus-mode on|off     while Claude works, other Terminal windows show only their topic
-  tabby focus-mode idle on|off   …and stay covered when it's your turn, with a Your turn button
+  tabby focus-mode idle on|off   when Claude is done: the gist of its reply (on, the default) or the whole reply
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
@@ -457,6 +459,7 @@ function main() {
       return console.log(next());
     case 'tile':
       if (pos[1] === 'screens') return console.log(screensCommand(pos.slice(2).join(' ')));
+      if (/^(colou?rs|recolou?r)$/i.test(pos[1] || '')) return console.log(runCommand(`tile colors ${pos[2] || ''}`, { rec: null }).message);
       // tabby tile [n] [active|all], or the same as flags
       return console.log(tile(Number(pos.find((w, i) => i > 0 && /^\d+$/.test(w))) || undefined, {
         dryRun: !!flags['dry-run'],

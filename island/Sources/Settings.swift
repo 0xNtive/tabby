@@ -471,14 +471,14 @@ struct FocusPane: View {
                     }
                 }
                 FocusPreview(content: sample, yourTurn: idle ? FocusPane.yourTurn(sample) : nil)
-                    .frame(height: 204)
+                    .frame(height: 252)
                     .opacity(on ? 1 : 0.45)
                     .accessibilityLabel(idle ? "Preview of a covered Terminal window: working, then your turn"
                                              : "Preview of a covered Terminal window")
                 Toggle(isOn: setting(idle) { island.setFocusIdle($0) }) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Stay covered when it's your turn")
-                        Text("When Claude is done, the cover stays and shows a Your turn button to click.")
+                        Text("When Claude is done, the cover stays: how its reply opens, what it asks you, and a Show full reply button. Untick to see the whole reply right away.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -532,12 +532,12 @@ struct FocusPane: View {
                                         mainText: "working", mainDetail: nil, turnStartedAt: nil, agents: [])
         }
         let t = now.timeIntervalSince1970
-        content.mainText = "Porting the invoice webhooks to v3"
+        content.mainText = "Editing billing/webhooks.py"
+        content.task = "Port the invoice webhooks to v3"
         content.mainDetail = nil
         content.turnStartedAt = t - 512
         content.agents = [
-            FocusAgent(id: "a", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Grep", startedAt: t - 48),
-            FocusAgent(id: "b", label: "Write the migration tests", kind: "general-purpose", tool: "Edit", startedAt: t - 131),
+            FocusAgent(id: "a", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Searching for “stripe.Charge”", startedAt: t - 48),
         ]
         return content
     }
@@ -546,10 +546,14 @@ struct FocusPane: View {
     static func yourTurn(_ working: FocusCoverContent) -> FocusCoverContent {
         var content = working
         content.yourTurn = true
-        content.mainText = "Done · waiting for your reply"
+        content.mainText = "Done in 8m 32s"
+        content.task = nil
         content.mainDetail = nil
         content.agents = []
         content.doneAt = Date().timeIntervalSince1970 - 180
+        // The preview takes its title from one of your sessions, so its reply says nothing specific.
+        content.reply = ReplySummary(lead: "The change is in and every test passes. Nothing else in the project changed.",
+                                     ask: "Want me to commit it?", lines: 14)
         return content
     }
 }

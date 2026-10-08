@@ -163,7 +163,8 @@ check(FocusRule.covers(status: .busy, windowIsFront: false, terminalActive: true
 for status in [SessionStatus.waiting, .error, .new, .ended, .unknown] {
     check(!FocusRule.covers(status: status, windowIsFront: false, terminalActive: false, idle: true), "\(status), staying covered: open")
 }
-check(IslandConfig(raw: [:]).focusIdle == false, "staying covered is off by default")
+check(IslandConfig(raw: [:]).focusIdle, "staying covered when it's your turn is on by default")
+check(!IslandConfig(raw: ["focusIdle": .bool(false)]).focusIdle, "and can be turned off")
 // A tty from a record is handed to osascript: only a device path gets there
 check(SnapshotLoader.devicePath("/dev/ttys003") == "/dev/ttys003" && SnapshotLoader.devicePath("/dev/pts/4") == "/dev/pts/4", "a tty is a device path")
 for bad in ["-e", "-e do shell script \"id\"", "ttys003", "/dev/ttys003; rm -rf ~", "/dev/tty s", "/tmp/x", "/dev/" + String(repeating: "a", count: 80)] {
@@ -187,12 +188,12 @@ let agentWorking = agentStart + [
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},"type":"user"}"#,
 ]
 let working1 = SubagentScanner.state(ofLines: agentWorking)
-check(working1.running && working1.tool == "Bash", "after a tool result: running, last tool Bash (\(working1))")
+check(working1.running && working1.tool == "$ ls", "after a tool result: running, last step $ ls (\(working1))")
 let agentThinking = agentWorking + [
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"text","text":"Now the tests."}],"stop_reason":null},"type":"assistant"}"#,
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Edit","input":{}}],"stop_reason":"tool_use"},"type":"assistant"}"#,
 ]
-check(SubagentScanner.state(ofLines: agentThinking) == (true, "Edit"), "mid-turn text then Edit")
+check(SubagentScanner.state(ofLines: agentThinking) == (true, "Editing a file"), "mid-turn text then Edit")
 let agentDone = agentThinking + [
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]},"type":"user"}"#,
     #"{"isSidechain":true,"agentId":"a1","message":{"role":"assistant","content":[{"type":"text","text":"Done: 3 files."}],"stop_reason":"end_turn"},"type":"assistant"}"#,
@@ -243,7 +244,7 @@ writeAgent("a2", agentDone, description: "Write tests", type: "general-purpose")
 let scanner = SubagentScanner()
 let found = scanner.running(transcript: focusDir.appendingPathComponent("s1.jsonl").path)
 check(found.count == 1 && found.first?.id == "a1" && found.first?.label == "Find the call sites" && found.first?.kind == "Explore"
-      && found.first?.tool == "Bash", "running subagents from disk: \(found)")
+      && found.first?.tool == "$ ls", "running subagents from disk: \(found)")
 let later = scanner.running(transcript: focusDir.appendingPathComponent("s1.jsonl").path,
                             now: Date().addingTimeInterval(SubagentScanner.staleAfter + 5))
 check(later.isEmpty, "a subagent quiet for 15 minutes is taken for dead")
@@ -444,6 +445,71 @@ check(QuickLaunchFilter.arguments(for: folders[1], name: "", skipPermissions: fa
 check(ShortcutAction.launch.defaultCombo == KeyCombo(kVK_ANSI_L, [.control, .option]), "quick launch ⌃⌥L")
 let defaults = ShortcutAction.allCases.map(\.defaultCombo)
 check(Set(defaults).count == defaults.count, "no two default shortcuts collide")
+
+// Tiling progress (the CLI's tile.lock) and the pills it makes
+let tileDir = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-island-tile-\(getpid())")
+try? FileManager.default.createDirectory(at: tileDir.appendingPathComponent("tabby"), withIntermediateDirectories: true)
+setenv("CLAUDE_CONFIG_DIR", tileDir.path, 1)
+func writeLock(_ json: String) { try? json.write(to: TileProgress.file, atomically: true, encoding: .utf8) }
+check(TileProgress.read() == nil, "no lock, no tile")
+let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+writeLock(#"{"pid":\#(getpid()),"at":\#(nowMs),"text":"Splitting tabs","fraction":0.4,"step":2,"of":4}"#)
+let reading = TileProgress.read()
+check(reading == TileProgress(text: "Splitting tabs", fraction: 0.4, step: 2, of: 4), "read the lock: \(String(describing: reading))")
+check(reading?.detail == "Splitting tabs · 2 of 4", "step detail")
+check(TileProgress(text: "Placing 1 window", fraction: 0.75, step: 1, of: 1).detail == "Placing 1 window", "no '1 of 1'")
+writeLock(#"{"pid":\#(getpid()),"at":\#(nowMs - 61_000),"text":"Old"}"#)
+check(TileProgress.read() == nil, "a lock older than a minute is stale")
+writeLock("\(getpid()) \(nowMs)")
+check(TileProgress.read() == nil, "the old 'pid at' lock carries no progress")
+try? FileManager.default.removeItem(at: tileDir)
+unsetenv("CLAUDE_CONFIG_DIR")
+check(TileProgress(text: "a", fraction: 0.3).after(TileProgress(text: "b", fraction: 0.6)).fraction == 0.6, "the ring never runs back")
+let tilingPill = Announcement.tiling(TileProgress(text: "Checking windows", fraction: 0.1, step: 1, of: 3))
+let nextPill = tilingPill.updated(with: TileProgress(text: "Splitting tabs", fraction: 0.3, step: 2, of: 3))
+check(nextPill.id == tilingPill.id && nextPill.suffix == "Splitting tabs · 2 of 3" && nextPill.progress == 0.3,
+      "the tiling pill updates in place")
+check(tilingPill.duration > 60 && tilingPill.topic == "tile", "the tiling pill stays until the tile ends")
+let tiledPill = Announcement.tiled(fromOutput: "Tiled 4 sessions in a 2×2 grid, each in its own color.\n")
+check(tiledPill?.title == "Tiled 4 windows" && tiledPill?.suffix == "in new colors" && tiledPill?.success == true,
+      "tile result: \(String(describing: tiledPill))")
+check(Announcement.tiled(fromOutput: "Tiled 1 session in a 1×1 grid.")?.title == "Tiled 1 window"
+      && Announcement.tiled(fromOutput: "Tiled 1 session in a 1×1 grid.")?.suffix == nil, "one window, colors off")
+check(Announcement.tiled(fromOutput: "Nothing was tiled.") == nil, "nothing tiled: no success pill")
+check(IslandConfig(raw: [:]).tileRecolor && !IslandConfig(raw: ["tileRecolor": .bool(false)]).tileRecolor, "tileRecolor setting")
+
+// What a session is doing, and the gist of the reply that ended its turn (focus mode's cover)
+check(ActivityDescriber.describe(tool: "Bash", input: ["command": "npm test", "description": "Run the test suite"]) == "Run the test suite",
+      "a command's own description")
+check(ActivityDescriber.describe(tool: "Bash", input: ["command": "git status\ngit diff"]) == "$ git status git diff", "else the command")
+check(ActivityDescriber.describe(tool: "Edit", input: ["file_path": "/Users/me/app/lib/tile.js"]) == "Editing tile.js", "a file's name")
+check(ActivityDescriber.describe(tool: "Grep", input: ["pattern": "tileRecolor"]) == "Searching for “tileRecolor”", "a search")
+check(ActivityDescriber.describe(tool: "mcp__claude_ai_Gmail__search_threads", input: [:]) == "Gmail: search threads", "an MCP tool")
+let turn = [
+    #"{"type":"user","message":{"role":"user","content":"Fix the flaky test"}}"#,
+    #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Running the suite first:"}]}}"#,
+    #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"npm test","description":"Run the test suite"}}]}}"#,
+]
+check(TranscriptActivity.current(turn) == "Run the test suite", "the call still running: \(String(describing: TranscriptActivity.current(turn)))")
+let answered = turn + [#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}"#]
+check(TranscriptActivity.current(answered) == "Thinking", "its result is in: thinking")
+check(TranscriptActivity.current(Array(turn.prefix(2))) == "Running the suite first", "what it wrote mid-turn")
+check(TranscriptActivity.current(Array(turn.prefix(1))) == "Thinking", "just prompted")
+check(TranscriptActivity.lastReply(turn) == nil, "no reply while a tool runs")
+let finished = answered + [
+    #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"The flaky test is fixed: it waited on a real timer. **All 84 tests pass** now.\n\n## Details\n- `tile.test.js`: fake clock.\n\nWant me to commit it?"}],"stop_reason":"end_turn"}}"#,
+    #"{"type":"system","subtype":"turn_duration","durationMs":5000}"#,
+]
+let gist = TranscriptActivity.lastReply(finished)
+check(gist?.lead == "The flaky test is fixed: it waited on a real timer. All 84 tests pass now.", "lead: \(String(describing: gist))")
+check(gist?.ask == "Want me to commit it?" && gist?.lines == 4, "ask and length: \(String(describing: gist))")
+let request = ReplySummary.make("Add `API_KEY` to the staging settings.\n\n1. Open Settings.\n2. Add it.\n\nTell me when it's in, and I'll redeploy.")
+check(request?.lead == "Add API_KEY to the staging settings." && request?.ask == "Tell me when it's in, and I'll redeploy.",
+      "a request without a question mark: \(String(describing: request))")
+check(ReplySummary.make("- **Done:** the island builds.\n- Tests pass.")?.lead == "Done: the island builds.", "a reply that's only a list")
+check(ReplySummary.make(String(repeating: "word ", count: 120) + ".")!.lead.hasSuffix("…"), "a long opening is cut")
+let failedReply = answered + [#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"API Error"}]},"isApiErrorMessage":true}"#]
+check(TranscriptActivity.lastReply(failedReply) == nil, "an API error is no reply")
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

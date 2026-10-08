@@ -103,8 +103,9 @@ In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
 /tab ls                      every session: status, context, summary
 /tab note waiting on design  a note shown in the island
 /tab tile active             tile the sessions that are working or need you
+/tab tile colors off         tile without recoloring the windows (on brings it back)
 /tab focus-mode on           cover the Terminal windows you're not in while Claude works
-/tab focus-mode idle on      …and keep them covered when it's your turn, with a Your turn button
+/tab focus-mode idle off     show the whole reply when Claude is done, not just its gist
 /tab watermark off           hide the watermarks (on brings them back)
 /tab update                  get the newest tabby, in the background
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
@@ -126,6 +127,7 @@ tabby next                # jump to the next session that needs you
 tabby focus 2             # jump to session 2
 tabby tile 4              # 2, 3, 4, 6 or 8 session windows, on the screens you chose
 tabby tile --active       # only the sessions working or waiting on you (--only 1,3,auth to pick)
+tabby tile --dry-run      # where each window would go and its new color; moves nothing
 tabby tile screens        # list your displays; tabby tile screens 2 puts sessions on display 2
 tabby new --list          # recent and frequent folders, best first
 tabby themes              # preview all 57 themes
@@ -143,6 +145,7 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through.
 - **Settings** (the cog, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, themes, the watermark, Focus mode, screens and tiling, shortcuts and permissions.
+- **Not sure what a button does?** Rest the pointer on it: a card under the toolbar says what it does and its shortcut.
 
 <table>
 <tr>
@@ -157,13 +160,17 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 
 ### Focus mode
 
-With several sessions running, their scrolling output competes for your eyes. Turn on Focus mode (Settings › Focus, the menu-bar menu, or `/tab focus-mode on`), and while Claude works, every Terminal window you're not in shows only its topic in a big box. Below it, one line per running agent (Claude and each subagent) has a small spinner, what it's doing and for how long. A window opens again as soon as Claude needs you or it's your turn, and the window you're typing in is never covered. Click a covered window to go to it.
+With several sessions running, their scrolling output competes for your eyes. Turn on Focus mode (Settings › Focus, the menu-bar menu, or `/tab focus-mode on`), and while Claude works, every Terminal window you're not in shows only its topic in a big box. Below it, one line per running agent (Claude and each subagent) has a small spinner, the step it's on ("Editing tile.js", "Run the test suite", "Searching for “retry”"), its task when it keeps a task list, and how long it has run. A window opens as soon as Claude needs you, and the window you're typing in is never covered. Click a covered window to go to it.
 
-Want it calmer still? Tick **Stay covered when it's your turn** in Settings › Focus (or `/tab focus-mode idle on`): when Claude is done, the window keeps its cover and shows a **Your turn** button with how long ago it finished. Click it to open the window and reply. Windows where Claude asks a question or hits an error still open on their own.
+When Claude is done, you don't get a wall of text: the cover stays and shows how its reply opens, the question it ends on (if any), how long it took and a **Show full reply** button. tabby reads all of this from the session's transcript on your Mac; nothing is sent anywhere. Click the button (or anywhere on the cover) to open the window and reply. Untick **Stay covered when it's your turn** in Settings › Focus (or `/tab focus-mode idle off`) to see the whole reply right away. Windows where Claude asks a question or hits an error still open on their own.
 
 ### Tiling across your screens
 
-⌃⌥G (or the tile button) fills the screen with session windows, and tabs become windows. Choose which screens get them in **Settings › Windows**: the screen you're on, all of them, or the ones you pick. Pick only your vertical monitor, for example, and your main screen stays free. Sessions spread across the chosen screens by size, and a portrait screen stacks them in rows. Tile every session, only the active ones (working or waiting on you), or pick them with checkboxes from the tile menu.
+⌃⌥G (or the **Tile** button) fills the screen with session windows, and tabs become windows. Choose which screens get them in **Settings › Windows**: the screen you're on, all of them, or the ones you pick. Pick only your vertical monitor, for example, and your main screen stays free. Sessions spread across the chosen screens by size, and a portrait screen stacks them in rows. Tile every session, only the active ones (working or waiting on you), or pick them with checkboxes from the tile menu.
+
+While it works, the island shows each step ("Splitting tabs · 2 of 4") with a ring that fills up, then "Tiled 4 windows". It works the same when you tile with `/tab tile`.
+
+Tiling also gives each window its own color, picked as a set: every window a different hue, and windows side by side as far apart on the color wheel as the theme allows. Colors you picked yourself (`/tab color`, `/tab theme`, or the island's menus) stay, and tiling again keeps colors that are already a good set. In `themes` mode each window also gets its own theme. Turn it off in the tile menu, in Settings › Windows, or with `/tab tile colors off`.
 
 ### Quick launch
 

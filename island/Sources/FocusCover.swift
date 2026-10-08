@@ -2,8 +2,9 @@ import AppKit
 
 // Focus mode's cover: an opaque panel over a Terminal window's content, in the tab's own
 // background color. A box drawn in box-drawing characters holds the session's topic in large
-// letters; under it, one line per running agent with a spinner and how long it has run. A cover
-// that stays when it's your turn (`focusIdle`) shows a "Your turn" button there instead.
+// letters; under it, one line per running agent with a spinner, the step it's on and how long it
+// has run. A cover that stays when it's your turn (`focusIdle`) shows the gist of Claude's reply
+// instead (how it opens, and what it asks) with a "Show full reply" button.
 // WatermarkController places it (Watermark.swift); FocusRule decides when (FocusMode.swift).
 
 // MARK: - Content
@@ -16,9 +17,11 @@ struct FocusCoverContent: Equatable {
     var background: NSColor
     var foreground: NSColor
     var accent: NSColor
-    /// The main agent's line: the task it's on, else "working".
+    /// The main agent's line: the step it's on ("Editing tile.js"), else its task, else "Working".
     var mainText: String
-    /// "2 of 5 tasks · ~3m left", when there's a guess.
+    /// The task from Claude's task list, when the step takes the main line.
+    var task: String?
+    /// "~2m left", "2 of 5 tasks · ~3m left", when there's a guess.
     var mainDetail: String?
     /// When this turn's work began (seconds since 1970).
     var turnStartedAt: TimeInterval?
@@ -27,6 +30,8 @@ struct FocusCoverContent: Equatable {
     var yourTurn = false
     /// When Claude finished (seconds since 1970).
     var doneAt: TimeInterval?
+    /// Your turn: the gist of Claude's reply.
+    var reply: ReplySummary?
 
     static func make(_ session: IslandSession, themes: [ThemeInfo], globalTheme: String?, now: Date = Date()) -> FocusCoverContent {
         let theme = themes.first { $0.id == (session.theme ?? globalTheme) }
@@ -35,15 +40,19 @@ struct FocusCoverContent: Equatable {
         let accent = NSColor(hexString: session.cursorHex ?? session.accentHex ?? session.dotHex) ?? foreground
         let progress = session.progress(now: now)
         let yourTurn = session.status == .idle
+        let task = session.tasks?.current.map { Fmt.oneLine($0, max: 120) }
+        let took = session.lastTurnMs.flatMap { $0 >= 1500 ? FocusCoverView.elapsed($0 / 1000) : nil }
         return FocusCoverContent(
             sessionId: session.id, title: session.title, project: session.project,
             background: background, foreground: foreground, accent: accent,
-            mainText: yourTurn ? "Done · waiting for your reply" : session.tasks?.current.map { Fmt.oneLine($0, max: 120) } ?? "working",
-            mainDetail: progress?.caption,
+            mainText: yourTurn ? (took.map { "Done in \($0)" } ?? "Done") : session.activity ?? task ?? "Working",
+            task: yourTurn || session.activity == nil ? nil : task,
+            mainDetail: progress?.brief,
             turnStartedAt: session.workElapsed(now: now).map { now.timeIntervalSince1970 - $0 },
             agents: yourTurn ? [] : session.agents,
             yourTurn: yourTurn,
-            doneAt: yourTurn ? session.activityAt.map { $0 / 1000 } : nil
+            doneAt: yourTurn ? session.activityAt.map { $0 / 1000 } : nil,
+            reply: yourTurn ? session.reply : nil
         )
     }
 
@@ -51,8 +60,12 @@ struct FocusCoverContent: Equatable {
     func sameCard(as other: FocusCoverContent?) -> Bool {
         guard let other else { return false }
         return title == other.title && project == other.project && background == other.background &&
-            foreground == other.foreground && accent == other.accent && yourTurn == other.yourTurn
+            foreground == other.foreground && accent == other.accent && yourTurn == other.yourTurn &&
+            reply == other.reply && (task == nil) == (other.task == nil)
     }
+
+    /// Lines under the box while Claude works: Claude, its task (when there's room), its subagents.
+    var rowCount: Int { 1 + (task == nil ? 0 : 1) + agents.count }
 }
 
 // MARK: - Terminal's window chrome
@@ -126,9 +139,12 @@ struct FocusLayout {
     var maxLines: Int
     var hint: NSAttributedString?
     var hintRect: CGRect
-    /// The "Your turn" button (your turn only, where there's room for it).
+    /// The "Show full reply" button (your turn only, where there's room for it).
     var button: NSAttributedString?
     var buttonRect = CGRect.zero
+    /// Your turn: the gist of the reply, under the "Done" line.
+    var summary: NSAttributedString?
+    var summaryRect = CGRect.zero
 
     static let spinner = Array("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 
@@ -140,6 +156,46 @@ struct FocusLayout {
         style.lineBreakMode = .byWordWrapping
         style.lineHeightMultiple = lineHeight
         return style
+    }
+
+    /// The reply's opening, then what it asks (in the session's color), when `ask`.
+    static func summary(_ reply: ReplySummary, content: FocusCoverContent, font: NSFont, lineHeight: CGFloat,
+                        ask: Bool) -> NSAttributedString {
+        let body = NSMutableParagraphStyle()
+        body.lineBreakMode = .byWordWrapping
+        body.lineHeightMultiple = 1.1
+        let string = NSMutableAttributedString(string: reply.lead, attributes: [
+            .font: font, .foregroundColor: content.foreground.withAlphaComponent(0.8), .paragraphStyle: body,
+        ])
+        if ask, let question = reply.ask {
+            let spaced = body.mutableCopy() as! NSMutableParagraphStyle
+            spaced.paragraphSpacingBefore = (lineHeight * 0.6).rounded()
+            string.append(NSAttributedString(string: "\n→ " + question, attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .medium),
+                .foregroundColor: content.accent, .paragraphStyle: spaced,
+            ]))
+        }
+        return string
+    }
+
+    static func height(_ string: NSAttributedString, width: CGFloat) -> CGFloat {
+        ceil(string.boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                 options: [.usesLineFragmentOrigin, .usesFontLeading]).height)
+    }
+
+    /// The tallest summary that fits in `room`: with its question, without, or the opening cut to
+    /// whole lines. Nil when not even a line fits.
+    static func fit(_ reply: ReplySummary, content: FocusCoverContent, font: NSFont, lineHeight: CGFloat,
+                    width: CGFloat, room: CGFloat) -> (NSAttributedString, CGFloat)? {
+        let line = ceil(lineHeight * 1.1)
+        guard width > 80, room >= line else { return nil }
+        let full = summary(reply, content: content, font: font, lineHeight: lineHeight, ask: true)
+        let fullHeight = height(full, width: width)
+        if fullHeight <= room { return (full, fullHeight) }
+        let lead = summary(reply, content: content, font: font, lineHeight: lineHeight, ask: false)
+        let leadHeight = height(lead, width: width)
+        if leadHeight <= room { return (lead, leadHeight) }
+        return (lead, (room / line).rounded(.down) * line)
     }
 
     /// `bounds`: the cover (flipped: top-left origin). `agentCount`: lines to make room for.
@@ -194,7 +250,10 @@ struct FocusLayout {
         var button: NSAttributedString?
         var buttonSize = CGSize.zero
         if content.yourTurn {
-            for text in ["Your turn · click to reply", "Your turn"] {
+            let labels = content.reply.map { reply in
+                (reply.lines > 3 ? ["Show full reply · \(reply.lines) lines"] : []) + ["Show full reply", "Show reply"]
+            } ?? ["Your turn · click to reply", "Your turn"]
+            for text in labels {
                 let string = NSAttributedString(string: text, attributes: [
                     .font: NSFont.monospacedSystemFont(ofSize: cellSize, weight: .bold), .foregroundColor: content.background,
                 ])
@@ -210,10 +269,23 @@ struct FocusLayout {
             var rect = CGRect(x: (width - maxWidth) / 2, y: ((height - titleSize.height) / 2).rounded(),
                               width: maxWidth, height: titleSize.height + 2)
             var buttonRect = CGRect.zero
+            var summary: NSAttributedString?
+            var summaryRect = CGRect.zero
             let total = titleSize.height + lineHeight + buttonSize.height
             if button != nil, total <= height * 0.9 {
-                rect.origin.y = ((height - total) / 2).rounded()
-                buttonRect = CGRect(x: ((width - buttonSize.width) / 2).rounded(), y: (rect.maxY + lineHeight).rounded(),
+                // Room left: the reply's opening between the title and the button, two lines at most.
+                let spare = min(height * 0.9 - total - lineHeight, ceil(lineHeight * 1.1) * 2)
+                let fitted = content.reply.flatMap {
+                    fit($0, content: content, font: cell, lineHeight: lineHeight, width: maxWidth, room: spare)
+                }
+                let summaryHeight = fitted.map { $0.1 + lineHeight } ?? 0
+                rect.origin.y = ((height - total - summaryHeight) / 2).rounded()
+                if let fitted {
+                    summary = fitted.0
+                    summaryRect = CGRect(x: rect.minX, y: (rect.maxY + lineHeight).rounded(), width: maxWidth, height: fitted.1)
+                }
+                buttonRect = CGRect(x: ((width - buttonSize.width) / 2).rounded(),
+                                    y: (rect.maxY + summaryHeight + lineHeight).rounded(),
                                     width: buttonSize.width, height: buttonSize.height)
             } else {
                 button = nil
@@ -221,7 +293,7 @@ struct FocusLayout {
             return FocusLayout(compact: true, cell: cell, cellWidth: cellWidth, lineHeight: lineHeight, box: .zero,
                                title: titleString, titleRect: rect, label: nil, labelOrigin: .zero, lines: .zero,
                                rowHeight: lineHeight, maxLines: 0, hint: nil, hintRect: .zero,
-                               button: button, buttonRect: buttonRect)
+                               button: button, buttonRect: buttonRect, summary: summary, summaryRect: summaryRect)
         }
 
         let label = content.project.isEmpty ? nil : NSAttributedString(string: " \(content.project) ", attributes: [
@@ -233,7 +305,8 @@ struct FocusLayout {
         let widest = max(titleSize.width, (label?.size().width ?? 0) + cellWidth * 4)
         let available = Int(((width - margin * 2) / cellWidth).rounded(.down))
         let wanted = Int(ceil((widest + padX * 2) / cellWidth)) + 2
-        let columns = max(min(max(wanted, 36), available), 12)
+        // A reply's gist reads better on longer lines.
+        let columns = max(min(max(wanted, content.reply != nil ? 56 : 36), available), 12)
         let inner = lineHeight * 2.4 * 2 + titleSize.height
         let rows = max(Int(ceil(inner / lineHeight)), 5)
         let boxSize = CGSize(width: CGFloat(columns) * cellWidth, height: CGFloat(rows) * lineHeight)
@@ -248,15 +321,27 @@ struct FocusLayout {
         let hintHeight = ceil(hint.size().height)
         let room = height - boxSize.height - gap - hintHeight - lineHeight * 3
         var maxLines = max(0, min(6, Int((room / rowHeight).rounded(.down))))
+        var summary: NSAttributedString?
+        var summaryHeight: CGFloat = 0
+        let summaryGap = (lineHeight * 0.5).rounded()
         if content.yourTurn {
-            // One line (done, and when), then the button; the button alone where room is short.
+            // One line (done, and when), the reply's gist, then the button; the button alone
+            // where room is short.
             if room < buttonSize.height { button = nil }
             maxLines = room >= rowHeight + lineHeight + buttonSize.height || button == nil ? min(maxLines, 1) : 0
+            let left = room - CGFloat(maxLines) * rowHeight - (button != nil ? lineHeight + buttonSize.height : 0) - summaryGap
+            if maxLines > 0, let reply = content.reply,
+               let fitted = fit(reply, content: content, font: cell, lineHeight: lineHeight,
+                                width: boxSize.width - cellWidth * 4, room: min(left, ceil(lineHeight * 1.1) * 7 + lineHeight)) {
+                summary = fitted.0
+                summaryHeight = fitted.1
+            }
         }
         let shownLines = min(max(content.yourTurn ? 1 : agentCount, 1), maxLines)
         let linesHeight = shownLines > 0 ? gap + CGFloat(shownLines) * rowHeight : 0
+        let summaryBlock = summary != nil ? summaryGap + summaryHeight : 0
         let buttonGap = shownLines > 0 ? lineHeight : gap
-        let group = boxSize.height + linesHeight + (button != nil ? buttonGap + buttonSize.height : 0)
+        let group = boxSize.height + linesHeight + summaryBlock + (button != nil ? buttonGap + buttonSize.height : 0)
         let top = max(lineHeight, ((height - group) * 0.44).rounded())
         let box = CGRect(x: ((width - boxSize.width) / 2).rounded(), y: top, width: boxSize.width, height: boxSize.height)
 
@@ -266,14 +351,19 @@ struct FocusLayout {
         let lines = CGRect(x: box.minX + cellWidth, y: box.maxY + gap, width: box.width - cellWidth * 2,
                            height: CGFloat(maxLines) * rowHeight)
         let hintRect = CGRect(x: 0, y: height - hintHeight - lineHeight * 1.2, width: width, height: hintHeight)
+        let summaryRect = summary == nil ? .zero : CGRect(
+            x: box.minX + cellWidth * 2, y: (box.maxY + linesHeight + summaryGap).rounded(),
+            width: box.width - cellWidth * 4, height: summaryHeight)
         let buttonRect = button == nil ? .zero : CGRect(
-            x: ((width - buttonSize.width) / 2).rounded(), y: (box.maxY + linesHeight + buttonGap).rounded(),
+            x: ((width - buttonSize.width) / 2).rounded(), y: (box.maxY + linesHeight + summaryBlock + buttonGap).rounded(),
             width: buttonSize.width, height: buttonSize.height)
+        // The hint at the bottom only where nothing above runs into it.
+        let clear = max(box.maxY + linesHeight + summaryBlock, buttonRect.maxY) + lineHeight <= hintRect.minY
         return FocusLayout(compact: false, cell: cell, cellWidth: cellWidth, lineHeight: lineHeight, box: box,
                            title: titleString, titleRect: titleRect, label: label, labelOrigin: labelOrigin,
                            lines: lines, rowHeight: rowHeight, maxLines: maxLines,
-                           hint: room > lineHeight * 2 ? hint : nil, hintRect: hintRect,
-                           button: button, buttonRect: buttonRect)
+                           hint: room > lineHeight * 2 && clear ? hint : nil, hintRect: hintRect,
+                           button: button, buttonRect: buttonRect, summary: summary, summaryRect: summaryRect)
     }
 }
 
@@ -282,7 +372,7 @@ final class FocusCoverView: NSView {
     var content: FocusCoverContent? {
         didSet {
             guard content != oldValue else { return }
-            if content?.sameCard(as: oldValue) == true, content?.agents.count == oldValue?.agents.count {
+            if content?.sameCard(as: oldValue) == true, content?.rowCount == oldValue?.rowCount {
                 setNeedsDisplay(layout?.lines.insetBy(dx: -4, dy: -4) ?? bounds)
             } else {
                 invalidate()
@@ -307,7 +397,7 @@ final class FocusCoverView: NSView {
 
     private var layout: FocusLayout? {
         guard let content else { return nil }
-        let agents = max(content.agents.count + 1, 1)
+        let agents = max(content.rowCount, 1)
         if let cache = layoutCache, cache.size == bounds.size, cache.agents == agents { return cache.layout }
         let layout = FocusLayout.make(content, in: bounds, agentCount: agents)
         layoutCache = (bounds.size, agents, layout)
@@ -353,6 +443,9 @@ final class FocusCoverView: NSView {
             hint.draw(with: layout.hintRect, options: [.usesLineFragmentOrigin])
         }
         if layout.maxLines > 0, dirtyRect.intersects(layout.lines) { drawLines(layout, content) }
+        if let summary = layout.summary, dirtyRect.intersects(layout.summaryRect) {
+            summary.draw(with: layout.summaryRect, options: [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine])
+        }
         if let button = layout.button, dirtyRect.intersects(layout.buttonRect) {
             // Filled with the session's color, its label in the tab's own background.
             let radius = layout.cellWidth * 0.7
@@ -401,6 +494,12 @@ final class FocusCoverView: NSView {
             rows.append((Self.who(agent.kind), agent.label, agent.tool, agent.startedAt))
         }
         let limit = layout.maxLines
+        // The task Claude is on, under its step, where there's a line to spare.
+        var taskRow: Int?
+        if let task = content.task, rows.count < limit {
+            rows.insert(("task", task, nil, nil), at: 1)
+            taskRow = 1
+        }
         var extra = 0
         if rows.count > limit {
             extra = rows.count - (limit - 1)
@@ -419,7 +518,8 @@ final class FocusCoverView: NSView {
         let baseline = ((layout.rowHeight - layout.lineHeight) / 2).rounded()
         for (index, row) in rows.enumerated() {
             let y = layout.lines.minY + CGFloat(index) * layout.rowHeight + baseline
-            let glyph = content.yourTurn ? "✓" : still ? "•" : String(FocusLayout.spinner[(frameIndex + index * 3) % FocusLayout.spinner.count])
+            let glyph = content.yourTurn ? "✓" : index == taskRow ? "›" : still ? "•"
+                : String(FocusLayout.spinner[(frameIndex + index * 3) % FocusLayout.spinner.count])
             let glyphSize = (glyph as NSString).size(withAttributes: [.font: spinnerFont])
             (glyph as NSString).draw(at: NSPoint(x: left, y: y + (layout.lineHeight - glyphSize.height) / 2),
                                      withAttributes: [.font: spinnerFont, .foregroundColor: content.accent])

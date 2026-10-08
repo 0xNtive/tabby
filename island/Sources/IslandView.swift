@@ -42,6 +42,7 @@ struct IslandRootView: View {
         let onIslandFrame = actions.islandFrame
         let onRowFrames = actions.rowFrames
         let onViewport = actions.viewport
+        let onControlFrames = actions.controlFrames
         ZStack(alignment: .top) {
             Color.clear
             island(geometry)
@@ -55,6 +56,7 @@ struct IslandRootView: View {
         .onPreferenceChange(IslandFrameKey.self) { frame in MainActor.assumeIsolated { onIslandFrame(frame) } }
         .onPreferenceChange(RowFramesKey.self) { frames in MainActor.assumeIsolated { onRowFrames(frames) } }
         .onPreferenceChange(ViewportKey.self) { frame in MainActor.assumeIsolated { onViewport(frame) } }
+        .onPreferenceChange(ControlFramesKey.self) { frames in MainActor.assumeIsolated { onControlFrames(frames) } }
         .environment(\.colorScheme, .dark)
         .focusEffectDisabled()
         .onChange(of: ui.hoveredRow) { _, id in
@@ -120,7 +122,9 @@ struct IslandRootView: View {
     private func announcementEar(_ announcement: Announcement, _ geometry: IslandGeometry) -> CGFloat {
         let title = min(TextMetrics.width(announcement.title, size: 12, weight: .semibold),
                         announcement.kind == .info ? 320 : 210)
-        let suffix = announcement.suffix.map { TextMetrics.width($0, size: 12, weight: .medium) + 4 } ?? 0
+        let suffixText = [announcement.suffix, announcement.reserve].compactMap { $0 }
+            .max { TextMetrics.width($0, size: 12, weight: .medium) < TextMetrics.width($1, size: 12, weight: .medium) }
+        let suffix = suffixText.map { TextMetrics.width($0, size: 12, weight: .medium) + 4 } ?? 0
         let content = 14 + 6 + title + suffix
         let middle = geometry.hasNotch ? geometry.notchWidth : 12
         let limit = (geometry.panelSize.width - middle) / 2 - 16
@@ -173,7 +177,7 @@ struct IslandRootView: View {
         let waiting = store.waitingCount
         let busy = store.busyCount
         if let announcement {
-            AnnouncementLabel(announcement: announcement)
+            AnnouncementLabel(announcement: announcement, reduceMotion: ui.reduceMotion)
                 .id(announcement.id)
                 .transition(ui.reduceMotion
                     ? .opacity
@@ -214,6 +218,26 @@ struct IslandRootView: View {
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
                 .padding(.horizontal, 18)
+                // What the hovered control does, over the top of the list (never pushing it down).
+                .overlay(alignment: .top) {
+                    if let hint {
+                        ToolbarHint(content: hint, reduceMotion: ui.reduceMotion)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 4)
+                            // The rows it covers fade out under it instead of peeking out below.
+                            .padding(.bottom, 6)
+                            .background(Color.black)
+                            .padding(.bottom, 12)
+                            .background(alignment: .bottom) {
+                                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 12)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .transition(.opacity.combined(with: .offset(y: -3)))
+                            .allowsHitTesting(false)
+                    }
+                }
+                .zIndex(1)
             if sessions.isEmpty {
                 VStack(spacing: 6) {
                     Image(systemName: "moon.zzz")
@@ -335,10 +359,10 @@ struct IslandRootView: View {
         HStack(spacing: 8) {
             brand(count: count)
             Spacer(minLength: 8)
-            // The theme's name gives way first when a narrow mode is short of room.
+            // "Tile" gives way to its icon alone when a narrow mode is short of room.
             ViewThatFits(in: .horizontal) {
-                controls(themeName: true)
-                controls(themeName: false)
+                controls(tileLabel: true)
+                controls(tileLabel: false)
             }
         }
         .frame(height: 44)
@@ -367,13 +391,24 @@ struct IslandRootView: View {
         .fixedSize()
     }
 
-    private func controls(themeName: Bool) -> some View {
+    /// The hint for the hovered toolbar control (none while a menu is open or a name is edited).
+    private var hint: ToolbarHintContent? {
+        guard let control = ui.hoveredControl, ui.renaming == nil else { return nil }
+        return .make(control, config: store.snapshot.config, update: ui.update, tiling: ui.tiling)
+    }
+
+    private func controls(tileLabel: Bool) -> some View {
         HStack(spacing: 8) {
-            if let badge = ui.update { UpdatePill(badge: badge) { actions.update() } }
+            if let badge = ui.update {
+                UpdatePill(badge: badge) { actions.update() }
+                    .toolbarControl(.update)
+            }
             ModePicker(mode: ui.mode, reduceMotion: ui.reduceMotion) { actions.setMode($0) }
-            FooterIconButton(symbol: "square.grid.2x2", help: help("Tile session windows", .tile)) { actions.tileMenu() }
-            themeButton(showName: themeName)
+            TileButton(showLabel: tileLabel, tiling: ui.tiling, reduceMotion: ui.reduceMotion,
+                       label: help("Tile windows", .tile)) { actions.tileMenu() }
+                .toolbarControl(.tile)
             FooterIconButton(symbol: "gearshape.fill", help: help("Settings", .settings)) { actions.openSettings() }
+                .toolbarControl(.settings)
         }
         .fixedSize()
     }
@@ -384,30 +419,46 @@ struct IslandRootView: View {
         guard config.hotkeys, let combo = config.shortcuts[action] else { return title }
         return "\(title) (\(action.display(combo)))"
     }
+}
 
-    private func themeButton(showName: Bool) -> some View {
-        Button {
-            actions.themeAllMenu()
-        } label: {
+/// Tile: the windows of your sessions side by side. Says "Tile" where there's room; while a tile
+/// runs, a filling ring takes the icon's place.
+struct TileButton: View {
+    let showLabel: Bool
+    let tiling: TileProgress?
+    let reduceMotion: Bool
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: "paintpalette.fill")
-                    .font(.system(size: 10.5))
-                if showName {
-                    Text(store.globalThemeName ?? "Theme")
+                Group {
+                    if let tiling {
+                        ProgressRing(fraction: tiling.fraction, reduceMotion: reduceMotion)
+                            .frame(width: 11, height: 11)
+                    } else {
+                        Image(systemName: "rectangle.split.2x2")
+                            .font(.system(size: 10.5, weight: .semibold))
+                    }
+                }
+                .frame(width: 12, height: 12)
+                if showLabel {
+                    Text("Tile")
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                 }
             }
             .foregroundStyle(.white.opacity(0.82))
-            .padding(.horizontal, showName ? 10 : 0)
+            .padding(.horizontal, showLabel ? 10 : 0)
             .frame(minWidth: 26, minHeight: 26, maxHeight: 26)
             .background(Capsule().fill(Color.white.opacity(0.09)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .help(showName ? "Theme for every tab" : "Theme for every tab: \(store.globalThemeName ?? "tabby")")
-        .accessibilityLabel("Theme for every tab")
+        .accessibilityLabel(tiling.map { "Tiling: \($0.detail)" } ?? label)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: tiling == nil)
     }
 }
 
@@ -432,13 +483,21 @@ struct Count: View {
 /// "✓ Title is done" / "🔔 Title needs you" on the right ear.
 struct AnnouncementLabel: View {
     let announcement: Announcement
+    var reduceMotion = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: announcement.symbol)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(announcement.tint)
-                .frame(width: 14)
+            Group {
+                if let progress = announcement.progress {
+                    ProgressRing(fraction: progress, reduceMotion: reduceMotion)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: announcement.symbol)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(announcement.tint)
+                }
+            }
+            .frame(width: 14)
             HStack(spacing: 4) {
                 Text(announcement.title)
                     .font(.system(size: 12, weight: .semibold))
@@ -451,6 +510,8 @@ struct AnnouncementLabel: View {
                         .foregroundStyle(announcement.tint)
                         .lineLimit(1)
                         .fixedSize()
+                        .contentTransition(.opacity)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: suffix)
                 }
             }
         }
@@ -489,8 +550,9 @@ struct ModePicker: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .help(option.help)
-                .accessibilityLabel("\(option.title) mode")
+                .toolbarControl(.mode(option))
+                .accessibilityLabel("\(option.title) view")
+                .accessibilityHint(option.hint)
                 .accessibilityAddTraits(option == mode ? .isSelected : [])
             }
         }
@@ -515,7 +577,6 @@ struct FooterIconButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(help)
         .accessibilityLabel(help)
     }
 }

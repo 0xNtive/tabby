@@ -51,6 +51,8 @@ struct TabbyIslandApp {
                 "\(guess.fraction.map { "\(Int(($0 * 100).rounded()))% · " } ?? "")\(guess.caption)"
             }
             row["tasks"] = session.tasks.map { "\($0.done)/\($0.total) done\($0.current.map { ", now: \($0)" } ?? "")" }
+            row["activity"] = session.activity
+            row["reply"] = session.reply.map { ["lead": $0.lead, "ask": $0.ask ?? NSNull(), "lines": $0.lines] as [String: Any] }
             row["lastPrompt"] = session.lastPrompt
             row["summary"] = session.summary
             if let pct = session.contextPct { row["contextPct"] = (pct * 10).rounded() / 10 }
@@ -223,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let launch = factory.item("New Session…", symbol: "plus") { [weak island] in island?.showQuickLaunch() }
         if config.hotkeys { shortcut(launch, config.shortcuts[.launch]) }
         menu.addItem(launch)
-        menu.addItem(factory.submenu("Tile Windows", symbol: "square.grid.2x2",
+        menu.addItem(factory.submenu("Tile Windows", symbol: "rectangle.split.2x2",
                                      menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in
                                          island?.tile(count)
                                      }))

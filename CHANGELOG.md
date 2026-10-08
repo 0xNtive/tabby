@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.2 — 2026-10-08
+
+Tiling is easier to understand, shows its progress, and leaves every window in its own color.
+
+- **The island says what its buttons do.** Rest the pointer on a toolbar control (Tile, the views, Settings, Update) and a card under the toolbar says what it does, with its shortcut. macOS tooltips almost never showed over the island, since it's rarely the active app. The tile button now has a clearer icon and says **Tile**, and the tile menu opens with what tiling does.
+- **Focus mode shows the gist when Claude is done, not a wall of text.** A window Claude finishes in keeps its cover: how the reply opens, the question it ends on (in the session's color), how long the turn took and a **Show full reply** button. It's read from the transcript on your Mac; nothing is sent anywhere. This is now on whenever Focus mode is; untick **Stay covered when it's your turn** in Settings › Focus, or type `/tab focus-mode idle off`, to see the whole reply at once.
+- **Focus mode says what Claude is doing**, not just "working": the step under way ("Editing tile.js", "Run the test suite", "Searching for “retry”"), the task from its task list on the line below, and the same for each subagent. The time left reads "~2m left" beside how long it has run.
+- **A calmer toolbar:** the theme button is gone from the island. Set the theme for every tab in Settings › General or from the menu-bar icon; each session's own theme is still in its row menu (or press T with the keyboard).
+- **Tiling shows its progress.** Tiling can take several seconds (Terminal comes forward, tabs are split into windows, windows leave full screen), and the island used to show nothing until it was done. The collapsed island now shows each step with a ring that fills as it goes ("Splitting tabs · 2 of 4", "Placing 4 windows"), then "Tiled 4 windows". This works for `/tab tile` too, and the Tile button shows the ring while the island is open.
+- **Each tiled window gets its own color.** After tiling, tabby picks the colors as a set: every window a different hue, windows side by side as far apart as the theme allows, calm hues first. Colors you picked yourself stay, and tiling again doesn't reshuffle a set that's already good. In `themes` mode each window also gets its own theme. Turn it off with **Give Each Window Its Own Color** in the tile menu, in Settings › Windows, or with `/tab tile colors off`. `tabby tile --dry-run` lists the colors it would pick.
+
 ## 0.4.1 — 2026-10-06
 
 Tiling fixes:

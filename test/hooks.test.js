@@ -188,21 +188,23 @@ test('/tab focus-mode turns focus mode on and off', () => {
   assert.match(run('/tab focus-mode off'), /Focus mode off/);
   assert.equal(S.readConfig().focusMode, false);
   assert.match(run('/tab focusmode on'), /Focus mode on/);
-  assert.match(run('/tab focus-mode maybe'), /Focus mode: on \| off \| idle on \| idle off \(now on\)/);
+  assert.match(run('/tab focus-mode maybe'), /Focus mode: on \| off \| idle on \| idle off \(now on, staying covered when it's your turn\)/);
   S.writeConfig({ focusMode: false });
 });
 
 test('/tab focus-mode idle keeps windows covered when it is your turn', () => {
   const run = (prompt) => as('a', process.pid, () => hook('UserPromptSubmit', { session_id: 'A', prompt })).reason;
+  assert.equal(S.readConfig().focusIdle, true, 'on by default');
+  assert.match(run('/tab focus-mode idle off'), /opens a window when it's your turn again\. Focus mode itself is off/);
   assert.equal(S.readConfig().focusIdle, false);
-  assert.match(run('/tab focus-mode idle'), /stays on when it's your turn.*Focus mode itself is off/);
+  assert.match(run('/tab focus-mode idle'), /stays on when it's your turn.*Show full reply.*Focus mode itself is off/);
   assert.equal(S.readConfig().focusIdle, true);
   assert.equal(S.readConfig().focusMode, false, 'idle does not turn focus mode on');
   S.writeConfig({ focusMode: true });
   assert.match(run('/tab focus-mode maybe'), /now on, staying covered when it's your turn/);
   assert.match(run('/tab focus-mode idle off'), /opens a window when it's your turn again\.$/);
   assert.equal(S.readConfig().focusIdle, false);
-  assert.match(run('/tab focus-mode idle on'), /Your turn/);
+  assert.match(run('/tab focus-mode idle on'), /gist|opens and what it asks/);
   assert.match(run('/tab focus-mode idle maybe'), /Focus mode idle: on \| off \(now on\)/);
   assert.equal(S.readConfig().focusMode, true, 'idle leaves focus mode as it was');
   S.writeConfig({ focusMode: false, focusIdle: false });

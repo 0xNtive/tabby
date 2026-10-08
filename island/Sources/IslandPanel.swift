@@ -102,6 +102,10 @@ final class IslandUIState: ObservableObject {
     @Published var announcement: Announcement?
     /// A newer tabby is out, or one is being installed (the header's Update pill).
     @Published var update: UpdateBadge?
+    /// The toolbar control under the pointer, once it has rested there (its hint shows).
+    @Published var hoveredControl: ToolbarControl?
+    /// A tile under way (the tile button's ring, the collapsed pill).
+    @Published var tiling: TileProgress?
     /// The session whose title is being edited in place, and the text so far.
     @Published var renaming: String?
     @Published var renameText = ""
@@ -118,11 +122,11 @@ struct IslandActions {
     var islandFrame: @MainActor (CGRect) -> Void
     var rowFrames: @MainActor ([String: CGRect]) -> Void
     var viewport: @MainActor (CGRect) -> Void
+    var controlFrames: @MainActor ([ToolbarControl: CGRect]) -> Void = { _ in }
     /// Expands the island, or acts on the announcement it shows.
     var tapHeader: @MainActor () -> Void
     var tapRow: @MainActor (IslandSession) -> Void
     var sessionMenu: @MainActor (IslandSession) -> Void
-    var themeAllMenu: @MainActor () -> Void
     var setMode: @MainActor (IslandMode) -> Void
     var tileMenu: @MainActor () -> Void
     var openSettings: @MainActor () -> Void
@@ -133,7 +137,7 @@ struct IslandActions {
     var cancelRename: @MainActor () -> Void
 
     static let inert = IslandActions(islandFrame: { _ in }, rowFrames: { _ in }, viewport: { _ in }, tapHeader: {},
-                                     tapRow: { _ in }, sessionMenu: { _ in }, themeAllMenu: {}, setMode: { _ in },
+                                     tapRow: { _ in }, sessionMenu: { _ in }, setMode: { _ in },
                                      tileMenu: {}, openSettings: {}, update: {}, commitRename: {}, cancelRename: {})
 }
 
@@ -177,7 +181,18 @@ final class IslandController {
     private var host: NSView?
     private var islandFrame: CGRect = .zero
     private var rowFrames: [String: CGRect] = [:]
+    private var controlFrames: [ToolbarControl: CGRect] = [:]
     private var viewport: CGRect = .zero
+    /// The control the pointer rests on, before its hint shows.
+    private var pendingControl: ToolbarControl?
+    private var hintWork: DispatchWorkItem?
+    // Tiling: the lock file is read 4× a second while a tile runs.
+    private var tileWatch: Timer?
+    /// The island started this tile and waits for the CLI's answer.
+    private var tileOwn = false
+    private var tileStartedAt = Date.distantPast
+    /// A store load from just before a tile ended can still carry it: not a new tile.
+    private var tileEndedAt = Date.distantPast
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var keyMonitor: Any?
@@ -339,10 +354,10 @@ final class IslandController {
             islandFrame: { [weak self] frame in self?.islandFrame = frame },
             rowFrames: { [weak self] frames in self?.rowFrames = frames },
             viewport: { [weak self] frame in self?.viewport = frame },
+            controlFrames: { [weak self] frames in self?.controlFrames = frames },
             tapHeader: { [weak self] in self?.tapHeader() },
             tapRow: { [weak self] session in self?.focus(session) },
             sessionMenu: { [weak self] session in self?.showSessionMenu(session) },
-            themeAllMenu: { [weak self] in self?.showThemeAllMenu() },
             setMode: { [weak self] mode in self?.setMode(mode) },
             tileMenu: { [weak self] in self?.showTileMenu() },
             openSettings: { [weak self] in self?.openSettings() },
@@ -386,6 +401,10 @@ final class IslandController {
         resolveConfig(snapshot)
         updateWatermark(snapshot)
         detectTransitions(snapshot)
+        // A tile someone else started (/tab tile, `tabby tile`): show its progress too.
+        if snapshot.tiling != nil, tileWatch == nil, !inert, Date().timeIntervalSince(tileEndedAt) > 1.5 {
+            beginTileProgress(own: false)
+        }
         if let id = ui.renaming, !snapshot.sessions.contains(where: { $0.id == id }) {
             finishRename(commit: false)   // the session ended under the field
         }
@@ -685,6 +704,7 @@ final class IslandController {
                 }
             } else if moved {
                 updateRowHover(point)
+                updateControlHover(point)
             }
         } else {
             expandWork?.cancel()
@@ -696,6 +716,47 @@ final class IslandController {
                 setPolling(false)
             }
             if !ui.holdsOpen, ui.hoveredRow != nil { setHoveredRow(nil) }
+            setHint(nil)
+        }
+    }
+
+    /// A toolbar control's hint shows once the pointer rests on it for a moment; moving on to
+    /// the next control while one shows swaps it at once, like tooltips do.
+    private func updateControlHover(_ point: CGPoint) {
+        let hit = ui.menuOpen || ui.renaming != nil
+            ? nil
+            : controlFrames.first { $0.value.insetBy(dx: -3, dy: -3).contains(point) }?.key
+        guard hit != pendingControl else { return }
+        pendingControl = hit
+        hintWork?.cancel()
+        hintWork = nil
+        guard let hit else {
+            setHint(nil)
+            return
+        }
+        if ui.hoveredControl != nil {
+            setHint(hit)
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.pendingControl == hit, self.ui.expanded, !self.ui.menuOpen else { return }
+                self.setHint(hit)
+            }
+        }
+        hintWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
+    private func setHint(_ control: ToolbarControl?) {
+        if control == nil {
+            pendingControl = nil
+            hintWork?.cancel()
+            hintWork = nil
+        }
+        guard ui.hoveredControl != control else { return }
+        withAnimation(ui.reduceMotion ? nil : .easeOut(duration: control == nil ? 0.1 : 0.16)) {
+            ui.hoveredControl = control
         }
     }
 
@@ -764,6 +825,12 @@ final class IslandController {
         }
         if !value {
             rowFrames = [:]
+            controlFrames = [:]
+            setHint(nil)
+            // A tile still running: its pill comes back first.
+            if let tiling = ui.tiling, !announcements.contains(where: { $0.progress != nil }) {
+                announcements.insert(.tiling(tiling), at: 0)
+            }
             if !announcements.isEmpty { showNextAnnouncement(after: 0.45) }
         }
         setPolling(value)
@@ -873,11 +940,13 @@ final class IslandController {
     private func releaseAnnouncement() {
         guard announcementHeld else { return }
         announcementHeld = false
-        scheduleAnnouncementEnd(after: 1.5)
+        // Work under way stays up until it's done.
+        scheduleAnnouncementEnd(after: ui.announcement?.progress != nil ? ui.announcement?.duration ?? 1.5 : 1.5)
     }
 
     private func tapHeader() {
-        guard let announcement = ui.announcement else {
+        guard let announcement = ui.announcement, announcement.progress == nil else {
+            // Over the tiling pill too: the tile button keeps showing how far it is.
             setExpanded(true)
             return
         }
@@ -1067,17 +1136,88 @@ final class IslandController {
     /// `tabby tile [n] [--active | --only …]`; the CLI's notices (Accessibility above all) show in the pill.
     func tile(_ count: Int?, extra: [String] = []) {
         if ui.keyboard { endKeyboard(restoreFocus: true) } else { setExpanded(false) }
+        // Already tiling: the pill keeps showing how far it is.
+        guard !tileOwn else { return }
+        beginTileProgress(own: true)
         Actions.tile(count, extra: extra) { [weak self] output in
             Debug.log("tile output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
-            guard let self, let notice = Actions.notice(fromTileOutput: output) else { return }
+            guard let self else { return }
+            self.endTileProgress(result: Self.tileResult(output))
+        }
+    }
+
+    /// What the pill says when a tile ends: a missing permission, anything that went wrong, else
+    /// "Tiled 4 windows".
+    private static func tileResult(_ output: String) -> Announcement? {
+        if let notice = Actions.notice(fromTileOutput: output) {
             if notice.accessibility {
-                self.enqueue(.info("Allow Accessibility to split tabs", symbol: "hand.raised.fill", topic: "tile",
-                                   detail: notice.text + "\nClick to open System Settings.",
-                                   opensAccessibility: true), force: true)
-            } else {
-                self.enqueue(.info(notice.text, symbol: "square.grid.2x2", topic: "tile", detail: notice.text),
-                             force: true)
+                return .info("Allow Accessibility to split tabs", symbol: "hand.raised.fill", topic: "tile",
+                             detail: notice.text + "\nClick to open System Settings.", opensAccessibility: true)
             }
+            if notice.text.hasPrefix("Already tiling") { return nil }
+            return .info(notice.text, symbol: "rectangle.split.2x2", topic: "tile", detail: notice.text)
+        }
+        return .tiled(fromOutput: output)
+    }
+
+    // MARK: Tiling progress
+
+    /// Shows the tiling pill and follows the CLI's progress in the lock file until it's done.
+    private func beginTileProgress(own: Bool) {
+        if own {
+            tileOwn = true
+            tileStartedAt = Date()
+            // A tile result still on screen gives way to the new tile at once.
+            if ui.announcement?.topic == "tile" { endAnnouncement(animated: false) }
+        }
+        let start = (TileProgress.read() ?? .starting).after(ui.tiling)
+        withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.2)) { ui.tiling = start }
+        showTileProgress()
+        guard tileWatch == nil else { return }
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollTileProgress() }
+        }
+        timer.tolerance = 0.05
+        RunLoop.main.add(timer, forMode: .common)
+        tileWatch = timer
+    }
+
+    private func pollTileProgress() {
+        if let next = TileProgress.read() {
+            let merged = next.after(ui.tiling)
+            guard merged != ui.tiling else { return }
+            ui.tiling = merged
+            showTileProgress()
+        } else if !tileOwn {
+            // Someone else's tile finished; its answer shows where it was asked for.
+            endTileProgress(result: nil)
+        } else if Date().timeIntervalSince(tileStartedAt) > 90 {
+            endTileProgress(result: nil)   // the CLI never answered
+        }
+    }
+
+    private func endTileProgress(result: Announcement?) {
+        tileWatch?.invalidate()
+        tileWatch = nil
+        tileOwn = false
+        tileEndedAt = Date()
+        withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.2)) { ui.tiling = nil }
+        announcements.removeAll { $0.progress != nil }
+        if let result {
+            enqueue(result, force: true)   // the same topic: it takes the progress pill's place
+        } else if ui.announcement?.progress != nil {
+            endAnnouncement()
+        }
+    }
+
+    /// The collapsed pill: updated in place while it's up, so only its words and ring move.
+    private func showTileProgress() {
+        guard let tiling = ui.tiling, isShown else { return }
+        if let current = ui.announcement, current.progress != nil {
+            withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.2)) { ui.announcement = current.updated(with: tiling) }
+            if !announcementHeld { scheduleAnnouncementEnd(after: current.duration) }
+        } else {
+            enqueue(.tiling(tiling), force: true)
         }
     }
 
@@ -1096,13 +1236,6 @@ final class IslandController {
         popUp(menu)
     }
 
-    private func showThemeAllMenu() {
-        let menu = MenuFactory.shared.themeMenu(store: store, current: store.snapshot.globalThemeId) { id in
-            Actions.setThemeAll(id)
-        }
-        popUp(menu)
-    }
-
     private func showTileMenu() {
         let menu = MenuFactory.shared.tileMenu(sessionCount: store.snapshot.sessions.count) { [weak self] count in
             self?.tile(count)
@@ -1112,6 +1245,7 @@ final class IslandController {
 
     /// Pops a menu at the mouse, or at a point in the island's (top-left origin) coordinates.
     private func popUp(_ menu: NSMenu, at point: CGPoint? = nil) {
+        setHint(nil)
         ui.menuOpen = true
         collapseWork?.cancel()
         collapseWork = nil

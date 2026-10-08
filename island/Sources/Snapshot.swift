@@ -130,6 +130,27 @@ enum Snapshotter {
             ui.announcement = .info("Allow Accessibility to split tabs", symbol: "hand.raised.fill",
                                     opensAccessibility: true)
         },
+        // What the toolbar's controls do, and a tile on its way.
+        State(name: "hint-tile") { ui, _ in ui.expanded = true; ui.mode = .standard; ui.hoveredControl = .tile },
+        State(name: "hint-mode") { ui, _ in ui.expanded = true; ui.mode = .minimal; ui.hoveredControl = .mode(.minimal) },
+        State(name: "tiling") { ui, _ in
+            let progress = TileProgress(text: "Splitting tabs", fraction: 0.4, step: 2, of: 4)
+            ui.tiling = progress
+            ui.announcement = .tiling(progress)
+        },
+        State(name: "tiling-start") { ui, _ in
+            ui.tiling = .starting
+            ui.announcement = .tiling(.starting)
+        },
+        State(name: "tiling-expanded") { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.tiling = TileProgress(text: "Placing 4 windows", fraction: 0.75)
+            ui.hoveredControl = .tile
+        },
+        State(name: "tiled") { ui, _ in
+            ui.announcement = .tiled(fromOutput: "Tiled 4 sessions in a 2×2 grid, each in its own color.")
+        },
     ]
 
     static func run(directory: String) {
@@ -167,6 +188,18 @@ enum Snapshotter {
         renderWindowsFeatures(store: demo, folder: folder)
     }
 
+    /// A finished turn's reply, as Claude writes them: the gist first, details, a question last.
+    static let sampleReply = """
+    The invoice webhooks now run on Stripe v3, and all 42 billing tests pass. Refunds and disputes \
+    go through the new event types; nothing else in checkout changed.
+
+    **What changed**
+    - `webhooks.py`: v3 event names, with the old ones mapped for a week.
+    - `test_invoices.py`: 12 new cases for partial refunds.
+
+    The v2 keys are still in the staging settings. Want me to remove them now, or after Friday's deploy?
+    """
+
     /// Focus mode's cover over mock Terminal windows: the main agent alone and with subagents,
     /// on dark and light themes, in a few window shapes; then the cover that stays when it's
     /// your turn.
@@ -175,8 +208,8 @@ enum Snapshotter {
         let working = snapshot.sessions.first { $0.status == .busy } ?? snapshot.sessions[0]
         let light = snapshot.themes.first { $0.mode == "light" && $0.group != "contrast" } ?? snapshot.themes.first { $0.mode == "light" }
         let agents = [
-            FocusAgent(id: "1", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Grep", startedAt: now - 48),
-            FocusAgent(id: "2", label: "Write the migration tests for invoices and refunds", kind: "general-purpose", tool: "Edit", startedAt: now - 131),
+            FocusAgent(id: "1", label: "Find every Stripe v2 call site", kind: "Explore", tool: "Searching for “stripe.Charge”", startedAt: now - 48),
+            FocusAgent(id: "2", label: "Write the migration tests for invoices and refunds", kind: "general-purpose", tool: "Editing test_invoices.py", startedAt: now - 131),
             FocusAgent(id: "3", label: "Review the webhook retry logic", kind: "code-reviewer", tool: nil, startedAt: now - 9),
         ]
         func content(_ session: IslandSession, theme: ThemeInfo?, agents: [FocusAgent]) -> FocusCoverContent {
@@ -189,6 +222,7 @@ enum Snapshotter {
                 session.dotHex = accent?.dot
             }
             session.agents = agents
+            if session.status == .busy { session.activity = "Editing billing/webhooks.py" }
             return FocusCoverContent.make(session, themes: snapshot.themes, globalTheme: snapshot.globalThemeId,
                                           now: Date(timeIntervalSince1970: now))
         }
@@ -197,6 +231,8 @@ enum Snapshotter {
             var session = session
             session.status = .idle
             session.activityAt = (now - 12 * 60) * 1000
+            session.lastTurnMs = 512_000
+            session.reply = ReplySummary.make(Snapshotter.sampleReply)
             return content(session, theme: theme, agents: [])
         }
         let cases: [(String, FocusCoverContent, CGSize)] = [

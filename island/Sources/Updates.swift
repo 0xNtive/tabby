@@ -280,7 +280,6 @@ struct UpdatePill: View {
         .buttonStyle(.plain)
         .disabled(badge == .updating)
         .onHover { hover = $0 }
-        .help(help)
         .accessibilityLabel(help)
     }
 

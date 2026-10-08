@@ -3,7 +3,8 @@ import Foundation
 // Focus mode (`focusMode` in config.json): while Claude works in a Terminal window you're not
 // in, that window shows only its topic and what's running (FocusCover.swift draws it); what
 // Claude writes stays hidden until it needs you, it's your turn, or you click the window.
-// With `focusIdle`, a window stays covered when it's your turn and its cover says so.
+// With `focusIdle` (on unless turned off), a window stays covered when it's your turn, and its
+// cover shows the gist of Claude's reply instead of the reply itself.
 
 // MARK: - The rule
 
@@ -27,7 +28,7 @@ struct FocusAgent: Equatable, Sendable {
     var label: String
     /// "Explore", "general-purpose", "fork"…
     var kind: String?
-    /// The tool it used last ("Bash", "Edit"), if its transcript shows one.
+    /// What it did last ("Reading tile.js", "Run the tests"), if its transcript shows a tool call.
     var tool: String?
     /// Seconds since 1970.
     var startedAt: TimeInterval
@@ -143,7 +144,7 @@ final class SubagentScanner: @unchecked Sendable {
                 }
                 running = true
             }
-            if type == "assistant", let tool = lastToolName(message) { return (true, tool, threshold) }
+            if type == "assistant", let tool = lastToolStep(message) { return (true, tool, threshold) }
         }
         return (running ?? true, nil, threshold)
     }
@@ -169,6 +170,16 @@ final class SubagentScanner: @unchecked Sendable {
         var lines = tail.text.split(separator: "\n", omittingEmptySubsequences: true)
         if tail.midFile, !lines.isEmpty { lines.removeFirst() }
         return lines
+    }
+
+    /// The last tool call, in words ("Editing tile.js").
+    private static func lastToolStep(_ message: [String: Any]) -> String? {
+        guard let blocks = message["content"] as? [Any] else { return nil }
+        for case let block as [String: Any] in blocks.reversed() where block["type"] as? String == "tool_use" {
+            guard let name = block["name"] as? String else { continue }
+            return ActivityDescriber.describe(tool: name, input: block["input"] as? [String: Any] ?? [:])
+        }
+        return nil
     }
 
     private static func lastToolName(_ message: [String: Any]) -> String? {

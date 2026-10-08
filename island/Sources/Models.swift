@@ -106,6 +106,15 @@ enum IslandMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The toolbar hint: what this view shows.
+    var hint: String {
+        switch self {
+        case .minimal: return "One line per session: its color, name and status."
+        case .standard: return "Name, project and context for each session. Hover a row for more."
+        case .detailed: return "Status, context, summary and last prompt for every session."
+        }
+    }
+
     var next: IslandMode {
         let all = IslandMode.allCases
         return all[((all.firstIndex(of: self) ?? 0) + 1) % all.count]
@@ -135,8 +144,9 @@ struct IslandConfig: Equatable, Sendable {
     var watermark = WatermarkSettings()
     /// Terminal windows you're not in show only their topic while Claude works (`focusMode`).
     var focusMode = false
-    /// Focus mode keeps a window covered when it's your turn, with a "Your turn" button (`focusIdle`).
-    var focusIdle = false
+    /// Focus mode keeps a window covered when it's your turn (`focusIdle`, on unless turned off):
+    /// the gist of Claude's reply and a "Show full reply" button.
+    var focusIdle = true
     /// Look for a newer tabby every 6 h (`updateCheck`, on by default).
     var updateCheck = true
 
@@ -158,6 +168,8 @@ struct IslandConfig: Equatable, Sendable {
     var tileScreens = TileScreens.current
     /// What ⌃⌥G and the tile button tile (`tileScope`).
     var tileScope = TileScope.all
+    /// Tiling gives each window its own color (`tileRecolor`).
+    var tileRecolor = true
     /// Quick launch starts with "Skip permissions" ticked (`launchSkipPermissions`).
     var launchSkipPermissions = false
 
@@ -175,7 +187,7 @@ struct IslandConfig: Equatable, Sendable {
         }
         watermark = WatermarkSettings(raw: raw)
         focusMode = raw["focusMode"]?.bool ?? false
-        focusIdle = raw["focusIdle"]?.bool ?? false
+        focusIdle = raw["focusIdle"]?.bool ?? true
         updateCheck = raw["updateCheck"]?.bool ?? true
         theme = raw["theme"]?.string
         namer = raw["namer"]?.string ?? "ai"
@@ -185,6 +197,7 @@ struct IslandConfig: Equatable, Sendable {
         terminalTitles = raw["terminalTabTitles"]?.bool ?? false
         tileScreens = TileScreens(raw: raw["tileScreens"])
         tileScope = TileScope(raw: raw["tileScope"])
+        tileRecolor = raw["tileRecolor"]?.bool ?? true
         launchSkipPermissions = raw["launchSkipPermissions"]?.bool ?? false
     }
 
@@ -308,6 +321,12 @@ struct Announcement: Equatable, Identifiable {
     var detail: String?
     /// Clicking opens System Settings › Privacy & Security › Accessibility.
     var opensAccessibility = false
+    /// Work under way (tiling): a filling ring instead of the symbol, 0…1. Stays up until it's done.
+    var progress: Double? = nil
+    /// Text the pill is sized for, when its words change while it's up.
+    var reserve: String? = nil
+    /// Something the user asked for went well ("Tiled 4 windows"): green, like a finished turn.
+    var success = false
 
     static func done(_ session: IslandSession) -> Announcement {
         Announcement(kind: .done, title: session.title, suffix: "is done", symbol: "checkmark.circle.fill",
@@ -329,14 +348,95 @@ struct Announcement: Equatable, Identifiable {
         switch kind {
         case .done: return Palette.done
         case .waiting: return Palette.waiting
-        case .info: return opensAccessibility ? Palette.waiting : Color.white.opacity(0.72)
+        case .info:
+            if success { return Palette.done }
+            return opensAccessibility ? Palette.waiting : Color.white.opacity(progress == nil ? 0.72 : 0.6)
         }
     }
 
     /// How long it stays up (hovering holds it).
     var duration: Double {
+        if progress != nil { return 90 }   // replaced when the work ends; this is only a backstop
         if opensAccessibility { return 8 }
+        if success { return 3.2 }
         return kind == .info ? 2.6 : 4.2
+    }
+}
+
+// MARK: - Tiling progress
+
+/// A tile in progress, from <Claude folder>/tabby/tile.lock: `tabby tile` keeps it up to date
+/// (`{ pid, at, text, fraction, step, of }`) whoever started it (the tile button, ⌃⌥G or /tab tile).
+struct TileProgress: Equatable, Sendable {
+    var text: String
+    /// How far along, 0…1 (the ring).
+    var fraction: Double
+    var step: Int?
+    var of: Int?
+
+    static let starting = TileProgress(text: "Getting ready", fraction: 0.02)
+
+    /// "Splitting tabs · 2 of 4".
+    var detail: String {
+        guard let step, let of, of > 1 else { return text }
+        return "\(text) · \(step) of \(of)"
+    }
+
+    static var file: URL { ClaudePaths.tabby.appendingPathComponent("tile.lock") }
+
+    /// The tile running now, if any: its process alive and started within the last minute (the
+    /// CLI's own lock gives up after that too).
+    static func read() -> TileProgress? {
+        guard let data = try? Data(contentsOf: file),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let pid = (json["pid"] as? NSNumber)?.int32Value, pid > 0,
+              kill(pid, 0) == 0 || errno == EPERM else { return nil }
+        if let at = (json["at"] as? NSNumber)?.doubleValue, Date().timeIntervalSince1970 * 1000 - at > 60_000 { return nil }
+        return TileProgress(text: (json["text"] as? String).map { String($0.prefix(48)) } ?? "Tiling",
+                            fraction: min(max((json["fraction"] as? NSNumber)?.doubleValue ?? 0, 0), 1),
+                            step: (json["step"] as? NSNumber)?.intValue,
+                            of: (json["of"] as? NSNumber)?.intValue)
+    }
+
+    /// The ring never runs backwards (two terminal apps tile one after the other).
+    func after(_ previous: TileProgress?) -> TileProgress {
+        var next = self
+        next.fraction = max(fraction, previous?.fraction ?? 0)
+        return next
+    }
+}
+
+extension Announcement {
+    /// The collapsed pill while windows are tiled: a filling ring, "Tiling", and the step.
+    static func tiling(_ progress: TileProgress) -> Announcement {
+        var announcement = Announcement(kind: .info, title: "Tiling", suffix: progress.detail, symbol: "rectangle.split.2x2",
+                                        sessionId: nil, topic: "tile", detail: nil)
+        announcement.progress = progress.fraction
+        // Sized for the longest step, so the pill doesn't twitch as the words change.
+        announcement.reserve = "Leaving full screen · 8 of 8"
+        return announcement
+    }
+
+    /// Same pill, next step: keeps its identity, so it updates in place instead of popping in again.
+    func updated(with progress: TileProgress) -> Announcement {
+        var next = self
+        next.suffix = progress.detail
+        next.progress = progress.fraction
+        return next
+    }
+
+    /// "Tiled 4 windows" from the CLI's "Tiled 4 sessions in a 2×2 grid, each in its own color."
+    static func tiled(fromOutput output: String) -> Announcement? {
+        let lines = output.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let line = lines.first(where: { $0.hasPrefix("Tiled ") }),
+              let match = line.range(of: #"^Tiled (\d+)"#, options: .regularExpression) else { return nil }
+        let count = Int(line[match].dropFirst(6)) ?? 0
+        let recolored = line.contains("own color") || line.contains("fresh color")
+        var announcement = Announcement(kind: .info, title: "Tiled \(count) window\(count == 1 ? "" : "s")",
+                                        suffix: recolored ? "in new colors" : nil, symbol: "checkmark.circle.fill",
+                                        sessionId: nil, topic: "tile", detail: line)
+        announcement.success = true
+        return announcement
     }
 }
 
@@ -422,6 +522,10 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     /// Claude's task list, while it works through one.
     var tasks: TaskProgress? = nil
     /// The tab's colors as tabby paints them (`bg`, `fg`), for focus mode's cover.
+    /// What it's doing right now ("Editing tile.js"), from its transcript, while it works.
+    var activity: String? = nil
+    /// The gist of Claude's last reply, when it's your turn (read while focus mode is on).
+    var reply: ReplySummary? = nil
     var bgHex: String? = nil
     var fgHex: String? = nil
     /// Claude's subagents running in this session (read only while focus mode is on).
