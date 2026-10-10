@@ -36,6 +36,8 @@ struct IslandRootView: View {
     let actions: IslandActions
     /// The hover dropdown under a row, and ending a session from it.
     @ObservedObject var detail: SessionDetailModel = .shared
+    /// History and Processes.
+    @ObservedObject var pages: PagesModel
 
     var body: some View {
         let geometry = ui.geometry
@@ -61,7 +63,8 @@ struct IslandRootView: View {
         .focusEffectDisabled()
         .onChange(of: ui.hoveredRow) { _, id in
             detail.reduceMotion = ui.reduceMotion
-            detail.pointer(at: id)
+            // History and Processes rows have no dropdown.
+            detail.pointer(at: IslandPage.isPageRow(id) ? nil : id)
         }
         .onChange(of: ui.expanded) { _, expanded in
             guard !expanded else { return }
@@ -77,7 +80,8 @@ struct IslandRootView: View {
         let width = expanded
             ? max(ui.mode.width, collapsedWidth(geometry) + 24)
             : collapsedWidth(geometry)
-        let radius: CGFloat = expanded ? 26 : max(8, geometry.barHeight * 0.36)
+        let tall = !expanded && announcement?.subtitle != nil
+        let radius: CGFloat = expanded ? 26 : tall ? 18 : max(8, geometry.barHeight * 0.36)
         let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: radius,
                                            bottomTrailingRadius: radius, topTrailingRadius: 0,
                                            style: .continuous)
@@ -86,6 +90,17 @@ struct IslandRootView: View {
                 .frame(height: geometry.barHeight)
                 .contentShape(Rectangle())
                 .onTapGesture { if !ui.expanded { actions.tapHeader() } }
+            if let announcement, let subtitle = announcement.subtitle {
+                // Which project, and what Claude did: the pill grows a line under the notch.
+                AnnouncementSubtitle(text: subtitle)
+                    .id(announcement.id)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture { actions.tapHeader() }
+                    .transition(ui.reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -4)))
+            }
             if expanded {
                 expandedBody(geometry)
                     .transition(.asymmetric(
@@ -134,13 +149,17 @@ struct IslandRootView: View {
     private func collapsedWidth(_ geometry: IslandGeometry) -> CGFloat {
         let ear = sessionCount == 0 ? (geometry.hasNotch ? 18 : 26) : earWidth
         let right = announcement.map { max(ear, announcementEar($0, geometry)) } ?? ear
+        // Room for the second line too, up to a comfortable reading width.
+        let second = announcement?.subtitle.map {
+            min(TextMetrics.width($0, size: 11.5, weight: .regular) + 36, 520, geometry.panelSize.width - 24)
+        } ?? 0
         if geometry.hasNotch {
             // Symmetric around the notch. With no sessions the island is just a hair wider
             // than the notch: invisible but hoverable.
-            return geometry.notchWidth + 2 * right
+            return max(geometry.notchWidth + 2 * right, second)
         }
         if sessionCount == 0 && announcement == nil { return 64 }
-        return ear + right + 12
+        return max(ear + right + 12, second)
     }
 
     // MARK: Header (the part that hugs the notch)
@@ -238,7 +257,14 @@ struct IslandRootView: View {
                     }
                 }
                 .zIndex(1)
-            if sessions.isEmpty {
+            if ui.page == .history {
+                HistoryPage(model: pages, hovered: ui.hoveredRow, onBack: { actions.setPage(.sessions) },
+                            onResume: actions.resume)
+                    .transition(.opacity)
+            } else if ui.page == .processes {
+                ProcessesPage(model: pages, hovered: ui.hoveredRow, onBack: { actions.setPage(.sessions) })
+                    .transition(.opacity)
+            } else if sessions.isEmpty {
                 VStack(spacing: 6) {
                     Image(systemName: "moon.zzz")
                         .font(.system(size: 18))
@@ -268,14 +294,18 @@ struct IslandRootView: View {
                     Color.clear.preference(key: ViewportKey.self, value: proxy.frame(in: .named(IslandSpace.name)))
                 })
             }
-            if let notice = detail.notice {
+            if ui.page != .sessions {
+                // The page draws its own bottom edge.
+            } else if let notice = detail.notice {
                 DetailNotice(notice: notice)
                     .padding(.horizontal, 20)
                     .padding(.top, 2)
                     .padding(.bottom, ui.keyboard || ui.renaming != nil ? 0 : 10)
                     .transition(.opacity)
             }
-            if ui.keyboard || ui.renaming != nil {
+            if ui.page != .sessions {
+                Color.clear.frame(height: 4)
+            } else if ui.keyboard || ui.renaming != nil {
                 KeyboardHint(renaming: ui.renaming != nil)
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
@@ -394,7 +424,7 @@ struct IslandRootView: View {
     /// The hint for the hovered toolbar control (none while a menu is open or a name is edited).
     private var hint: ToolbarHintContent? {
         guard let control = ui.hoveredControl, ui.renaming == nil else { return nil }
-        return .make(control, config: store.snapshot.config, update: ui.update, tiling: ui.tiling)
+        return .make(control, config: store.snapshot.config, update: ui.update, tiling: ui.tiling, stale: pages.scan?.stale)
     }
 
     private func controls(tileLabel: Bool) -> some View {
@@ -407,6 +437,13 @@ struct IslandRootView: View {
             TileButton(showLabel: tileLabel, tiling: ui.tiling, reduceMotion: ui.reduceMotion,
                        label: help("Tile windows", .tile)) { actions.tileMenu() }
                 .toolbarControl(.tile)
+            PageButton(page: .history, active: ui.page == .history, label: "History") { actions.setPage(.history) }
+                .toolbarControl(.history)
+            PageButton(page: .processes, active: ui.page == .processes, badge: pages.staleCount, label: "Processes") {
+                actions.setPage(.processes)
+            }
+            .toolbarControl(.processes)
+            .animation(ui.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: pages.staleCount)
             FooterIconButton(symbol: "gearshape.fill", help: help("Settings", .settings)) { actions.openSettings() }
                 .toolbarControl(.settings)
         }
@@ -518,6 +555,20 @@ struct AnnouncementLabel: View {
         .help(announcement.detail ?? "")
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The pill's second line: which project, and what Claude did.
+struct AnnouncementSubtitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(.white.opacity(0.68))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .accessibilityLabel(text)
     }
 }
 

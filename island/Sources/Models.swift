@@ -333,15 +333,40 @@ struct Announcement: Equatable, Identifiable {
     var reserve: String? = nil
     /// Something the user asked for went well ("Tiled 4 windows"): green, like a finished turn.
     var success = false
+    /// A second line under the notch: which project, and what Claude did ("wildcat · Fixed the invoice
+    /// totals in the export").
+    var subtitle: String? = nil
+    /// Clicking opens the island on its Processes page.
+    var opensProcesses = false
 
     static func done(_ session: IslandSession) -> Announcement {
-        Announcement(kind: .done, title: session.title, suffix: "is done", symbol: "checkmark.circle.fill",
-                     sessionId: session.id, topic: session.id)
+        var announcement = Announcement(kind: .done, title: session.title, suffix: "is done", symbol: "checkmark.circle.fill",
+                                        sessionId: session.id, topic: session.id)
+        let said = session.reply?.lead ?? session.summary ?? session.typedPrompt.map { "You asked: \($0)" }
+        announcement.subtitle = session.line(said)
+        return announcement
     }
 
     static func waiting(_ session: IslandSession) -> Announcement {
-        Announcement(kind: .waiting, title: session.title, suffix: "needs you", symbol: "bell.fill",
-                     sessionId: session.id, topic: session.id)
+        var announcement = Announcement(kind: .waiting, title: session.title, suffix: "needs you", symbol: "bell.fill",
+                                        sessionId: session.id, topic: session.id)
+        let what = session.waitingFor == "permission" ? "Claude asks for permission to go on"
+            : session.waitingFor == "input" ? "Claude has a question for you" : session.summary
+        announcement.subtitle = session.line(what)
+        return announcement
+    }
+
+    /// "3 stale processes use 1.2 GB" · "Clean up ›": opens the Processes page.
+    static func stale(_ scan: ProcessScan) -> Announcement {
+        let count = scan.stale.count
+        let weight = scan.stale.memMB >= 500 || scan.stale.cpu < 20
+            ? Fmt.memory(scan.stale.memMB) : "\(Int(scan.stale.cpu.rounded()))% CPU"
+        var announcement = Announcement(kind: .info, title: "\(count) stale process\(count == 1 ? "" : "es") use \(weight)",
+                                        suffix: "Clean up ›", symbol: "cpu", sessionId: nil, topic: "stale")
+        let names = scan.items.filter(\.stale).prefix(3).map { item in item.portText.map { "\(item.label) \($0)" } ?? item.label }
+        announcement.subtitle = names.joined(separator: " · ")
+        announcement.opensProcesses = true
+        return announcement
     }
 
     static func info(_ text: String, symbol: String = "info.circle.fill", topic: String? = nil,
@@ -356,16 +381,18 @@ struct Announcement: Equatable, Identifiable {
         case .waiting: return Palette.waiting
         case .info:
             if success { return Palette.done }
+            if opensProcesses { return Palette.warn }
             return opensAccessibility ? Palette.waiting : Color.white.opacity(progress == nil ? 0.72 : 0.6)
         }
     }
 
-    /// How long it stays up (hovering holds it).
+    /// How long it stays up (hovering holds it). A second line takes a moment longer to read.
     var duration: Double {
         if progress != nil { return 90 }   // replaced when the work ends; this is only a backstop
-        if opensAccessibility { return 8 }
+        if opensAccessibility || opensProcesses { return 8 }
         if success { return 3.2 }
-        return kind == .info ? 2.6 : 4.2
+        let base = kind == .info ? 2.6 : 4.2
+        return subtitle == nil ? base : base + 2.3
     }
 }
 
@@ -539,6 +566,14 @@ struct IslandSession: Equatable, Identifiable, Sendable {
 
     /// What the tabby CLI accepts for `--session`.
     var cliTarget: String { sessionId ?? String(pid) }
+
+    /// "wildcat · <text>": the announcement's second line. The project leads unless the title is it.
+    func line(_ text: String?) -> String? {
+        let said = text.map { Fmt.oneLine($0, max: 160) }.flatMap { $0.isEmpty ? nil : $0 }
+        let showProject = !project.isEmpty && title.caseInsensitiveCompare(project) != .orderedSame
+        let parts = [showProject ? project : nil, said].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     /// The last prompt a person typed: not a message Claude Code injected itself
     /// (`<task-notification>…`, `<command-name>…`).

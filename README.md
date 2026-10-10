@@ -108,6 +108,8 @@ In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
 /tab focus-mode idle off     show the whole reply when Claude is done, not just its gist
 /tab watermark off           hide the watermarks (on brings them back)
 /tab update                  get the newest tabby, in the background
+/tab procs                   dev servers and leftovers, and what they use   /tab procs stop   stop the stale ones
+/tab history                 sessions you ran before   /tab resume 3   back to one
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
 ```
 
@@ -130,6 +132,9 @@ tabby tile --active       # only the sessions working or waiting on you (--only 
 tabby tile --dry-run      # where each window would go and its new color; moves nothing
 tabby tile screens        # list your displays; tabby tile screens 2 puts sessions on display 2
 tabby new --list          # recent and frequent folders, best first
+tabby history             # the sessions you ran before; tabby resume 3 (or a name) opens one where it ended
+tabby procs               # dev servers, leftovers and heavy processes your terminals started
+tabby procs stop          # stop the stale ones (or: tabby procs stop 4821, or all)
 tabby themes              # preview all 57 themes
 tabby doctor              # check every part of the install, with the fix for each
 tabby update              # the newest tabby: plugin, setup and island (--check to only look)
@@ -139,10 +144,12 @@ tabby update              # the newest tabby: plugin, setup and island (--check 
 
 A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% CPU.
 
-- **Collapsed:** one dot per session. A working session's dot spins inside a ring of its color, one that needs you rings amber, and one waiting for your next prompt rests, dimmed. A short announcement pops up when a session finishes or needs you.
+- **Collapsed:** one dot per session. A working session's dot spins inside a ring of its color, one that needs you rings amber, and one waiting for your next prompt rests, dimmed. When a session finishes or needs you, the island says which (its name, never Claude's stand-in like "api-4f") and grows a second line with the project and what Claude did: "web · The checkout spec now waits for the cart request: 20 runs passed." Click it to go there.
 - **Open** (hover, or ⌃⌥Space): every session's name and status ("Working 3m", "Your turn", "Needs you"), context used, and for a working session, an estimate of how far along it is. That estimate is "2 of 5 tasks · ~3m left" from Claude's task list, or "~2m left · usually 6m" from how long that session's turns take.
 - **Hover a session** for the full picture: what it's doing or waiting for, and what to do about it; its current task, summary, your last prompt, tokens and cost, folder and terminal. **Open Tab** jumps there. **End Session…** stops Claude and closes its tab, but only after you confirm; `claude --resume` brings the conversation back.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
+- **History** (the clock): the sessions you ran in the last 30 days, newest first, each with its project and what it was about. Click one and it opens in a new window, right where it ended (`claude --resume`, in its folder, with its name and color, and with permissions skipped only if it ran that way). One that's still open comes to the front instead.
+- **Processes** (the chip): dev servers on localhost, leftovers from sessions you closed, and anything else your terminals started that's using CPU or memory, with what each one uses and whose it is. **Stop all** stops the stale ones in one click: what a closed Claude session left running, dev servers and scripts left behind by a closed terminal, and those of a session that has been idle for 2 hours. Databases, VMs and tunnels you started (Postgres, Colima, Ollama, ngrok…) are listed but never counted as stale. Every row has its own stop button too. A badge on the button counts the stale ones, and when leftovers weigh 500 MB or more the island says so once.
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through.
 - **Settings** (the cog, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, themes, the watermark, Focus mode, screens and tiling, shortcuts and permissions.
 - **Not sure what a button does?** Rest the pointer on it: a card under the toolbar says what it does and its shortcut.
@@ -269,6 +276,7 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 - **Animation.** While a session works or waits, one small background process redraws those titles about 6 times a second, then exits a minute after everything is idle.
 - **Status** comes from the hooks, plus Claude's own session registry. **Context** comes from the status line, or else from the transcript. **Subagents** (for Focus mode) come from each session's `subagents/` transcripts.
 - **Terminal.app titles.** Terminal adds the folder, process, arguments and size to every title, and reads its title settings only at launch. So while a session runs, its tab uses a copy of its own profile ("Basic · tabby") with just those title parts turned off. `tabby terminal-titles off` puts the tabs back and deletes the copies.
+- **Processes** are read with `ps` and `lsof` on your Mac. To tell what a terminal or Claude started from a launchd service or an app, tabby looks at a few environment variable names in each candidate (`TERM_SESSION_ID`, `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `XPC_SERVICE_NAME`) and nothing else; it keeps none of it. Services, apps, Claude itself and its MCP servers, shells you type in, `ssh-agent`, `tmux` and other accounts' processes are never offered. Stopping sends SIGTERM to the process and its children, then SIGKILL to what's still there after 2 seconds, and only to processes whose start time still matches the list you saw.
 - **The island** is a native SwiftUI + AppKit app. It reads `~/.claude/tabby` and Claude's registry, and runs the tabby CLI for anything that changes state. Each [release](https://github.com/0xNtive/tabby/releases) ships it universal (Apple silicon and Intel) with a SHA-256 checksum, which the installer checks, and a build attestation (`gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`).
 - **Exit.** On exit a tab gets its profile colors back (`OSC 110/111/112`), and in Terminal.app its own profile; `/clear` keeps its identity.
 

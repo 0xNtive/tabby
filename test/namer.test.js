@@ -23,6 +23,8 @@ test('AI output parsing is forgiving (code fences, structured output) and strict
   assert.equal(parseNamerOutput(JSON.stringify({ result: '{"title": ""}' })), null);
   assert.equal(cleanAiTitle('"🚀 Deploy Pipeline Fix."'), 'Deploy Pipeline Fix');
   assert.ok(cleanAiTitle('A Very Long Title That Keeps Going Past The Limit For Tabs').length <= 32);
+  assert.equal(cleanAiTitle('Tabby Process Killer And Session History'), 'Tabby Process Killer', 'never ends on a joining word');
+  assert.equal(cleanAiTitle('Search And Replace'), 'Search And Replace', 'short names keep their words');
 });
 
 test('/tab detection', () => {

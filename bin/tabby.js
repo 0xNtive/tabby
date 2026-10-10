@@ -21,6 +21,8 @@ import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
 import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next, screensCommand } from '../lib/tile.js';
 import { newSession as launch, listFolders } from '../lib/launch.js';
+import * as procs from '../lib/procs.js';
+import { history, historyReport, resume } from '../lib/history.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
 import { setTerminalTabTitles, useTwin, restoreProfile, switchOpenTabs, setBoldColor } from '../lib/terminal-prefs.js';
@@ -230,6 +232,20 @@ function newSession() {
   }));
 }
 
+// `tabby procs [--json]` · `tabby procs stop [stale|all|<pid|id>…] [--json]`.
+function procsCommand() {
+  const sub = (pos[1] || '').toLowerCase();
+  if (sub === 'stop' || sub === 'kill') {
+    const which = pos.slice(2);
+    const res = procs.stop(which.length ? which : 'stale');
+    if (flags.json) return console.log(JSON.stringify(res));
+    if (res.failed.length) process.exitCode = 1;
+    return console.log(procs.stopReport(res));
+  }
+  const result = procs.scan();
+  return console.log(flags.json ? JSON.stringify(result) : procs.report(result));
+}
+
 // The macOS session island. install: the ready-made download (a local build if that fails),
 // kept in ~/Applications, opened at login, started with its setup window.
 function island(sub = 'start') {
@@ -307,6 +323,10 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby new [dir|name] [-n name] [--dangerous] [--screen s] [--color c] [--theme t]
                               a new window running claude (a recent folder by name works)
   tabby new --list            recent and frequent folders, best first
+  tabby history               the sessions you ran before (30 days), newest first
+  tabby resume [n|name|id]    back to one: its tab if it's open, else a new window resuming it
+  tabby procs                 dev servers, leftovers and heavy processes your terminals started
+  tabby procs stop [pid…|all] stop the stale ones (left behind, or idle 2 h+), or the ones named
   tabby adopt                 color sessions that were started before tabby
   tabby island [install|update|stop|login|setup|permissions|status]   the macOS session island
                               (install: the ready-made download; build: compile it here)
@@ -367,11 +387,11 @@ function askYes(question) {
 }
 
 // Commands that change terminals or settings wait for the terms; read-only ones don't.
-const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-titles', 'focus']);
+const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-titles', 'focus', 'resume', 'procs']);
 
 function main() {
   const cmd = pos[0];
-  const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_after-update', '_profile', 'statusline', 'install', 'uninstall', 'update', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', undefined].includes(cmd);
+  const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_after-update', '_profile', 'statusline', 'install', 'uninstall', 'update', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', 'history', undefined].includes(cmd);
   if (changes && !termsAccepted() && !(cmd === 'island' && pos[1] === 'stop')) {
     return console.log('tabby is off until you accept its terms. Run: tabby setup');
   }
@@ -507,6 +527,22 @@ function main() {
       return adopt();
     case 'new':
       return newSession();
+    case 'history':
+      if (flags.json) return console.log(JSON.stringify(history({ limit: flags.limit === undefined ? 60 : Number(flags.limit) || 0 })));
+      return console.log(historyReport(history({ limit: flags.limit === undefined ? 25 : Number(flags.limit) || 0 })));
+    case 'resume': {
+      const res = resume(pos.slice(1).join(' ') || sessionQuery, {
+        dangerous: flags.dangerous === undefined ? undefined : on(flags.dangerous),
+        term: typeof flags.term === 'string' ? flags.term : undefined,
+        screen: typeof flags.screen === 'string' ? flags.screen : undefined,
+        dryRun: !!flags['dry-run'],
+      });
+      if (!res.ok) process.exitCode = 1;
+      return console.log(res.message);
+    }
+    case 'procs':
+    case 'processes':
+      return procsCommand();
     case 'island':
       return island(pos[1]);
     case 'config':

@@ -119,6 +119,8 @@ final class ProgressRingView: NSView {
 enum ToolbarControl: Hashable {
     case mode(IslandMode)
     case tile
+    case history
+    case processes
     case settings
     case update
 }
@@ -150,7 +152,7 @@ struct ToolbarHintContent: Equatable {
 
 extension ToolbarHintContent {
     static func make(_ control: ToolbarControl, config: IslandConfig, update: UpdateBadge?,
-                     tiling: TileProgress?) -> ToolbarHintContent {
+                     tiling: TileProgress?, stale: ProcessScan.Totals? = nil) -> ToolbarHintContent {
         let key = { (action: ShortcutAction) -> String? in
             guard config.hotkeys, let combo = config.shortcuts[action] else { return nil }
             return action.display(combo)
@@ -168,6 +170,20 @@ extension ToolbarHintContent {
             return ToolbarHintContent(symbol: "rectangle.split.2x2", title: "Tile windows",
                                       detail: "Puts the windows of \(which) side by side\(colors). Click to choose which.",
                                       shortcut: key(.tile))
+        case .history:
+            return ToolbarHintContent(symbol: IslandPage.history.symbol, title: "History",
+                                      detail: "The sessions you ran before. Click one to go back to it: a new window picks up right where it ended.",
+                                      shortcut: nil)
+        case .processes:
+            if let stale, stale.count > 0 {
+                return ToolbarHintContent(symbol: IslandPage.processes.symbol,
+                                          title: "\(stale.count) stale process\(stale.count == 1 ? "" : "es") · \(Fmt.memory(stale.memMB))",
+                                          detail: "Dev servers and leftovers from closed or long-idle sessions. Click to see them and stop them in one go.",
+                                          shortcut: nil)
+            }
+            return ToolbarHintContent(symbol: IslandPage.processes.symbol, title: "Processes",
+                                      detail: "Dev servers and leftovers your terminals started, and the CPU and memory they use. Stop them in one click.",
+                                      shortcut: nil)
         case .settings:
             return ToolbarHintContent(symbol: "gearshape.fill", title: "Settings",
                                       detail: "Shortcuts, screens, focus mode, the watermark and more.", shortcut: key(.settings))

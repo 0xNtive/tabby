@@ -274,3 +274,26 @@ test('hooks stay silent when disabled or internal', () => {
     delete process.env.TABBY_INTERNAL;
   }
 });
+
+// Its own Claude pid (launchd's, alive but no other test's), so no other session counts as its /clear.
+test('with AI names on, a tab is named from the first prompt at once (never blank until the model answers)', () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(process.env.TABBY_HOME, 'config.json'), 'utf8'));
+  fs.writeFileSync(path.join(process.env.TABBY_HOME, 'config.json'), JSON.stringify({ ...cfg, namer: 'ai' }));
+  const bin = process.env.CLAUDE_CODE_EXECPATH;
+  process.env.CLAUDE_CODE_EXECPATH = '/usr/bin/false'; // the background namer fails: no model call
+  try {
+    clearTty('n');
+    as('n', 1, () => hook('SessionStart', { session_id: 'N', source: 'startup', permission_mode: 'bypassPermissions' }));
+    assert.equal(S.readSession('N').title, '');
+    assert.equal(S.readSession('N').permissionMode, 'bypassPermissions', 'kept for a resume from the history');
+    as('n', 1, () => hook('UserPromptSubmit', { session_id: 'N', prompt: 'please add a process cleanup button to the island', permission_mode: 'bypassPermissions' }));
+    const rec = S.readSession('N');
+    assert.equal(rec.title, 'Add Process Cleanup Button');
+    assert.equal(rec.titleSource, 'heuristic', 'the AI name replaces it when it arrives');
+    as('n', 1, () => hook('SessionEnd', { session_id: 'N', reason: 'prompt_input_exit' }));
+  } finally {
+    fs.writeFileSync(path.join(process.env.TABBY_HOME, 'config.json'), JSON.stringify(cfg));
+    if (bin === undefined) delete process.env.CLAUDE_CODE_EXECPATH;
+    else process.env.CLAUDE_CODE_EXECPATH = bin;
+  }
+});

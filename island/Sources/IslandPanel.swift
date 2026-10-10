@@ -109,6 +109,8 @@ final class IslandUIState: ObservableObject {
     /// The session whose title is being edited in place, and the text so far.
     @Published var renaming: String?
     @Published var renameText = ""
+    /// Sessions, History or Processes (back to sessions when the island closes).
+    @Published var page: IslandPage = .sessions
     /// Snapshot renders: no entrance animations, no blinking.
     var staticRender = false
     var menuOpen = false
@@ -135,6 +137,9 @@ struct IslandActions {
     /// Inline rename: Return commits (empty lets AI name it), Esc cancels.
     var commitRename: @MainActor () -> Void
     var cancelRename: @MainActor () -> Void
+    /// History and Processes: their toolbar buttons (a second click goes back), and History's rows.
+    var setPage: @MainActor (IslandPage) -> Void = { _ in }
+    var resume: @MainActor (PastSession) -> Void = { _ in }
 
     static let inert = IslandActions(islandFrame: { _ in }, rowFrames: { _ in }, viewport: { _ in }, tapHeader: {},
                                      tapRow: { _ in }, sessionMenu: { _ in }, setMode: { _ in },
@@ -176,6 +181,10 @@ private struct PendingConfig {
 final class IslandController {
     let store: SessionStore
     let ui = IslandUIState()
+    /// History and Processes.
+    let pages = PagesModel()
+    /// Stale processes the pill has already pointed out (it says so once per set).
+    private var announcedStale = Set<String>()
 
     private var panel: IslandPanel?
     private var host: NSView?
@@ -306,6 +315,7 @@ final class IslandController {
             }
             .store(in: &cancellables)
         if !inert { updates.start(automatic: false) }
+        pages.onStale = { [weak self] scan in self?.staleFound(scan) }
         settingsState.loginItem = Self.loginItemInstalled
         installDebugChannel()
     }
@@ -324,6 +334,7 @@ final class IslandController {
         panel.ignoresMouseEvents = true
         panel.orderFrontRegardless()
         installMonitors()
+        if !inert { pages.startBackground() }
     }
 
     func hide() {
@@ -337,6 +348,7 @@ final class IslandController {
         panel?.orderOut(nil)
         removeMonitors()
         setPolling(false)
+        pages.stopBackground()
     }
 
     func reposition() {
@@ -363,9 +375,11 @@ final class IslandController {
             openSettings: { [weak self] in self?.openSettings() },
             update: { [weak self] in self?.updates.update() },
             commitRename: { [weak self] in self?.commitRename() },
-            cancelRename: { [weak self] in self?.cancelRename() }
+            cancelRename: { [weak self] in self?.cancelRename() },
+            setPage: { [weak self] page in self?.setPage(page) },
+            resume: { [weak self] session in self?.resume(session) }
         )
-        let host = IslandHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions))
+        let host = IslandHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, pages: pages))
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: rect.size)
         host.autoresizingMask = [.width, .height]
@@ -401,6 +415,7 @@ final class IslandController {
         resolveConfig(snapshot)
         updateWatermark(snapshot)
         detectTransitions(snapshot)
+        refreshAnnouncements(snapshot)
         // A tile someone else started (/tab tile, `tabby tile`): show its progress too.
         if snapshot.tiling != nil, tileWatch == nil, !inert, Date().timeIntervalSince(tileEndedAt) > 1.5 {
             beginTileProgress(own: false)
@@ -815,6 +830,8 @@ final class IslandController {
             // The list says it all; drop session news, keep notices (tiling, Accessibility).
             announcements.removeAll { $0.kind != .info }
             endAnnouncement(animated: false)
+            // The toolbar's count of stale processes: fresh enough when it's under a minute old.
+            if !inert { pages.scanProcesses(maxAge: 60) }
         }
         let animation: Animation = ui.reduceMotion
             ? .easeInOut(duration: 0.14)
@@ -827,6 +844,7 @@ final class IslandController {
             rowFrames = [:]
             controlFrames = [:]
             setHint(nil)
+            ui.page = .sessions
             // A tile still running: its pill comes back first.
             if let tiling = ui.tiling, !announcements.contains(where: { $0.progress != nil }) {
                 announcements.insert(.tiling(tiling), at: 0)
@@ -870,6 +888,25 @@ final class IslandController {
         }
     }
 
+    /// A session's announcement learns more after it shows (the reply lands in the transcript just
+    /// after the turn ends): its words update in place, and it stays up a little longer.
+    private func refreshAnnouncements(_ snapshot: StoreSnapshot) {
+        func refreshed(_ announcement: Announcement) -> Announcement? {
+            guard announcement.kind != .info, let id = announcement.sessionId,
+                  let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
+            let fresh = announcement.kind == .done ? Announcement.done(session) : Announcement.waiting(session)
+            guard fresh.title != announcement.title || fresh.subtitle != announcement.subtitle else { return nil }
+            var next = announcement
+            next.title = fresh.title
+            next.subtitle = fresh.subtitle
+            return next
+        }
+        announcements = announcements.map { refreshed($0) ?? $0 }
+        guard let current = ui.announcement, let next = refreshed(current) else { return }
+        withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.25)) { ui.announcement = next }
+        if !announcementHeld { scheduleAnnouncementEnd(after: next.duration) }
+    }
+
     /// Queues an announcement. `force` shows notices even with announcements turned off.
     func enqueue(_ announcement: Announcement, force: Bool = false) {
         guard isShown, force || config.announce else { return }
@@ -898,7 +935,7 @@ final class IslandController {
         }
         guard ui.announcement == nil, !ui.expanded, isShown, !announcements.isEmpty else { return }
         let next = announcements.removeFirst()
-        Debug.log("announce \(next.title) \(next.suffix ?? "")")
+        Debug.log("announce \(next.title) \(next.suffix ?? "")\(next.subtitle.map { " / \($0)" } ?? "")")
         withAnimation(announceAnimation) { ui.announcement = next }
         scheduleAnnouncementEnd(after: next.duration)
         // Already under the mouse: hold it right away.
@@ -952,6 +989,11 @@ final class IslandController {
         }
         if announcement.opensAccessibility {
             showOnboarding(.permissions, activate: true)
+        } else if announcement.opensProcesses {
+            endAnnouncement(animated: false)
+            setExpanded(true)
+            setPage(.processes)
+            return
         } else if let session = store.session(id: announcement.sessionId) {
             Actions.focus(session)
         }
@@ -977,6 +1019,7 @@ final class IslandController {
         announcements.removeAll { $0.kind != .info }
         endAnnouncement(animated: false)
         panel.allowsKey = true
+        ui.page = .sessions
         withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.18)) { ui.keyboard = true }
         setExpanded(true)
         let ids = store.listSessions.map(\.id)
@@ -1257,6 +1300,44 @@ final class IslandController {
         }
         ui.menuOpen = false
         handleMouse()
+    }
+
+    // MARK: History & Processes
+
+    /// The History or Processes page (clicking its button again goes back to the sessions).
+    func setPage(_ page: IslandPage) {
+        let next = ui.page == page ? .sessions : page
+        setHint(nil)
+        if ui.hoveredRow != nil && !ui.keyboard { ui.hoveredRow = nil }
+        withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.18)) { ui.page = next }
+        switch next {
+        case .history: pages.loadHistory()
+        case .processes: pages.scanProcesses(maxAge: 5)
+        case .sessions: break
+        }
+    }
+
+    /// Back to a past session: its tab if it's still open, else a new window resuming it.
+    private func resume(_ session: PastSession) {
+        pages.resume(session) { [weak self] ok, message in
+            guard let self else { return }
+            if ok {
+                self.setExpanded(false)
+                self.pages.loadHistory(force: true)
+            } else {
+                self.pages.say(message, ok: false)
+            }
+        }
+    }
+
+    /// A background scan found stale processes: the pill says so when they weigh something, once
+    /// per set (a new leftover joining brings it back).
+    private func staleFound(_ scan: ProcessScan) {
+        let stale = scan.items.filter(\.stale)
+        let fresh = Set(stale.map(\.id)).subtracting(announcedStale)
+        announcedStale.formUnion(stale.map(\.id))
+        guard !fresh.isEmpty, !ui.expanded, scan.stale.memMB >= 500 || scan.stale.cpu >= 20 else { return }
+        enqueue(.stale(scan))
     }
 
     // MARK: Inline rename

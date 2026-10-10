@@ -325,8 +325,11 @@ final class SnapshotLoader: @unchecked Sendable {
         var reply: ReplySummary?
         var transcriptTurns: [Double] = []
         // A working session's transcript is read for Claude's task list and the step it's on too
-        // (at most every 3 s); with focus mode, a finished one's for the gist of its reply.
-        if !hasUsage || stale || lastPrompt == nil || model == nil || status == .busy || (focus && status == .idle),
+        // (at most every 3 s); a finished one's for the gist of its reply: with focus mode always,
+        // else for the first two minutes (what the "is done" pill says).
+        let changedAt = num(entry?["statusUpdatedAt"]) ?? num(record?["statusAt"])
+        let justFinished = changedAt.map { nowMs - $0 < 120_000 } ?? false
+        if !hasUsage || stale || lastPrompt == nil || model == nil || status == .busy || (status == .idle && (focus || justFinished)),
            let path = transcriptPath(record: record, cwd: cwd, sessionId: sessionId) {
             usedTranscripts.insert(path)
             if let info = transcriptInfo(path) {
@@ -358,13 +361,17 @@ final class SnapshotLoader: @unchecked Sendable {
         }
 
         // Title priority: tabby's title → the terminal's live tab title (Claude's AI topic
-        // title lives there) → Claude's registry name → the project folder.
+        // title lives there) → a name given in Claude (/rename, claude -n) → the project folder.
+        // Never Claude's stand-in ("tabby-4f", nameSource "derived"): it says nothing.
         let registryName = str(entry?["name"])
+        let givenName = str(entry?["nameSource"]) == "derived" ? nil : registryName
         let recordTitle = str(record?["title"])
         var terminalTitle: String?
         if recordTitle == nil {
             if (term ?? "").contains("iterm") { needs.iTerm = true } else { needs.terminalTitles = true }
-            terminalTitle = tty.flatMap { terminalTitles[$0] }
+            terminalTitle = tty.flatMap { terminalTitles[$0] }.flatMap { title in
+                Self.saysNothing(title, standIn: registryName) ? nil : title
+            }
         }
         var windowId: Int?
         if needs.windows, (term ?? "apple-terminal") == "apple-terminal", let tty {
@@ -383,7 +390,7 @@ final class SnapshotLoader: @unchecked Sendable {
             cwd: cwd,
             project: project,
             registryName: registryName,
-            title: recordTitle ?? terminalTitle ?? registryName ?? project,
+            title: recordTitle ?? terminalTitle ?? givenName ?? project,
             titleSource: str(record?["titleSource"]),
             summary: str(record?["summary"]),
             note: str(record?["note"]),
@@ -419,6 +426,13 @@ final class SnapshotLoader: @unchecked Sendable {
             fgHex: str(record?["fg"]),
             agents: agents
         )
+    }
+
+    /// A tab title that names nothing: Claude's own default, a shell, or Claude's stand-in name.
+    static func saysNothing(_ title: String, standIn: String?) -> Bool {
+        let plain = title.trimmingCharacters(in: .whitespaces).lowercased()
+        if plain.isEmpty || plain == standIn?.lowercased() { return true }
+        return ["claude", "claude code", "zsh", "bash", "fish", "sh", "login", "-zsh", "-bash"].contains(plain)
     }
 
     private func processInfo(_ pid: Int) -> (tty: String?, term: String?) {

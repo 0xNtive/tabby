@@ -10,6 +10,10 @@ tabby runs on your machine and has no servers. This page says what it sends, wha
 
 None of these carries your prompts, paths or an identifier, apart from the naming request. Tabby Island has no network code at all; `test/privacy.test.js` fails the build if network code appears anywhere outside the updater, the island download and the installer.
 
+## What it reads and what it can stop
+
+`tabby procs` and the island's Processes page list processes with `ps` and `lsof`. For each candidate they read a few environment variable names (`TERM_SESSION_ID`, `TERM_PROGRAM`, `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `XPC_SERVICE_NAME`) to tell a process a terminal or Claude started from a launchd service; no other variable is kept, and command lines never leave the CLI (the island gets a short name like "vite"). Only your own account's processes are listed, and never launchd services, apps, Claude or its MCP servers, interactive shells, `ssh-agent`, `tmux` or `screen`. Nothing is stopped unless you ask, and a stop goes only to processes whose start time matches the list you saw, so a reused process id is never hit.
+
 ## What stays on it
 
 `~/.claude/tabby` holds tabby's state: one record per session (title, summary, the last 8 prompts trimmed to 400 characters, the working directory, status and context use), your settings and a log. The folder is `0700` and its files `0600` (files an older version made more open are tightened the next time tabby runs): only your account can read them. The five newest backups of your Claude `settings.json` are kept. Records of ended sessions are removed after 30 days. `tabby uninstall` reverts the changes to your Claude settings, shell file and Terminal profiles and says what it leaves behind.

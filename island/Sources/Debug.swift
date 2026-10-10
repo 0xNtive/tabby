@@ -43,6 +43,15 @@ extension IslandController {
             default: enqueue(.info("Allow Accessibility to split tabs", symbol: "hand.raised.fill", topic: "tile",
                                    opensAccessibility: true), force: true)
             }
+        case "page":
+            // page:history | page:processes | page:sessions — opens the island on that page.
+            setExpanded(true)
+            let page: IslandPage = parts.last == "history" ? .history : parts.last == "processes" ? .processes : .sessions
+            if ui.page != page { setPage(page) }
+        case "collapse": setExpanded(false)
+        case "stop-stale":
+            // What "Stop all" does on the Processes page, for the stale ones of the last scan.
+            pages.stop(pages.scan?.items.filter(\.stale).map(\.id) ?? [])
         case "watermark":
             if parts.count > 1 { Debug.log(watermark.debugState()) } else { toggleWatermark() }
         case "settings":

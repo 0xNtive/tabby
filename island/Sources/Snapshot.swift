@@ -16,11 +16,15 @@ enum Snapshotter {
         let configure: (IslandUIState, [IslandSession]) -> Void
         /// The hover dropdown and the end-session states.
         var detail: ((SessionDetailModel, [IslandSession]) -> Void)? = nil
+        /// History and Processes, with demo data.
+        var pages: ((PagesModel) -> Void)? = nil
 
         init(name: String, detail: ((SessionDetailModel, [IslandSession]) -> Void)? = nil,
+             pages: ((PagesModel) -> Void)? = nil,
              configure: @escaping (IslandUIState, [IslandSession]) -> Void) {
             self.name = name
             self.detail = detail
+            self.pages = pages
             self.configure = configure
         }
     }
@@ -150,6 +154,55 @@ enum Snapshotter {
         },
         State(name: "tiled") { ui, _ in
             ui.announcement = .tiled(fromOutput: "Tiled 4 sessions in a 2×2 grid, each in its own color.")
+        },
+        // History, Processes, and what a finished turn says now.
+        State(name: "history", pages: { $0.freeze(history: DemoData.history()) }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .history
+        },
+        State(name: "history-hover", pages: { $0.freeze(history: DemoData.history()) }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .history
+            ui.hoveredRow = IslandPage.history.rowId(DemoData.history()[1].id)
+        },
+        State(name: "processes", pages: { $0.freeze(scan: DemoData.processes()) }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .processes
+            ui.hoveredRow = IslandPage.processes.rowId(DemoData.processes().items[2].id)
+        },
+        State(name: "processes-minimal", pages: { $0.freeze(scan: DemoData.processes()) }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .minimal
+            ui.page = .processes
+        },
+        State(name: "processes-stopping", pages: { pages in
+            let scan = DemoData.processes()
+            pages.freeze(scan: scan, stopping: Set(scan.items.filter(\.stale).map(\.id)))
+        }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .processes
+        },
+        State(name: "processes-clean", pages: { pages in
+            var scan = DemoData.processes()
+            scan.items.removeAll(where: \.stale)
+            scan.stale = .init(count: 0, memMB: 0, cpu: 0)
+            pages.freeze(scan: scan, notice: ("Stopped 3 · freed 1.6 GB", true))
+        }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .processes
+        },
+        State(name: "hint-processes", pages: { $0.freeze(scan: DemoData.processes()) }) { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.hoveredControl = .processes
+        },
+        State(name: "announce-stale") { ui, _ in
+            ui.announcement = .stale(DemoData.processes())
         },
     ]
 
@@ -392,7 +445,9 @@ enum Snapshotter {
             var islandFrame = CGRect.zero
             var actions = IslandActions.inert
             actions.islandFrame = { islandFrame = $0 }
-            let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, detail: detail))
+            let pages = PagesModel(fixed: true)
+            state.pages?(pages)
+            let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, detail: detail, pages: pages))
             host.frame = NSRect(origin: .zero, size: panelSize)
             let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.moveToRetinaScreen()
@@ -621,11 +676,60 @@ enum DemoData {
         sessions[3].turnStartedAt = ago(2)
         sessions[3].typicalTurn = 360
         sessions[0].turnStartedAt = ago(4)
+        sessions[2].reply = ReplySummary(lead: "The checkout spec now waits for the cart request before it pays: 20 runs in a row passed.",
+                                         ask: "Want me to open a PR?", lines: 14)
         snapshot.sessions = sessions
         // Settings › Focus shows its preview on.
         snapshot.configRaw["focusMode"] = .bool(true)
         snapshot.config = IslandConfig(raw: snapshot.configRaw)
         return snapshot
+    }
+}
+
+extension DemoData {
+    static func history() -> [PastSession] {
+        let now = Date().timeIntervalSince1970 * 1000
+        func ago(_ hours: Double) -> Double { now - hours * 3_600_000 }
+        let accents = Palette.fallbackAccents
+        func past(_ n: Int, _ title: String, _ project: String, _ summary: String, _ hours: Double, _ accent: Int) -> PastSession {
+            PastSession(sessionId: "past-\(n)", title: title, project: project, cwd: "/Users/you/\(project)", summary: summary,
+                        lastPrompt: nil, lastAt: ago(hours), live: false, dot: accents[accent].dot, accent: accents[accent].hex,
+                        resumable: true)
+        }
+        return [
+            past(1, "Stripe webhook retries", "billing", "Retrying failed webhooks with backoff; the replay script is next.", 1.2, 1),
+            past(2, "Dark mode for settings", "web", "Every settings pane follows the system theme; the toggle is gone.", 3.5, 5),
+            past(3, "Flaky auth tests", "api", "Fixed the clock skew in the token tests: 50 runs green.", 26, 3),
+            past(4, "Release notes 2.0", "docs", "Drafted the 2.0 notes, shortcuts first.", 30, 6),
+            past(5, "Tokenizer benchmark", "tok", "Benchmarked the tokenizer on the 1 GB fixture.", 75, 4),
+        ]
+    }
+
+    static func processes() -> ProcessScan {
+        let now = Date().timeIntervalSince1970 * 1000
+        func item(_ n: Int, _ label: String, ports: [Int], cpu: Double, mem: Int, hours: Double, project: String,
+                  owner: String?, live: Bool, stale: Bool, leftover: Bool, why: String) -> ProcessItem {
+            ProcessItem(id: "\(40_000 + n)-1", pid: 40_000 + n, label: label, ports: ports, cpu: cpu, memMB: mem,
+                        startedAt: now - hours * 3_600_000, count: 2,
+                        owner: .init(kind: "claude", live: live, sessionId: nil, title: owner, status: live ? "idle" : nil),
+                        leftover: leftover, stale: stale, why: why, project: project)
+        }
+        let items = [
+            item(1, "next dev", ports: [3000], cpu: 18.4, mem: 1180, hours: 26, project: "web", owner: "Dark mode for settings",
+                 live: false, stale: true, leftover: true, why: "session ended"),
+            item(2, "vite", ports: [5173], cpu: 2.1, mem: 312, hours: 5, project: "billing", owner: "Stripe webhook retries",
+                 live: true, stale: true, leftover: false, why: "session idle 4 h"),
+            item(3, "Chrome (headless)", ports: [9222], cpu: 9.6, mem: 164, hours: 30, project: "docs", owner: nil,
+                 live: false, stale: true, leftover: true, why: "left running"),
+            item(4, "python uvicorn", ports: [8000], cpu: 0.4, mem: 96, hours: 0.5, project: "api",
+                 owner: "Refactor auth middleware", live: true, stale: false, leftover: false, why: "session working"),
+            item(5, "vitest", ports: [], cpu: 41.0, mem: 620, hours: 0.2, project: "web", owner: nil, live: true,
+                 stale: false, leftover: false, why: "in a terminal"),
+        ]
+        let stale = items.filter(\.stale)
+        return ProcessScan(at: now - 20_000, items: items,
+                           stale: .init(count: stale.count, memMB: stale.reduce(0) { $0 + $1.memMB },
+                                        cpu: stale.reduce(0) { $0 + $1.cpu }))
     }
 }
 

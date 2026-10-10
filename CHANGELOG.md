@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4 — 2026-10-10
+
+Stale processes, a session history, and finished sessions that say what they are.
+
+- **Stop stale processes in one click.** The island's new **Processes** page (the chip in the toolbar, or `tabby procs` / `/tab procs`) lists the dev servers on localhost, leftovers from sessions you closed, and anything else your terminals started that's using CPU or memory: what it is ("vite :5173"), its project and session, and what it uses. **Stop all** stops the stale ones: what a closed Claude session left running, dev servers and scripts left behind by a closed terminal, and those of a session that has been idle for 2 hours. Databases, VMs and tunnels you started are listed but never counted as stale. Each row has its own stop button. A badge counts the stale ones, and when leftovers weigh 500 MB or more the island says so once. Launchd services, apps, Claude and its MCP servers are never listed; see SECURITY.md for what it reads.
+- **History, with one click back.** The new **History** page (the clock, or `tabby history`) lists the sessions you ran in the last 30 days, newest first, with their project and what they were about. Click one and it opens in a new window right where it ended (`claude --resume` in its folder, same name and color, permissions skipped only if it ran that way); one that's still open comes to the front. `tabby resume 3` or `/tab resume <name>` does the same.
+- **"tabby-44 is done" is gone.** When tabby hadn't named a session yet, the island fell back to Claude's stand-in name (the folder plus two hex digits). A session now gets a name from your first prompt right away, until the AI name arrives, and the island never shows the stand-in. The announcement also grows a second line with the project and what Claude did ("web · The checkout spec now waits for the cart request: 20 runs passed"), and stays up a little longer to read it.
+- AI names no longer end on a dangling word ("Tabby Process Killer And").
+
 ## 0.4.3 — 2026-10-08
 
 A second security pass, this time adversarial: what a hostile neighbor on the same machine, a hostile transcript or a replaced download could do. One finding mattered, and it's fixed.

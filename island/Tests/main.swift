@@ -511,5 +511,32 @@ check(ReplySummary.make(String(repeating: "word ", count: 120) + ".")!.lead.hasS
 let failedReply = answered + [#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"API Error"}]},"isApiErrorMessage":true}"#]
 check(TranscriptActivity.lastReply(failedReply) == nil, "an API error is no reply")
 
+// "tabby-44 is done" said nothing: the pill names the session, then the project and what Claude did.
+var finishedTurn = IslandSession(id: "f", sessionId: "f", pid: 1, cwd: "/x/wildcat", project: "wildcat", registryName: "wildcat-4f",
+                                 title: "Fix Invoice Totals", titleSource: "ai", summary: "Fixing the invoice export.", note: nil,
+                                 theme: nil, accentKey: nil, accentHex: nil, dotHex: nil, cursorHex: nil, status: .idle,
+                                 waitingFor: nil, lastPrompt: "fix the invoice totals", context: nil, model: nil, tty: nil, term: nil,
+                                 startedAt: 0, activityAt: nil, hasRecord: true)
+check(Announcement.done(finishedTurn).subtitle == "wildcat · Fixing the invoice export.", "before the reply lands: the summary")
+finishedTurn.reply = ReplySummary(lead: "Totals now match the order.", ask: nil, lines: 3)
+check(Announcement.done(finishedTurn).subtitle == "wildcat · Totals now match the order.", "then what Claude said")
+finishedTurn.title = "wildcat"
+check(Announcement.done(finishedTurn).subtitle == "Totals now match the order.", "no project twice")
+check(Announcement.done(finishedTurn).duration > Announcement.info("x").duration, "a second line stays up longer")
+check(SnapshotLoader.saysNothing("wildcat-4f", standIn: "wildcat-4f") && SnapshotLoader.saysNothing("Claude Code", standIn: nil)
+      && !SnapshotLoader.saysNothing("Fix Invoice Totals", standIn: "wildcat-4f"), "stand-in tab titles are skipped")
+
+// History and Processes read what the CLI prints.
+let past = PastSession.parse(##"[{"sessionId":"a","title":"Stripe","named":true,"project":"billing","cwd":"/x","summary":null,"lastPrompt":"retry it","prompts":2,"startedAt":1,"lastAt":1791000000000,"live":false,"status":"ended","accent":"#7fb0ea","dot":"#7fb0ea","resumable":true}]"##)
+check(past?.first?.detail == "billing · You asked: retry it", "past session: \(String(describing: past))")
+let scanText = #"{"at":1,"items":[{"id":"700-1","pid":700,"pids":[700],"label":"next dev","command":"x","ports":[3000,3001],"cpu":18.4,"memMB":1180,"startedAt":1,"count":1,"owner":{"kind":"claude","live":false,"sessionId":"s","title":"Dark Mode","project":"web"},"leftover":true,"stale":true,"why":"session ended","cwd":"/x/web","project":"web"}],"stale":{"count":1,"memMB":1180,"cpu":18.4}}"#
+let scan = ProcessScan.parse(scanText)
+check(scan?.items.first?.portText == ":3000 :3001" && scan?.items.first?.detail == "web · Dark Mode" && scan?.stale.count == 1,
+      "process scan: \(String(describing: scan))")
+check(Fmt.memory(1180) == "1.2 GB" && Fmt.memory(312) == "312 MB", "memory")
+let stopped = StopResult.parse(#"{"stopped":[{"id":"1","pid":1,"label":"vite","ports":[],"memMB":300,"cpu":2}],"failed":[],"memMB":300,"cpu":2,"unknown":[]}"#)
+check(stopped?.message == "Stopped vite · freed 300 MB", "stop result: \(stopped?.message ?? "nil")")
+check(IslandPage.isPageRow(IslandPage.history.rowId("a")) && !IslandPage.isPageRow("a1b2-c3"), "page rows")
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)
