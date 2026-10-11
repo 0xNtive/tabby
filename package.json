@@ -1,7 +1,7 @@
 {
   "name": "claude-tabby",
-  "version": "0.4.4",
-  "description": "Every Claude Code tab, at a glance: AI tab names, calm colors, live status, 57 themes, /tab commands, window tiling and a macOS session island.",
+  "version": "0.5.0",
+  "description": "Every Claude Code tab, at a glance: AI tab names, calm colors, live status, a macOS session island (or menu bar), and Awake: close the lid and Claude keeps working.",
   "keywords": [
     "claude",
     "claude-code",
@@ -14,7 +14,12 @@
     "tmux",
     "themes",
     "macos",
-    "productivity"
+    "productivity",
+    "keep-awake",
+    "caffeinate",
+    "lid-closed",
+    "menu-bar",
+    "claude-code-tools"
   ],
   "homepage": "https://claude-tabby.vercel.app",
   "repository": {

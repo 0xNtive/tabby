@@ -508,3 +508,10 @@ button { font: inherit; color: inherit; }
 .shot-awake { background: radial-gradient(ellipse at 50% 0%, #2a2230, #121218 70%); }
 .shot-awake img { width: 116%; left: -8%; top: -16%; }
 @media (prefers-reduced-motion: reduce) { .lid, .lid-island img, .lid-pointer, .night, .night-done li { transition: none; } .lid-glow { animation: none; } .news { animation: none; } }
+
+/* Menu bar mode, inside the island section: the copy, the menu-bar item, and the card it drops. */
+.menubar-mode { display: grid; gap: 36px; align-items: center; max-width: 1240px; margin: 88px auto 0; }
+@media (min-width: 1024px) { .menubar-mode { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; } }
+.menubar-copy .lede { max-width: 46ch; }
+.menubar-item { display: block; width: min(100%, 412px); height: auto; margin-top: 28px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line), 0 18px 40px -20px rgb(0 0 0 / 0.8); }
+.menubar-shot img { width: 100%; height: auto; border-radius: 16px; box-shadow: 0 0 0 1px var(--line), 0 30px 70px -30px rgb(0 0 0 / 0.85); }

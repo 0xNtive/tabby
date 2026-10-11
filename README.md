@@ -34,7 +34,7 @@ With five Claude sessions running, every tab looks the same. tabby gives each on
 
 tabby is in **beta**: it works day to day, and it still changes quickly. [Tell us what breaks.](https://github.com/0xNtive/tabby/issues)
 
-On a Mac, **Tabby Island** lists every session at the top of your screen. It can also hide what Claude writes in the windows you're not using (Focus mode), tile sessions across the screens you choose, and start a new session in a recent folder with one shortcut.
+On a Mac, **Tabby Island** lists every session at the top of your screen (or, if you prefer, from the menu bar). It can also keep your Mac running with the lid closed until every session is done ([Awake](#awake-close-the-lid-claude-keeps-working)), hide what Claude writes in the windows you're not using (Focus mode), tile sessions across the screens you choose, and start a new session in a recent folder with one shortcut.
 
 ## Install
 
@@ -146,7 +146,7 @@ tabby update              # the newest tabby: plugin, setup and island (--check 
 
 A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% CPU.
 
-- **Collapsed:** one dot per session. A working session's dot spins inside a ring of its color, one that needs you rings amber, and one waiting for your next prompt rests, dimmed. When a session finishes or needs you, the island says which (its name, never Claude's stand-in like "api-4f") and grows a second line with the project and what Claude did: "web · The checkout spec now waits for the cart request: 20 runs passed." Click it to go there.
+- **Collapsed:** one dot per session. A working session's dot spins inside a ring of its color, one that needs you rings amber, and one waiting for your next prompt rests, dimmed. When a session finishes or needs you, the island says which (its name, never Claude's stand-in like "api-4f") and grows a second line with the project and what Claude did: "web · The checkout spec now waits for the cart request: 20 runs passed." Click it to go there. It also speaks up when a session's context passes 80% and again at 95%, once each.
 - **Open** (hover, or ⌃⌥Space): every session's name and status ("Working 3m", "Your turn", "Needs you"), context used, and for a working session, an estimate of how far along it is. That estimate is "2 of 5 tasks · ~3m left" from Claude's task list, or "~2m left · usually 6m" from how long that session's turns take.
 - **Hover a session** for the full picture: what it's doing or waiting for, and what to do about it; its current task, summary, your last prompt, tokens and cost, folder and terminal. **Open Tab** jumps there. **End Session…** stops Claude and closes its tab, but only after you confirm; `claude --resume` brings the conversation back.
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-10-11
+
+Close the lid and Claude keeps working. And for anyone who'd rather keep the notch empty, tabby can live in the menu bar.
+
+- **Awake: keep your Mac running with the lid closed.** A Mac sleeps when you close it, and every Claude session on it stops mid-turn; `caffeinate` only prevents idle sleep. Click the new cup in the island (or `/tab awake 4h`, `tabby awake done`, **Keep Awake** in the menu-bar menu), pick 1, 2, 4 or 8 hours, and close the lid. With **Sleep as soon as every session is done** ticked (the default), the Mac sleeps again as soon as no session has worked for 5 minutes, and the hours are only the most it may take. Sleep also comes back on below 10% battery on battery power. A watcher keeps time, and the island, every new session and `tabby doctor` check on it, so a crash or a restart never leaves sleep off. While it's on, a small orange cup sits beside the dots and in the menu bar; the Awake page shows a ring with the time left, **+1h** and **Stop**; and if it ends while the lid is closed, the island tells you when you open it: "Sleep is back on · Every session is done · 4 sessions worked · at 3:12 AM".
+  How: only `pmset disablesleep` keeps a closed Mac awake, and it needs an administrator. The first time, macOS asks for your password once (its own prompt, through `authopen`), and tabby adds `/etc/sudoers.d/tabby-awake`, checked with `visudo` first, which lets your user run exactly `/usr/bin/pmset -a disablesleep 1` and `… 0` without a password. Nothing else runs as root. `tabby awake forget` takes it back. See SECURITY.md.
+- **Menu bar mode: no island at the notch.** Choose **In the menu bar** in Settings › General (or **Menu Bar Only** in the menu-bar menu, `tabby island menubar`, `/tab island menubar`). The cat in the menu bar then shows a dot per session (a ring while one works, amber when one needs you, red on an error, dimmed on your turn) and the number waiting. Click it and the whole island drops down under it as a card, with every page and button; click elsewhere or press Esc to close it. Right-click it for the menu. "Done" and "needs you" news drops from the icon as a small pill. If the menu bar is full and the icon would hide behind the notch, tabby moves it next to the system icons. Turning the island off in an older version now means menu bar mode.
+- **A word when context runs low.** When a session passes 80% of its context window, the island says so ("Refactor auth middleware · 80% context · a good moment for /compact or a fresh session"), and again at 95%. Once per session and level; click it to open the tab.
+- The island's toolbar keeps the session count out of the way when a narrow view is short of room, instead of overflowing.
+- The website's island pills no longer push the page sideways on a phone.
+
 ## 0.4.4 — 2026-10-10
 
 Stale processes, a session history, and finished sessions that say what they are.
