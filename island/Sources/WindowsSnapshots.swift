@@ -9,8 +9,8 @@ extension Snapshotter {
         // only on the vertical one.
         ScreenInfo.override = [
             ScreenInfo(key: "LAPTOP", name: "Built-in Retina Display", frame: CGRect(x: -1512, y: 0, width: 1512, height: 982), hasNotch: true),
-            ScreenInfo(key: "MAIN", name: "HP E273q", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), isPrimary: true),
-            ScreenInfo(key: "DELL", name: "DELL U2720Q", frame: CGRect(x: 2560, y: -560, width: 1440, height: 2560)),
+            ScreenInfo(key: "MAIN", name: "27-inch Display", frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), isPrimary: true),
+            ScreenInfo(key: "DELL", name: "Portrait Display", frame: CGRect(x: 2560, y: -560, width: 1440, height: 2560)),
         ]
         let island = IslandController(store: store, inert: true)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
@@ -35,7 +35,7 @@ extension Snapshotter {
         let picker = TilePickerModel()
         picker.sessions = sessions
         picker.selectActive()
-        picker.screensText = "DELL U2720Q"
+        picker.screensText = "Portrait Display"
         render(TilePickerView(model: picker, tile: {}, cancel: {}), size: TilePickerController.size(for: sessions.count),
                to: folder.appendingPathComponent("tile-picker.png"))
 

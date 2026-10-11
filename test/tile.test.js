@@ -17,20 +17,20 @@ const L = await import('../lib/launch.js');
 // A laptop (left, notch), a landscape main screen, and a portrait monitor on the right.
 const screens = S.sortScreens(
   [
-    { uuid: 'MAIN', name: 'HP E273q', primary: true, current: true, full: { x: 0, y: 0, w: 2560, h: 1440 }, frame: { x: 0, y: 30, w: 2560, h: 1328 } },
+    { uuid: 'MAIN', name: '27-inch Display', primary: true, current: true, full: { x: 0, y: 0, w: 2560, h: 1440 }, frame: { x: 0, y: 30, w: 2560, h: 1328 } },
     { uuid: 'LAPTOP', name: 'Built-in Retina Display', builtin: true, notch: 32, full: { x: -1512, y: 458, w: 1512, h: 982 }, frame: { x: -1512, y: 490, w: 1512, h: 950 } },
-    { uuid: null, name: 'DELL U2720Q', full: { x: 2560, y: -600, w: 1440, h: 2560 }, frame: { x: 2560, y: -575, w: 1440, h: 2535 } },
+    { uuid: null, name: 'Portrait Display', full: { x: 2560, y: -600, w: 1440, h: 2560 }, frame: { x: 2560, y: -575, w: 1440, h: 2535 } },
   ].map((s) => ({ ...s, key: S.screenKey(s), portrait: s.full.h > s.full.w })),
 );
 
 test('screens are keyed by display UUID, or name and size when macOS has none', () => {
-  assert.deepEqual(screens.map((s) => s.key), ['LAPTOP', 'MAIN', 'DELL U2720Q@1440x2560']);
+  assert.deepEqual(screens.map((s) => s.key), ['LAPTOP', 'MAIN', 'Portrait Display@1440x2560']);
   assert.ok(screens[2].portrait);
-  assert.match(S.describe(screens[1]), /HP E273q {2}2560×1440 {2}\(main, current\)/);
+  assert.match(S.describe(screens[1]), /27-inch Display {2}2560×1440 {2}\(main, current\)/);
 });
 
 test('a second display that reports no menu-bar inset gets one (its windows would be pushed down)', () => {
-  const dell = { uuid: 'DELL', name: 'DELL P2721Q', menuBar: 30, separateSpaces: true, full: { x: 2560, y: 0, w: 1080, h: 1920 }, frame: { x: 2560, y: 0, w: 1080, h: 1920 } };
+  const dell = { uuid: 'DELL', name: 'Portrait Display', menuBar: 30, separateSpaces: true, full: { x: 2560, y: 0, w: 1080, h: 1920 }, frame: { x: 2560, y: 0, w: 1080, h: 1920 } };
   assert.deepEqual(S.usable(dell), { x: 2560, y: 30, w: 1080, h: 1890 }, 'the menu bar is taken off the top');
   assert.deepEqual(S.usable({ ...dell, frame: { x: 2560, y: 30, w: 1080, h: 1890 } }), { x: 2560, y: 30, w: 1080, h: 1890 }, 'an inset that is there stays as it is');
   assert.deepEqual(S.usable({ ...dell, separateSpaces: false }), dell.frame, 'with one Space across displays only the main one has a menu bar');
@@ -42,8 +42,8 @@ test('a second display that reports no menu-bar inset gets one (its windows woul
 });
 
 test('picking screens by number, name or key; "all" and "current"', () => {
-  assert.deepEqual(S.parseSelection('3', screens), { value: ['DELL U2720Q@1440x2560'] });
-  assert.deepEqual(S.parseSelection('dell, 1', screens), { value: ['DELL U2720Q@1440x2560', 'LAPTOP'] });
+  assert.deepEqual(S.parseSelection('3', screens), { value: ['Portrait Display@1440x2560'] });
+  assert.deepEqual(S.parseSelection('portrait, 1', screens), { value: ['Portrait Display@1440x2560', 'LAPTOP'] });
   assert.deepEqual(S.parseSelection('all', screens), { value: 'all' });
   assert.deepEqual(S.parseSelection('', screens), { value: 'current' });
   assert.match(S.parseSelection('7', screens).error, /No screen "7"/);
@@ -52,9 +52,9 @@ test('picking screens by number, name or key; "all" and "current"', () => {
 test('only the chosen screens are used, and an unplugged one falls back', () => {
   assert.deepEqual(S.chooseScreens(screens, 'current').screens.map((s) => s.key), ['MAIN']);
   assert.equal(S.chooseScreens(screens, 'all').screens.length, 3);
-  const vertical = S.chooseScreens(screens, ['DELL U2720Q@1440x2560']);
-  assert.deepEqual(vertical.screens.map((s) => s.name), ['DELL U2720Q'], 'the main screen stays free');
-  const half = S.chooseScreens(screens, ['DELL U2720Q@1440x2560', 'GONE']);
+  const vertical = S.chooseScreens(screens, ['Portrait Display@1440x2560']);
+  assert.deepEqual(vertical.screens.map((s) => s.name), ['Portrait Display'], 'the main screen stays free');
+  const half = S.chooseScreens(screens, ['Portrait Display@1440x2560', 'GONE']);
   assert.equal(half.screens.length, 1);
   assert.match(half.note, /isn't connected/);
   const none = S.chooseScreens(screens, ['GONE']);
@@ -145,8 +145,8 @@ test('tabby new: the command, the terminal and where the window goes', () => {
   assert.equal(L.pickTerminal(undefined, 'vscode', [{ term: 'iterm2' }, { term: 'iterm2' }, { term: 'apple-terminal' }]), 'iterm2', 'from an editor: the terminal your sessions use');
   assert.equal(L.pickTerminal(undefined, 'generic', []), 'apple-terminal');
   assert.equal(L.placement(undefined, { tileScreens: 'current' }, screens), null, 'default: wherever the terminal opens it');
-  const vertical = L.placement(undefined, { tileScreens: ['DELL U2720Q@1440x2560'] }, screens);
-  assert.equal(vertical.screen.name, 'DELL U2720Q');
+  const vertical = L.placement(undefined, { tileScreens: ['Portrait Display@1440x2560'] }, screens);
+  assert.equal(vertical.screen.name, 'Portrait Display');
   const [l, t, r, b] = vertical.rect;
   assert.ok(l > 2560 && r < 4000 && t > -575 && b < 1960, 'centered on the vertical monitor');
   assert.equal(L.placement('1', {}, screens).screen.key, 'LAPTOP');

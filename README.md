@@ -203,7 +203,7 @@ Tiling also gives each window its own color, picked as a set: every window a dif
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/screens.png" alt="Settings › Windows: a map of three displays, with only the vertical Dell monitor picked for Claude sessions, and tiling set to only active sessions"></td>
+<td width="50%"><img src="docs/images/screens.png" alt="Settings › Windows: a map of three displays, with only the portrait display picked for Claude sessions, and tiling set to only active sessions"></td>
 <td width="50%"><img src="docs/images/quick-launch.png" alt="Quick launch: folders matching wild, with how many sessions run in each, a name field, and the Skip permissions checkbox ticked with its warning"></td>
 </tr>
 <tr>
