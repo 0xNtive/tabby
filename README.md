@@ -154,6 +154,10 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 - **Settings** (the cog, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, themes, the watermark, Focus mode, screens and tiling, shortcuts and permissions.
 - **Not sure what a button does?** Rest the pointer on it: a card under the toolbar says what it does and its shortcut.
 
+### Menu bar only
+
+Rather have nothing at the notch? Choose **In the menu bar** in Settings › General (or **Menu Bar Only** in the menu-bar menu, `tabby island menubar`, `/tab island menubar`). The island goes away, and the cat in the menu bar shows a dot per session: a ring while one works, amber when one needs you, red on an error, dimmed when it's your turn, with the number waiting beside it. Click the cat and the same list drops down under it, with every page and button; click anywhere else or press Esc to close it. Right-click (or ⌃-click) the cat for the menu. "Done" and "needs you" news drops down from the icon as a small pill. `tabby island notch` brings the island back.
+
 <table>
 <tr>
 <td width="50%"><img src="docs/images/island-hover.png" alt="A session's dropdown: needs your permission to continue, click the row to answer in its terminal, its summary, your last prompt, tokens and cost, Open Tab and End Session buttons"></td>

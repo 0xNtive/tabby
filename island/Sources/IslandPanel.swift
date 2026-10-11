@@ -51,10 +51,19 @@ struct IslandGeometry: Equatable {
     var notchWidth: CGFloat = 0
     var barHeight: CGFloat = 32
     var panelSize = CGSize(width: IslandGeometry.panelWidth, height: 680)
+    /// Menu-bar mode: the panel hangs under the menu bar, as wide as the screen, and the card
+    /// (or an announcement's pill) centers on the status item, kept on screen.
+    var menuBar = false
+    /// The status item's center, in the panel's coordinates (menu-bar mode).
+    var anchorX: CGFloat = 0
 
     /// Wide enough for an announcement on the right ear; all but the island itself is
     /// transparent and click-through.
     static let panelWidth: CGFloat = 800
+    /// Between the menu bar and the card, like a menu-bar extra's window.
+    static let menuBarGap: CGFloat = 6
+    /// The announcement pill's height in menu-bar mode (the notch's height elsewhere).
+    static let menuBarPill: CGFloat = 30
 
     /// Island geometry plus the panel frame (screen coordinates) for the preferred screen.
     @MainActor
@@ -79,6 +88,28 @@ struct IslandGeometry: Equatable {
         geometry.panelSize = CGSize(width: width, height: height)
         let rect = NSRect(x: (frame.midX - width / 2).rounded(), y: frame.maxY - height, width: width, height: height)
         return (geometry, rect)
+    }
+
+    /// Menu-bar mode: a panel as wide as the status item's screen, its top at the bottom of the
+    /// menu bar (the top of the screen while the menu bar is hidden, in full screen). `item`: the
+    /// status item's frame on screen.
+    @MainActor
+    static func menuBar(under item: NSRect?) -> (IslandGeometry, NSRect) {
+        var geometry = IslandGeometry()
+        geometry.menuBar = true
+        geometry.barHeight = menuBarPill
+        let screen = item.flatMap { item in NSScreen.screens.first { $0.frame.contains(NSPoint(x: item.midX, y: item.midY)) } }
+            ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { return (geometry, NSRect(origin: .zero, size: geometry.panelSize)) }
+        let frame = screen.frame
+        // The item is shorter than the bar (and centered in it), so whichever is lower: the bar's
+        // bottom, or the item's while the bar is shown over a full-screen app.
+        var top = min(screen.visibleFrame.maxY, frame.maxY)
+        if let item, item.minY > frame.midY, item.minY < frame.maxY - 2 { top = min(top, item.minY) }
+        let height = min(680, ((top - frame.minY) * 0.85).rounded())
+        geometry.panelSize = CGSize(width: frame.width, height: height)
+        geometry.anchorX = item.map { $0.midX - frame.minX } ?? frame.width - 140
+        return (geometry, NSRect(x: frame.minX, y: top - height, width: frame.width, height: height))
     }
 
     /// The built-in notched display if there is one, else the main screen.
@@ -111,6 +142,9 @@ final class IslandUIState: ObservableObject {
     @Published var renameText = ""
     /// Sessions, History or Processes (back to sessions when the island closes).
     @Published var page: IslandPage = .sessions
+    /// Menu-bar mode's card was opened with the shortcut, so it shows the keyboard hints (a
+    /// click opens it clean, like a menu).
+    @Published var cardHints = false
     /// Snapshot renders: no entrance animations, no blinking.
     var staticRender = false
     var menuOpen = false
@@ -212,6 +246,18 @@ final class IslandController {
     private var observers: [NSObjectProtocol] = []
     private var cancellables = Set<AnyCancellable>()
     private(set) var isShown = false
+
+    // Menu-bar mode (`islandPlace`): no pill at the notch; the status item's click drops the
+    // island down as a card, and news drops down from it as a small pill.
+    private(set) var place: IslandPlace = .notch
+    /// The status item's frame on screen, to hang the card and pills from.
+    var statusItemFrame: () -> NSRect? = { nil }
+    /// The place changed: the status item changes what a click does.
+    var onPlaceChange: (IslandPlace) -> Void = { _ in }
+    /// The card opened or closed: the status item stays highlighted while it's open.
+    var onCardChange: (Bool) -> Void = { _ in }
+    /// A click in another app closes the card, like a menu.
+    private var clickMonitor: Any?
 
     // Settings: config.json overlaid with changes the CLI is still writing.
     private(set) var config = IslandConfig()
@@ -320,13 +366,6 @@ final class IslandController {
         installDebugChannel()
     }
 
-    /// Shows or hides the island and remembers it (status menu, Settings).
-    func setShown(_ on: Bool) {
-        if on { show() } else { hide() }
-        UserDefaults.standard.set(isShown, forKey: "showIsland")
-        settingsState.islandShown = isShown
-    }
-
     func show() {
         guard let panel, !isShown else { return }
         isShown = true
@@ -352,7 +391,7 @@ final class IslandController {
     }
 
     func reposition() {
-        let (geometry, rect) = IslandGeometry.current()
+        let (geometry, rect) = place == .menubar ? IslandGeometry.menuBar(under: statusItemFrame()) : IslandGeometry.current()
         if ui.geometry != geometry { ui.geometry = geometry }
         panel?.setFrame(rect, display: true)
     }
@@ -445,6 +484,7 @@ final class IslandController {
                 }
             }
         }
+        if first || next.place != old.place { applyPlace(next.place) }
         if first || next.hotkeys != old.hotkeys || next.shortcuts != old.shortcuts { updateHotkeys() }
         if old.announce, !next.announce {
             announcements.removeAll { $0.kind != .info }
@@ -466,6 +506,20 @@ final class IslandController {
     func setMode(_ mode: IslandMode) {
         guard mode != config.mode else { return }
         setSetting("islandMode", .string(mode.rawValue))
+    }
+
+    /// At the notch, or in the menu bar (status menu, Settings, `tabby island menubar|notch`).
+    func setPlace(_ place: IslandPlace) { setSetting("islandPlace", .string(place.rawValue)) }
+
+    private func applyPlace(_ next: IslandPlace) {
+        if next != place {
+            if ui.keyboard { endKeyboard(restoreFocus: false) } else { setExpanded(false) }
+            announcements.removeAll { $0.kind != .info }
+            endAnnouncement(animated: false)
+        }
+        place = next
+        reposition()
+        onPlaceChange(next)
     }
 
     func setAnnounce(_ on: Bool) { setSetting("islandAnnounce", .bool(on)) }
@@ -625,8 +679,10 @@ final class IslandController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, self.isShown, !self.ui.expanded else { return }
-                self.enqueue(.info("tabby lives here: hover to see every session", symbol: "arrow.up.circle.fill",
-                                   topic: "welcome"), force: true)
+                let text = self.place == .menubar
+                    ? "tabby lives up here: click the cat for every session"
+                    : "tabby lives here: hover to see every session"
+                self.enqueue(.info(text, symbol: "arrow.up.circle.fill", topic: "welcome"), force: true)
             }
         }
     }
@@ -636,7 +692,6 @@ final class IslandController {
     func openSettings(_ tab: SettingsTab? = nil) {
         if ui.keyboard { endKeyboard(restoreFocus: false) } else { setExpanded(false) }
         if let tab { settingsState.tab = tab }
-        settingsState.islandShown = isShown
         settingsState.loginItem = Self.loginItemInstalled
         let window = settingsWindow ?? SettingsWindowController(island: self, store: store, state: settingsState)
         settingsWindow = window
@@ -697,7 +752,9 @@ final class IslandController {
     }
 
     private func isInsideIsland(_ point: CGPoint) -> Bool {
-        !islandFrame.isEmpty && islandFrame.insetBy(dx: -2, dy: -2).contains(point)
+        // In the menu bar nothing is there until the card opens or news drops down.
+        if place == .menubar, !ui.expanded, ui.announcement == nil { return false }
+        return !islandFrame.isEmpty && islandFrame.insetBy(dx: -2, dy: -2).contains(point)
     }
 
     private func handleMouse() {
@@ -714,7 +771,7 @@ final class IslandController {
             if !ui.expanded {
                 if ui.announcement != nil {
                     holdAnnouncement()
-                } else if expandWork == nil, Date() >= suppressExpandUntil {
+                } else if expandWork == nil, Date() >= suppressExpandUntil, place == .notch {
                     scheduleExpand()
                 }
             } else if moved {
@@ -726,11 +783,14 @@ final class IslandController {
             expandWork = nil
             releaseAnnouncement()
             if ui.expanded {
-                if !ui.holdsOpen, collapseWork == nil { scheduleCollapse() }
+                // The menu-bar card stays until a click elsewhere, Esc, or the status item.
+                if !ui.holdsOpen, collapseWork == nil, place == .notch { scheduleCollapse() }
             } else {
                 setPolling(false)
             }
-            if !ui.holdsOpen, ui.hoveredRow != nil { setHoveredRow(nil) }
+            // A card opened with a click lets go of the row like a menu does.
+            let clickedCard = place == .menubar && !ui.cardHints && ui.renaming == nil && !ui.menuOpen
+            if !ui.holdsOpen || clickedCard, ui.hoveredRow != nil { setHoveredRow(nil) }
             setHint(nil)
         }
     }
@@ -852,6 +912,48 @@ final class IslandController {
             if !announcements.isEmpty { showNextAnnouncement(after: 0.45) }
         }
         setPolling(value)
+        if place == .menubar {
+            onCardChange(value)
+            if value { installClickMonitor() } else { removeClickMonitor() }
+        }
+    }
+
+    // MARK: Menu-bar card
+
+    /// The status item was clicked: the card drops down, or goes back up.
+    func toggleCard() {
+        if ui.expanded { closeCard(restoreFocus: true) } else { openCard(hints: false) }
+    }
+
+    /// The card under the status item, with keyboard focus so Esc and the arrows work. `hints`:
+    /// opened with the shortcut, so the first row is selected and the keys are listed.
+    func openCard(hints: Bool) {
+        guard place == .menubar else { return }
+        reposition()
+        ui.cardHints = hints
+        beginKeyboard(selectFirst: hints)
+    }
+
+    func closeCard(restoreFocus: Bool = false) {
+        guard ui.expanded else { return }
+        if ui.keyboard { endKeyboard(restoreFocus: restoreFocus) } else { setExpanded(false) }
+    }
+
+    private func installClickMonitor() {
+        guard clickMonitor == nil else { return }
+        // Clicks meant for other apps only; the status item's own click toggles the card.
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
+            [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.ui.menuOpen else { return }
+                self.closeCard()
+            }
+        }
+    }
+
+    private func removeClickMonitor() {
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
     }
 
     /// A light 10 Hz poll while hovered/expanded catches exits the event monitors miss.
@@ -934,6 +1036,8 @@ final class IslandController {
             return
         }
         guard ui.announcement == nil, !ui.expanded, isShown, !announcements.isEmpty else { return }
+        // The status item may have moved since (other menu-bar items come and go).
+        if place == .menubar { reposition() }
         let next = announcements.removeFirst()
         Debug.log("announce \(next.title) \(next.suffix ?? "")\(next.subtitle.map { " / \($0)" } ?? "")")
         withAnimation(announceAnimation) { ui.announcement = next }
@@ -984,14 +1088,14 @@ final class IslandController {
     private func tapHeader() {
         guard let announcement = ui.announcement, announcement.progress == nil else {
             // Over the tiling pill too: the tile button keeps showing how far it is.
-            setExpanded(true)
+            if place == .menubar { openCard(hints: false) } else { setExpanded(true) }
             return
         }
         if announcement.opensAccessibility {
             showOnboarding(.permissions, activate: true)
         } else if announcement.opensProcesses {
             endAnnouncement(animated: false)
-            setExpanded(true)
+            if place == .menubar { openCard(hints: false) } else { setExpanded(true) }
             setPage(.processes)
             return
         } else if let session = store.session(id: announcement.sessionId) {
@@ -1004,10 +1108,16 @@ final class IslandController {
     // MARK: Keyboard focus (⌃⌥Space)
 
     func toggleKeyboard() {
-        if ui.keyboard { endKeyboard(restoreFocus: true) } else { beginKeyboard() }
+        if ui.keyboard {
+            endKeyboard(restoreFocus: true)
+        } else if place == .menubar {
+            openCard(hints: true)
+        } else {
+            beginKeyboard()
+        }
     }
 
-    private func beginKeyboard() {
+    private func beginKeyboard(selectFirst: Bool = true) {
         guard let panel else { return }
         Debug.log("keyboard begins; front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
         if !isShown {
@@ -1023,7 +1133,7 @@ final class IslandController {
         withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.18)) { ui.keyboard = true }
         setExpanded(true)
         let ids = store.listSessions.map(\.id)
-        if ui.hoveredRow.map({ !ids.contains($0) }) ?? true { ui.hoveredRow = ids.first }
+        if selectFirst, ui.hoveredRow.map({ !ids.contains($0) }) ?? true { ui.hoveredRow = ids.first }
         // A non-activating panel takes key focus without activating the island: the
         // terminal keeps its menu bar, and Esc hands focus straight back.
         panel.makeKeyAndOrderFront(nil)
@@ -1035,6 +1145,7 @@ final class IslandController {
         Debug.log("keyboard ends; restore=\(restoreFocus) previous=\(previousApp?.localizedName ?? "-")")
         removeKeyMonitor()
         withAnimation(ui.reduceMotion ? nil : .easeOut(duration: 0.15)) { ui.keyboard = false }
+        ui.cardHints = false
         panel?.allowsKey = false
         setExpanded(false)
         let app = previousApp
@@ -1394,7 +1505,10 @@ final class IslandController {
 
     func debugState() -> String {
         let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
-        return "expanded=\(ui.expanded) keyboard=\(ui.keyboard) key=\(panel?.isKeyWindow ?? false) " +
+        return "place=\(place.rawValue) panel=\(panel.map { NSStringFromRect($0.frame) } ?? "-") " +
+            "island=\(NSStringFromRect(islandFrame)) anchorX=\(ui.geometry.anchorX) cardHints=\(ui.cardHints) " +
+            "clickMonitor=\(clickMonitor != nil) " +
+            "expanded=\(ui.expanded) keyboard=\(ui.keyboard) key=\(panel?.isKeyWindow ?? false) " +
             "active=\(NSApp.isActive) front=\(front) mode=\(ui.mode.rawValue) selected=\(ui.hoveredRow ?? "-") " +
             "announcement=\(ui.announcement?.title ?? "-") queued=\(announcements.count) " +
             "renaming=\(ui.renaming.map { _ in "\"" + ui.renameText + "\"" } ?? "-") allowsKey=\(panel?.allowsKey ?? false) " +

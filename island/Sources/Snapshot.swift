@@ -220,10 +220,15 @@ enum Snapshotter {
         Actions.store = live
 
         let (geometry, rect) = IslandGeometry.current()
-        render(store: live, prefix: "island", geometry: geometry, size: rect.size, folder: folder, states: states)
-
         let demo = SessionStore(fixed: DemoData.snapshot(from: live.snapshot))
+        // TABBY_SNAPSHOT_ONLY=menubar: just menu-bar mode, while working on it.
+        if ProcessInfo.processInfo.environment["TABBY_SNAPSHOT_ONLY"] == "menubar" {
+            renderMenuBar(store: demo, folder: folder)
+            return
+        }
+        render(store: live, prefix: "island", geometry: geometry, size: rect.size, folder: folder, states: states)
         render(store: demo, prefix: "demo", geometry: geometry, size: rect.size, folder: folder, states: states)
+        renderMenuBar(store: demo, folder: folder)
 
         var flat = geometry
         flat.hasNotch = false
@@ -503,6 +508,157 @@ enum Snapshotter {
         let out = NSBitmapImageRep(cgImage: image)
         out.size = rect.size
         return out
+    }
+
+    // MARK: Menu-bar mode
+
+    /// Menu-bar mode on a sample desktop: the card under the status item (opened with a click, a
+    /// row's dropdown, each density, opened with the shortcut), news dropping from the item, and
+    /// the item's dots up close. Demo sessions only.
+    private static func renderMenuBar(store: SessionStore, folder: URL) {
+        let width: CGFloat = 960
+        let bar: CGFloat = 24
+        let panelHeight: CGFloat = 640
+        let list = store.listSessions
+        let sessions = store.snapshot.sessions
+        let title = StatusDots.title(dots: StatusDots.dots(sessions), total: sessions.count,
+                                     waiting: sessions.filter { $0.status == .waiting }.count)
+        let dark = NSAppearance(named: .darkAqua)
+        func measured(_ text: NSAttributedString) -> CGSize {
+            var size = CGSize.zero
+            dark?.performAsCurrentDrawingAppearance { size = text.size() }
+            return size
+        }
+
+        // The bar, right to left: the clock, Control Center, Spotlight, Wi-Fi, battery, then tabby.
+        let barFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let clock = NSAttributedString(string: "Sun 12 Oct  9:41", attributes: [.font: barFont, .foregroundColor: NSColor.white])
+        let symbols = ["switch.2", "magnifyingglass", "wifi", "battery.75percent"]
+        var cursor = width - 14 - measured(clock).width
+        let clockX = cursor
+        var symbolXs: [CGFloat] = []
+        for symbol in symbols {
+            cursor -= symbol.hasPrefix("battery") ? 42 : 34
+            symbolXs.append(cursor)
+        }
+        let titleWidth = measured(title).width
+        let itemWidth = (8 + 16 + titleWidth + 8).rounded()
+        let item = CGRect(x: cursor - 12 - itemWidth, y: 2, width: itemWidth, height: bar - 4)   // top-left origin
+
+        func drawBar(height: CGFloat, highlight: Bool) {
+            dark?.performAsCurrentDrawingAppearance {
+                let top = height   // AppKit's y grows upward
+                NSColor(white: 0, alpha: 0.24).setFill()
+                NSRect(x: 0, y: top - bar, width: width, height: bar).fill()
+                let baseline = top - bar + 5
+                var x: CGFloat = 20
+                for (index, word) in ["Terminal", "Shell", "Edit", "View", "Window", "Help"].enumerated() {
+                    let text = NSAttributedString(string: word, attributes: [
+                        .font: NSFont.systemFont(ofSize: 13, weight: index == 0 ? .bold : .regular), .foregroundColor: NSColor.white,
+                    ])
+                    text.draw(at: NSPoint(x: x, y: baseline - 1))
+                    x += text.size().width + 20
+                }
+                clock.draw(at: NSPoint(x: clockX, y: baseline - 1))
+                for (symbol, x) in zip(symbols, symbolXs) {
+                    let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+                    guard let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                        .withSymbolConfiguration(config) else { continue }
+                    let size = image.size
+                    tinted(image, .white).draw(in: NSRect(x: x, y: top - bar / 2 - size.height / 2, width: size.width, height: size.height))
+                }
+                let itemRect = NSRect(x: item.minX, y: top - item.maxY, width: item.width, height: item.height)
+                if highlight {
+                    NSColor(white: 1, alpha: 0.24).setFill()
+                    NSBezierPath(roundedRect: itemRect, xRadius: 5, yRadius: 5).fill()
+                }
+                tinted(Brand.statusIcon(pointSize: 16), .white)
+                    .draw(in: NSRect(x: itemRect.minX + 8, y: itemRect.midY - 8, width: 16, height: 16))
+                title.draw(at: NSPoint(x: itemRect.minX + 8 + 16, y: itemRect.midY - measured(title).height / 2 + 1))
+            }
+        }
+
+        func wallpaper(_ size: CGSize) {
+            NSGradient(colors: [NSColor(srgbRed: 0.16, green: 0.25, blue: 0.40, alpha: 1),
+                                NSColor(srgbRed: 0.40, green: 0.29, blue: 0.45, alpha: 1)])?
+                .draw(in: NSRect(origin: .zero, size: size), angle: -60)
+        }
+
+        // The item up close: the bar's right end, at 2×.
+        let close = CGSize(width: width - item.minX + 24, height: bar)
+        if let rep = bitmap(pixelsWide: Int(width * 2), pixelsHigh: Int(bar * 2), size: CGSize(width: width, height: bar)) {
+            draw(into: rep) {
+                wallpaper(CGSize(width: width, height: bar))
+                drawBar(height: bar, highlight: false)
+            }
+            write(cropped(rep, to: CGRect(x: item.minX - 24, y: 0, width: close.width, height: bar), size: CGSize(width: width, height: bar)),
+                  to: folder.appendingPathComponent("menubar-statusitem.png"))
+        }
+
+        let working = list.first { $0.status == .busy && $0.tasks != nil } ?? list.first { $0.status == .busy } ?? list.first
+        let cases: [(String, Bool, (IslandUIState, SessionDetailModel) -> Void)] = [
+            ("card", true, { ui, _ in ui.expanded = true; ui.keyboard = true; ui.mode = .standard }),
+            ("card-hover", true, { ui, detail in
+                ui.expanded = true; ui.keyboard = true; ui.mode = .standard
+                ui.hoveredRow = working?.id
+                detail.freeze(open: working?.id)
+            }),
+            ("card-minimal", true, { ui, _ in ui.expanded = true; ui.keyboard = true; ui.mode = .minimal }),
+            ("card-detailed", true, { ui, _ in ui.expanded = true; ui.keyboard = true; ui.mode = .detailed }),
+            ("card-keyboard", true, { ui, _ in
+                ui.expanded = true; ui.keyboard = true; ui.cardHints = true; ui.mode = .standard
+                ui.hoveredRow = list.first?.id
+            }),
+            ("announce-done", false, { ui, _ in
+                ui.announcement = (list.first { $0.status.isYourTurn } ?? list.first).map(Announcement.done)
+            }),
+            ("announce-waiting", false, { ui, _ in
+                ui.announcement = (list.first { $0.status == .waiting } ?? list.last).map(Announcement.waiting)
+            }),
+        ]
+        for (name, open, configure) in cases {
+            let ui = IslandUIState()
+            ui.staticRender = true
+            ui.reduceMotion = false
+            var geometry = IslandGeometry()
+            geometry.menuBar = true
+            geometry.barHeight = IslandGeometry.menuBarPill
+            geometry.panelSize = CGSize(width: width, height: panelHeight)
+            geometry.anchorX = item.midX
+            ui.geometry = geometry
+            let detail = SessionDetailModel()
+            configure(ui, detail)
+            var islandFrame = CGRect.zero
+            var actions = IslandActions.inert
+            actions.islandFrame = { islandFrame = $0 }
+            let host = NSHostingView(rootView: IslandRootView(store: store, ui: ui, actions: actions, detail: detail,
+                                                              pages: PagesModel(fixed: true)))
+            host.frame = NSRect(origin: .zero, size: geometry.panelSize)
+            let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.moveToRetinaScreen()
+            window.isReleasedWhenClosed = false
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.contentView = host
+            RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+            host.layoutSubtreeIfNeeded()
+            host.display()
+            guard let panel = host.snapshotRep() else { continue }
+            host.cacheDisplay(in: host.bounds, to: panel)
+            let size = CGSize(width: width, height: bar + panelHeight)
+            guard let out = bitmap(pixelsWide: panel.pixelsWide, pixelsHigh: Int(CGFloat(panel.pixelsHigh) * size.height / panelHeight),
+                                   size: size) else { continue }
+            draw(into: out) {
+                wallpaper(size)
+                panel.draw(in: NSRect(x: 0, y: 0, width: width, height: panelHeight), from: .zero, operation: .sourceOver,
+                           fraction: 1, respectFlipped: true, hints: nil)
+                drawBar(height: size.height, highlight: open)
+            }
+            let bottom = islandFrame.isEmpty ? 120 : bar + islandFrame.maxY + 40
+            write(cropped(out, to: CGRect(x: 0, y: 0, width: width, height: min(size.height, bottom)), size: size),
+                  to: folder.appendingPathComponent("menubar-\(name).png"))
+            window.close()
+        }
     }
 
     // MARK: Brand

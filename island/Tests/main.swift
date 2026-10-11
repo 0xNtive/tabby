@@ -165,6 +165,17 @@ for status in [SessionStatus.waiting, .error, .new, .ended, .unknown] {
 }
 check(IslandConfig(raw: [:]).focusIdle, "staying covered when it's your turn is on by default")
 check(!IslandConfig(raw: ["focusIdle": .bool(false)]).focusIdle, "and can be turned off")
+
+// Where the island lives (islandPlace): the notch unless the menu bar is asked for
+check(IslandConfig(raw: [:]).place == .notch, "at the notch by default")
+check(IslandConfig(raw: ["islandPlace": .string("menubar")]).place == .menubar, "islandPlace menubar")
+check(IslandConfig(raw: ["islandPlace": .string(" Menu-Bar ")]).place == .menubar, "islandPlace read loosely")
+check(IslandConfig(raw: ["islandPlace": .string("tray")]).place == .menubar, "tray means the menu bar")
+check(IslandConfig(raw: ["islandPlace": .string("sideways")]).place == .notch, "an unknown place keeps the notch")
+IslandPlace.legacy = .menubar
+check(IslandConfig(raw: [:]).place == .menubar, "the old 'Show the island' off reads as the menu bar")
+check(IslandConfig(raw: ["islandPlace": .string("notch")]).place == .notch, "until a place is chosen")
+IslandPlace.legacy = .notch
 // A tty from a record is handed to osascript: only a device path gets there
 check(SnapshotLoader.devicePath("/dev/ttys003") == "/dev/ttys003" && SnapshotLoader.devicePath("/dev/pts/4") == "/dev/pts/4", "a tty is a device path")
 for bad in ["-e", "-e do shell script \"id\"", "ttys003", "/dev/ttys003; rm -rf ~", "/dev/tty s", "/tmp/x", "/dev/" + String(repeating: "a", count: 80)] {

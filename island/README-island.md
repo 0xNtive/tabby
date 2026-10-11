@@ -29,6 +29,27 @@ the version in `package.json`, so the About panel shows tabby's version.
   moves, so the controls stay where the pointer comes in. Click a row to focus its terminal
   tab; right-click or hover "…" to rename, recolor or re-theme.
 
+### Menu bar only (`islandPlace`: `"notch"` or `"menubar"`)
+
+`tabby island menubar` (Settings › General › Show tabby, the status menu's **Menu Bar Only**)
+leaves nothing at the notch. The status item then carries the state: the cat, then one still dot
+per session in start order (`StatusDots`: a ring in the session's color while it works, amber when
+it needs you, red on an error, dimmed on your turn; "+N" past six) and the waiting count. No loop,
+so it costs nothing while idle; it's redrawn only when what it shows changes.
+
+- **Left-click** the item: the same panel (`IslandGeometry.menuBar(under:)`: as wide as the
+  item's screen, its top at the bottom of the menu bar) shows the expanded island as a card
+  centered on the item and kept 8 pt from the screen's edges, rounded all round, without the
+  notch header (the toolbar leads). It opens with keyboard focus like ⌃⌥Space, but clean: no row
+  selected, no key hints (⌃⌥Space opens it with both). A click in another app (a global
+  mouse-down monitor), Esc, a row, or the item again closes it; hovering out doesn't. The item stays
+  highlighted while the card is open.
+- **Right-click or ⌃-click** the item: the status menu (attached only for that click).
+- **Announcements** drop down from the item as a pill with just the news and its second line
+  (the item already shows the dots). Hover holds it; a click acts on it, as at the notch.
+- `showIsland = false` in the island's defaults (the old "Show the island" off) reads as menu-bar
+  mode until a place is chosen.
+
 ### Modes (`islandMode` in `~/.claude/tabby/config.json`)
 
 | Mode | Each session shows |
@@ -222,7 +243,7 @@ Everything here is read on your Mac and stays there: the app has no network code
   accent, `dot`, `cursor`, context, prompts, tty).
 - `~/.claude/tabby/themes.json`: themes with `group`, `dots`, `tints`; parsed again only when
   its modification date or size changes.
-- `~/.claude/tabby/config.json`: `theme`, `islandMode`, `islandAnnounce`, `islandHotkeys`,
+- `~/.claude/tabby/config.json`: `theme`, `islandMode`, `islandPlace`, `islandAnnounce`, `islandHotkeys`,
   `islandShortcuts`, `watermark*`, and for Settings `namer`, `strength`, `marker`, `animate`,
   `terminalTabTitles`. The island writes only through `<node> <cli> …` (paths from
   `~/.claude/tabby/island.json`); a changed setting shows at once and is held until

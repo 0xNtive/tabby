@@ -89,6 +89,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store: SessionStore
     private var island: IslandController?
     private var statusItem: NSStatusItem?
+    /// The status menu (rebuilt each time it opens). At the notch a click opens it; in menu-bar
+    /// mode a click drops the card down and a right-click (or ⌃-click) opens it.
+    private let statusMenu = NSMenu()
+    private var place: IslandPlace = .notch
+    /// What the status item shows now, so an unchanged store refresh doesn't redraw it.
+    private var badgeKey = ""
     private var cancellables = Set<AnyCancellable>()
 
     init(automation: Bool) {
@@ -103,6 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         UserDefaults.standard.register(defaults: ["showIsland": true])
+        // "Show the island" off (before `islandPlace`) left only the menu-bar icon: that's
+        // menu-bar mode now, until a place is chosen.
+        IslandPlace.legacy = UserDefaults.standard.bool(forKey: "showIsland") ? .notch : .menubar
         let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
         IslandReport.write(["quitByUser": false, "notch": (screen?.safeAreaInsets.top ?? 0) > 0,
                             "onboardingDone": UserDefaults.standard.bool(forKey: "onboardingDone"),
@@ -110,9 +119,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Actions.store = store
         store.start()
 
+        setupStatusItem()
         let island = IslandController(store: store)
         self.island = island
-        if UserDefaults.standard.bool(forKey: "showIsland") { island.show() }
+        island.statusItemFrame = { [weak self] in self?.statusItemFrame }
+        island.onPlaceChange = { [weak self] place in self?.applyPlace(place) }
+        island.onCardChange = { [weak self] open in self?.statusItem?.button?.highlight(open) }
+        island.show()
         // The setup window: once on first launch, and whenever the installer or
         // `tabby island onboarding` asks (`--allow-accessibility` starts at the permissions).
         let arguments = CommandLine.arguments
@@ -123,7 +136,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
 
-        setupStatusItem()
         if Debug.enabled {
             DistributedNotificationCenter.default().addObserver(
                 forName: Notification.Name("dev.tabby.island.debug"), object: nil, queue: .main
@@ -145,31 +157,131 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Status item
 
+    /// macOS keeps where the item sits under this name (and where you ⌘-drag it).
+    private static let autosaveName = "tabby"
+    private static var positionKey: String { "NSStatusItem Preferred Position \(autosaveName)" }
+    /// Points from the right edge of the screen: among the system's own items, which stay
+    /// clear of the notch however full the menu bar gets.
+    private static let revealedPosition = 250
+
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = Self.autosaveName
         if let button = item.button {
             button.image = Brand.statusIcon()
             button.imagePosition = .imageLeading
             button.toolTip = "tabby — your Claude Code sessions"
             button.setAccessibilityLabel("tabby")
+            // Only called while no menu is attached (menu-bar mode): on press, like a menu.
+            button.target = self
+            button.action = #selector(statusClicked)
+            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
         }
-        let menu = NSMenu()
-        menu.delegate = self
-        item.menu = menu
+        statusMenu.delegate = self
+        item.menu = statusMenu
         statusItem = item
     }
 
+    /// The status item's frame on screen: menu-bar mode hangs the card from it.
+    private var statusItemFrame: NSRect? {
+        guard let button = statusItem?.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
+    private func applyPlace(_ place: IslandPlace) {
+        self.place = place
+        configureStatusItem()
+        // Once the menu bar has laid the item out.
+        if place == .menubar {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                MainActor.assumeIsolated { self?.revealStatusItem() }
+            }
+        }
+    }
+
+    private func configureStatusItem() {
+        guard let item = statusItem else { return }
+        item.menu = place == .notch ? statusMenu : nil
+        if place == .menubar { item.isVisible = true }
+        item.button?.toolTip = place == .notch
+            ? "tabby — your Claude Code sessions"
+            : "tabby — click for your Claude Code sessions, right-click for the menu"
+        item.button?.setAccessibilityHelp(place == .notch ? nil : "Click for your sessions, right-click for the menu")
+        badgeKey = ""
+        updateStatusBadge(store.snapshot)
+    }
+
+    /// On a notched Mac whose menu bar is full, the items that don't fit hide behind the notch,
+    /// and a new item (tabby's) is the first to go. In menu-bar mode the icon is all there is, so
+    /// it moves next to the system's items; if even that is behind the notch, the island says so.
+    private func revealStatusItem(retried: Bool = false) {
+        guard place == .menubar, behindNotch else { return }
+        guard !retried else {
+            island?.enqueue(.info("tabby's icon is behind the notch: make room in the menu bar, or press \(toggleShortcut)",
+                                  symbol: "menubar.rectangle", topic: "statusitem"), force: true)
+            return
+        }
+        Debug.log("status item behind the notch at \(statusItemFrame.map(NSStringFromRect) ?? "-"); moving it")
+        // Removing the item forgets where it was, so the new spot is written after that and
+        // before the new item reads it.
+        if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
+        statusItem = nil
+        UserDefaults.standard.set(Self.revealedPosition, forKey: Self.positionKey)
+        setupStatusItem()
+        configureStatusItem()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            MainActor.assumeIsolated { self?.revealStatusItem(retried: true) }
+        }
+    }
+
+    /// The item sits (at least partly) where the camera notch is, so nobody can see or click it.
+    private var behindNotch: Bool {
+        guard let frame = statusItemFrame,
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(NSPoint(x: frame.midX, y: frame.midY)) }),
+              screen.safeAreaInsets.top > 0,
+              let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea else { return false }
+        let notch = (screen.frame.minX + left.width)...(screen.frame.maxX - right.width)
+        return frame.maxX > notch.lowerBound && frame.minX < notch.upperBound
+    }
+
+    private var toggleShortcut: String {
+        guard let island, island.config.hotkeys, let combo = island.config.shortcuts[.toggle] else { return "its shortcut" }
+        return ShortcutAction.toggle.display(combo)
+    }
+
+    @objc private func statusClicked() {
+        let event = NSApp.currentEvent
+        let wantsMenu = event?.type == .rightMouseDown || event?.modifierFlags.contains(.control) == true
+        guard place == .menubar, !wantsMenu else {
+            island?.closeCard()
+            // After this press is handled: the native way, highlighted under the item.
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.showStatusMenu() }
+            }
+            return
+        }
+        island?.toggleCard()
+    }
+
+    private func showStatusMenu() {
+        guard let item = statusItem, let button = item.button else { return }
+        item.menu = statusMenu
+        button.performClick(nil)
+        item.menu = place == .notch ? statusMenu : nil
+    }
+
+    /// The waiting count, and in menu-bar mode a dot per session too (the island's dots), so the
+    /// state shows without the island.
     private func updateStatusBadge(_ snapshot: StoreSnapshot) {
         guard let button = statusItem?.button else { return }
         let waiting = snapshot.sessions.filter { $0.status == .waiting }.count
-        if waiting > 0 {
-            button.attributedTitle = NSAttributedString(string: " \(waiting)", attributes: [
-                .foregroundColor: Palette.waitingNS,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-            ])
-        } else {
-            button.attributedTitle = NSAttributedString(string: "")
-        }
+        let dots = place == .menubar ? StatusDots.dots(snapshot.sessions) : []
+        let key = "\(waiting)|" + dots.map { "\($0.hex ?? "")\($0.status.rawValue)" }.joined(separator: ",")
+            + "|\(snapshot.sessions.count)"
+        guard key != badgeKey else { return }
+        badgeKey = key
+        button.attributedTitle = StatusDots.title(dots: dots, total: snapshot.sessions.count, waiting: waiting)
+        button.setAccessibilityValue(StatusDots.summary(snapshot.sessions))
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -198,9 +310,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(factory.item("Show Island", checked: island.isShown) { [weak self] in
-            self?.toggleIsland()
-        })
+        let atNotch = factory.item("Island at the Notch", checked: config.place == .notch) { [weak island] in
+            island?.setPlace(.notch)
+        }
+        atNotch.toolTip = "Hover the top of the screen for every session"
+        menu.addItem(atNotch)
+        let inMenuBar = factory.item("Menu Bar Only", checked: config.place == .menubar) { [weak island] in
+            island?.setPlace(.menubar)
+        }
+        inMenuBar.toolTip = "No island: click this icon for every session, right-click for this menu"
+        menu.addItem(inMenuBar)
         menu.addItem(factory.submenu("Mode", symbol: config.mode.symbol,
                                      menu: factory.modeMenu(current: config.mode) { [weak island] mode in
                                          island?.setMode(mode)
@@ -324,9 +443,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Debug.log("status menu:\n" + lines.joined(separator: "\n"))
     }
 
+    /// Debug: at the notch ↔ in the menu bar.
     private func toggleIsland() {
         guard let island else { return }
-        island.setShown(!island.isShown)
+        island.setPlace(island.config.place == .notch ? .menubar : .notch)
     }
 
     private func showAbout() {
@@ -354,5 +474,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .version: "",
             .credits: credits,
         ])
+    }
+}
+
+// MARK: - The status item's dots (menu-bar mode)
+
+/// One dot per session in the menu bar, in start order like the island's: working rings in its
+/// own color, needs-you amber, an error red, your turn dimmed. A still image (no loop, no CPU).
+enum StatusDots {
+    struct Dot: Equatable {
+        let hex: String?
+        let status: SessionStatus
+    }
+
+    static let limit = 6
+
+    static func dots(_ sessions: [IslandSession]) -> [Dot] {
+        sessions
+            .sorted { $0.startedAt != $1.startedAt ? $0.startedAt < $1.startedAt : $0.id < $1.id }
+            .prefix(limit)
+            .map { Dot(hex: $0.dotHex, status: $0.status) }
+    }
+
+    /// " ●●◉ 2": the dots, "+3" past six, and the waiting count in amber.
+    static func title(dots: [Dot], total: Int, waiting: Int) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        if !dots.isEmpty {
+            let attachment = NSTextAttachment()
+            let image = image(dots)
+            attachment.image = image
+            attachment.bounds = CGRect(x: 0, y: -2, width: image.size.width, height: image.size.height)
+            out.append(NSAttributedString(string: " "))
+            out.append(NSAttributedString(attachment: attachment))
+            if total > dots.count {
+                out.append(NSAttributedString(string: " +\(total - dots.count)", attributes: [
+                    .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold), .foregroundColor: NSColor.secondaryLabelColor,
+                ]))
+            }
+        }
+        if waiting > 0 {
+            out.append(NSAttributedString(string: " \(waiting)", attributes: [
+                .foregroundColor: Palette.waitingNS,
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+            ]))
+        }
+        return out
+    }
+
+    static func image(_ dots: [Dot]) -> NSImage {
+        let cell: CGFloat = 10
+        let height: CGFloat = 12
+        let size = NSSize(width: max(1, CGFloat(dots.count) * cell - 1), height: height)
+        let image = NSImage(size: size, flipped: false) { _ in
+            for (index, dot) in dots.enumerated() {
+                let center = NSPoint(x: CGFloat(index) * cell + 4.5, y: height / 2)
+                let base = NSColor(hexString: dot.hex ?? Palette.neutralHex) ?? .gray
+                let fill: NSColor
+                let ring: NSColor?
+                switch dot.status {
+                case .busy: (fill, ring) = (base, base.withAlphaComponent(0.6))
+                case .waiting: (fill, ring) = (Palette.waitingNS, Palette.waitingNS.withAlphaComponent(0.6))
+                case .error: (fill, ring) = (Palette.dangerNS, Palette.dangerNS.withAlphaComponent(0.6))
+                default: (fill, ring) = (base.withAlphaComponent(0.5), nil)
+                }
+                if let ring {
+                    let path = NSBezierPath(ovalIn: NSRect(x: center.x - 4.25, y: center.y - 4.25, width: 8.5, height: 8.5))
+                    path.lineWidth = 1.1
+                    ring.setStroke()
+                    path.stroke()
+                }
+                let radius: CGFloat = ring == nil ? 3 : 2.4
+                fill.setFill()
+                NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)).fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    /// For VoiceOver: "3 sessions: 1 needs you, 1 working".
+    static func summary(_ sessions: [IslandSession]) -> String {
+        guard !sessions.isEmpty else { return "No Claude sessions" }
+        var parts: [String] = []
+        let busy = sessions.filter { $0.status == .busy }.count
+        let waiting = sessions.filter { $0.status == .waiting }.count
+        let errors = sessions.filter { $0.status == .error }.count
+        if waiting > 0 { parts.append("\(waiting) need\(waiting == 1 ? "s" : "") you") }
+        if errors > 0 { parts.append("\(errors) with an error") }
+        if busy > 0 { parts.append("\(busy) working") }
+        let count = "\(sessions.count) session\(sessions.count == 1 ? "" : "s")"
+        return parts.isEmpty ? count : "\(count): " + parts.joined(separator: ", ")
     }
 }
