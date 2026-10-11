@@ -153,6 +153,8 @@ struct PageButton: View {
     let page: IslandPage
     let active: Bool
     var badge: Int = 0
+    /// Lit in this color while what the page controls is on (Awake).
+    var glow: Color? = nil
     let label: String
     let action: () -> Void
 
@@ -160,9 +162,9 @@ struct PageButton: View {
         Button(action: action) {
             Image(systemName: page.symbol)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(active ? Color.black.opacity(0.85) : .white.opacity(0.82))
+                .foregroundStyle(active ? Color.black.opacity(0.85) : glow ?? .white.opacity(0.82))
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(active ? Color.white.opacity(0.88) : Color.white.opacity(0.09)))
+                .background(Circle().fill(active ? (glow ?? Color.white).opacity(0.88) : (glow ?? Color.white).opacity(glow == nil ? 0.09 : 0.16)))
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
                         Text("\(min(badge, 99))")
@@ -187,7 +189,7 @@ struct PageButton: View {
 // MARK: - Page header
 
 /// "‹ History", what the page is for, and a refresh (or a spinner while loading).
-private struct PageHeader: View {
+struct PageHeader: View {
     let page: IslandPage
     let subtitle: String
     let loading: Bool
@@ -241,7 +243,7 @@ private struct PageHeader: View {
 }
 
 /// A one-line result at the top of a page ("Stopped 3 · freed 1.2 GB").
-private struct PageNotice: View {
+struct PageNotice: View {
     let text: String
     let ok: Bool
 
@@ -273,7 +275,7 @@ private struct PageList<Content: View>: View {
     }
 }
 
-private extension View {
+extension View {
     /// Reports a page row's frame, for the controller's hover tracking.
     func pageRow(_ id: String) -> some View {
         background(GeometryReader { proxy in

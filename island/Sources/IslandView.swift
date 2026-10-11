@@ -122,6 +122,9 @@ struct IslandRootView: View {
 
     private var sessionCount: Int { store.snapshot.sessions.count }
 
+    /// Awake is on: a cup sits beside the dots.
+    private var awakeOn: Bool { ui.awake?.on == true }
+
     /// The live activity, while collapsed.
     private var announcement: Announcement? { ui.expanded ? nil : ui.announcement }
 
@@ -129,6 +132,7 @@ struct IslandRootView: View {
     private var earWidth: CGFloat {
         let dots = min(sessionCount, 6)
         let dotsWidth = CGFloat(dots) * 12 + CGFloat(max(0, dots - 1)) * 2 + (sessionCount > 6 ? 22 : 0)
+            + (awakeOn ? 18 : 0)
         return max(dotsWidth + 20, 46)
     }
 
@@ -147,7 +151,7 @@ struct IslandRootView: View {
     }
 
     private func collapsedWidth(_ geometry: IslandGeometry) -> CGFloat {
-        let ear = sessionCount == 0 ? (geometry.hasNotch ? 18 : 26) : earWidth
+        let ear = sessionCount == 0 && !awakeOn ? (geometry.hasNotch ? 18 : 26) : earWidth
         let right = announcement.map { max(ear, announcementEar($0, geometry)) } ?? ear
         // Room for the second line too, up to a comfortable reading width.
         let second = announcement?.subtitle.map {
@@ -176,6 +180,11 @@ struct IslandRootView: View {
     private var leftEar: some View {
         let dots = store.dotSessions
         return HStack(spacing: 2) {
+            if awakeOn {
+                AwakeCup()
+                    .padding(.trailing, 4)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
+            }
             ForEach(dots.prefix(6)) { session in
                 PulseDot(hex: session.dotHex, status: session.status, dotSize: 7, reduceMotion: ui.reduceMotion,
                          celebrates: !ui.expanded)
@@ -263,6 +272,10 @@ struct IslandRootView: View {
                     .transition(.opacity)
             } else if ui.page == .processes {
                 ProcessesPage(model: pages, hovered: ui.hoveredRow, onBack: { actions.setPage(.sessions) })
+                    .transition(.opacity)
+            } else if ui.page == .awake {
+                AwakePage(model: .shared, state: ui.awake, hovered: ui.hoveredRow, reduceMotion: ui.reduceMotion,
+                          onBack: { actions.setPage(.sessions) })
                     .transition(.opacity)
             } else if sessions.isEmpty {
                 VStack(spacing: 6) {
@@ -386,20 +399,26 @@ struct IslandRootView: View {
     // MARK: Toolbar
 
     private func toolbar(count: Int) -> some View {
-        HStack(spacing: 8) {
-            brand(count: count)
-            Spacer(minLength: 8)
-            // "Tile" gives way to its icon alone when a narrow mode is short of room.
-            ViewThatFits(in: .horizontal) {
-                controls(tileLabel: true)
-                controls(tileLabel: false)
-            }
+        // "Tile" gives way to its icon alone when a narrow mode is short of room, then the
+        // session count beside the name.
+        ViewThatFits(in: .horizontal) {
+            toolbarRow(count: count, tileLabel: true, showCount: true)
+            toolbarRow(count: count, tileLabel: false, showCount: true)
+            toolbarRow(count: count, tileLabel: false, showCount: false)
         }
         .frame(height: 44)
+    }
+
+    private func toolbarRow(count: Int, tileLabel: Bool, showCount: Bool) -> some View {
+        HStack(spacing: 8) {
+            brand(count: count, showCount: showCount)
+            Spacer(minLength: 8)
+            controls(tileLabel: tileLabel)
+        }
         .padding(.horizontal, 18)
     }
 
-    private func brand(count: Int) -> some View {
+    private func brand(count: Int, showCount: Bool = true) -> some View {
         HStack(spacing: 6) {
             CatMark(blinks: !ui.reduceMotion && !ui.staticRender)
                 .frame(width: 18, height: 18)
@@ -407,6 +426,7 @@ struct IslandRootView: View {
             Text("tabby")
                 .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.94))
+            if showCount {
             HStack(spacing: 4) {
                 Text("·")
                 Text("\(count)")
@@ -416,6 +436,7 @@ struct IslandRootView: View {
             }
             .font(.system(size: 11.5, weight: .medium).monospacedDigit())
             .foregroundStyle(.white.opacity(0.58))
+            }
         }
         .lineLimit(1)
         .fixedSize()
@@ -424,7 +445,8 @@ struct IslandRootView: View {
     /// The hint for the hovered toolbar control (none while a menu is open or a name is edited).
     private var hint: ToolbarHintContent? {
         guard let control = ui.hoveredControl, ui.renaming == nil else { return nil }
-        return .make(control, config: store.snapshot.config, update: ui.update, tiling: ui.tiling, stale: pages.scan?.stale)
+        return .make(control, config: store.snapshot.config, update: ui.update, tiling: ui.tiling, stale: pages.scan?.stale,
+                     awake: ui.awake)
     }
 
     private func controls(tileLabel: Bool) -> some View {
@@ -444,6 +466,11 @@ struct IslandRootView: View {
             }
             .toolbarControl(.processes)
             .animation(ui.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: pages.staleCount)
+            PageButton(page: .awake, active: ui.page == .awake, glow: awakeOn ? Color(nsColor: Brand.marmalade) : nil,
+                       label: awakeOn ? "Awake is on" : "Awake") {
+                actions.setPage(.awake)
+            }
+            .toolbarControl(.awake)
             FooterIconButton(symbol: "gearshape.fill", help: help("Settings", .settings)) { actions.openSettings() }
                 .toolbarControl(.settings)
         }

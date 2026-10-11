@@ -110,6 +110,7 @@ In Claude. `/tab` is answered by a hook, so it's instant and never costs tokens.
 /tab update                  get the newest tabby, in the background
 /tab procs                   dev servers and leftovers, and what they use   /tab procs stop   stop the stale ones
 /tab history                 sessions you ran before   /tab resume 3   back to one
+/tab awake 4h                keep the Mac running with the lid closed (done: until every session is done)
 /tab reset · /tab off · /tab on · /tab themes · /tab colors
 ```
 
@@ -135,6 +136,7 @@ tabby new --list          # recent and frequent folders, best first
 tabby history             # the sessions you ran before; tabby resume 3 (or a name) opens one where it ended
 tabby procs               # dev servers, leftovers and heavy processes your terminals started
 tabby procs stop          # stop the stale ones (or: tabby procs stop 4821, or all)
+tabby awake 4h            # keep the Mac running with the lid closed (done, +1h, off; macOS)
 tabby themes              # preview all 57 themes
 tabby doctor              # check every part of the install, with the fix for each
 tabby update              # the newest tabby: plugin, setup and island (--check to only look)
@@ -150,6 +152,7 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 - **Modes:** Minimal (one line per session), Standard, and Detailed (summary, last prompt, tokens and cost for every session).
 - **History** (the clock): the sessions you ran in the last 30 days, newest first, each with its project and what it was about. Click one and it opens in a new window, right where it ended (`claude --resume`, in its folder, with its name and color, and with permissions skipped only if it ran that way). One that's still open comes to the front instead.
 - **Processes** (the chip): dev servers on localhost, leftovers from sessions you closed, and anything else your terminals started that's using CPU or memory, with what each one uses and whose it is. **Stop all** stops the stale ones in one click: what a closed Claude session left running, dev servers and scripts left behind by a closed terminal, and those of a session that has been idle for 2 hours. Databases, VMs and tunnels you started (Postgres, Colima, Ollama, ngrok…) are listed but never counted as stale. Every row has its own stop button too. A badge on the button counts the stale ones, and when leftovers weigh 500 MB or more the island says so once.
+- **Awake** (the cup): close the lid and Claude keeps working. Keep the Mac running for 1, 2, 4 or 8 hours, or until every session is done; sleep comes back on by itself. See [Awake](#awake-close-the-lid-claude-keeps-working).
 - **Watermark:** each Terminal.app session's topic in large, faint letters over its window, in the session's color. Clicks and typing go straight through.
 - **Settings** (the cog, ⌃⌥, or the menu-bar icon): the island, tab names, tint, markers, themes, the watermark, Focus mode, screens and tiling, shortcuts and permissions.
 - **Not sure what a button does?** Rest the pointer on it: a card under the toolbar says what it does and its shortcut.
@@ -170,6 +173,17 @@ A Dynamic-Island-style overlay at the top center of your Mac. It idles under 1% 
 With several sessions running, their scrolling output competes for your eyes. Turn on Focus mode (Settings › Focus, the menu-bar menu, or `/tab focus-mode on`), and while Claude works, every Terminal window you're not in shows only its topic in a big box. Below it, one line per running agent (Claude and each subagent) has a small spinner, the step it's on ("Editing tile.js", "Run the test suite", "Searching for “retry”"), its task when it keeps a task list, and how long it has run. A window opens as soon as Claude needs you, and the window you're typing in is never covered. Click a covered window to go to it.
 
 When Claude is done, you don't get a wall of text: the cover stays and shows how its reply opens, the question it ends on (if any), how long it took and a **Show full reply** button. tabby reads all of this from the session's transcript on your Mac; nothing is sent anywhere. Click the button (or anywhere on the cover) to open the window and reply. Untick **Stay covered when it's your turn** in Settings › Focus (or `/tab focus-mode idle off`) to see the whole reply right away. Windows where Claude asks a question or hits an error still open on their own.
+
+### Awake: close the lid, Claude keeps working
+
+A Mac goes to sleep when you close the lid, and every Claude session on it stops mid-turn. `caffeinate` can't prevent that (it only stops *idle* sleep). Awake can: open the island, click the cup, and pick how long. Then close the lid and walk away.
+
+- **For a while, or until the work is done.** Pick 1, 2, 4 or 8 hours. With **Sleep as soon as every session is done** ticked (the default), the Mac sleeps as soon as no session has worked for 5 minutes, and the hours are only the most it may take.
+- **It turns itself off.** Sleep comes back on when the time is up, when the work is done, or when the battery drops below 10% on battery power. A watcher process keeps time; the island and every new Claude session check on it too, so a crash or a restart never leaves sleep off. If you had already turned sleep off yourself, tabby leaves it that way.
+- **You see it.** A small cup sits beside the dots while it's on, the cup button glows, and the page shows a ring with the time left, **+1h** and **Stop**. When it ends while the lid is closed, the island tells you the next time you open it: "Sleep is back on · Every session is done · 4 sessions worked · at 3:12 AM".
+- **From anywhere:** `/tab awake 4h`, `/tab awake done`, `/tab awake off`, or `tabby awake 4h | done | +1h | off` in a shell, or **Keep Awake** in the menu-bar menu.
+
+How: only `pmset disablesleep` keeps a Mac awake with the lid closed, and it needs an administrator. The first time, macOS asks for your password once (its own prompt, through `authopen`), and tabby adds a rule to `/etc/sudoers.d/tabby-awake` that lets your user run exactly two commands without a password: `/usr/bin/pmset -a disablesleep 1` and `… 0`. Nothing else. `tabby awake forget` takes it away again. A closed laptop runs warmer: don't leave it in a bag.
 
 ### Tiling across your screens
 

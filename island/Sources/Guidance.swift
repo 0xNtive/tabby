@@ -121,6 +121,7 @@ enum ToolbarControl: Hashable {
     case tile
     case history
     case processes
+    case awake
     case settings
     case update
 }
@@ -152,7 +153,7 @@ struct ToolbarHintContent: Equatable {
 
 extension ToolbarHintContent {
     static func make(_ control: ToolbarControl, config: IslandConfig, update: UpdateBadge?,
-                     tiling: TileProgress?, stale: ProcessScan.Totals? = nil) -> ToolbarHintContent {
+                     tiling: TileProgress?, stale: ProcessScan.Totals? = nil, awake: AwakeState? = nil) -> ToolbarHintContent {
         let key = { (action: ShortcutAction) -> String? in
             guard config.hotkeys, let combo = config.shortcuts[action] else { return nil }
             return action.display(combo)
@@ -183,6 +184,16 @@ extension ToolbarHintContent {
             }
             return ToolbarHintContent(symbol: IslandPage.processes.symbol, title: "Processes",
                                       detail: "Dev servers and leftovers your terminals started, and the CPU and memory they use. Stop them in one click.",
+                                      shortcut: nil)
+        case .awake:
+            if let awake, awake.on {
+                return ToolbarHintContent(symbol: IslandPage.awake.symbol,
+                                          title: "Awake · \(AwakeState.span(awake.left(now: Date()))) left",
+                                          detail: "Your Mac keeps running with the lid closed until \(AwakeState.clock(awake.until))\(awake.untilDone ? ", or until every session is done" : ""). Click to add time or stop.",
+                                          shortcut: nil)
+            }
+            return ToolbarHintContent(symbol: IslandPage.awake.symbol, title: "Awake",
+                                      detail: "Close the lid and Claude keeps working: for a few hours, or until every session is done. Sleep comes back on by itself.",
                                       shortcut: nil)
         case .settings:
             return ToolbarHintContent(symbol: "gearshape.fill", title: "Settings",

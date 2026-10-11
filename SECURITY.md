@@ -14,6 +14,10 @@ None of these carries your prompts, paths or an identifier, apart from the namin
 
 `tabby procs` and the island's Processes page list processes with `ps` and `lsof`. For each candidate they read a few environment variable names (`TERM_SESSION_ID`, `TERM_PROGRAM`, `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `XPC_SERVICE_NAME`) to tell a process a terminal or Claude started from a launchd service; no other variable is kept, and command lines never leave the CLI (the island gets a short name like "vite"). Only your own account's processes are listed, and never launchd services, apps, Claude or its MCP servers, interactive shells, `ssh-agent`, `tmux` or `screen`. Nothing is stopped unless you ask, and a stop goes only to processes whose start time matches the list you saw, so a reused process id is never hit.
 
+## What it may change as administrator
+
+Only if you use Awake (keep the Mac running with the lid closed). Keeping a Mac awake with the lid closed takes `pmset disablesleep`, which needs root. The first time, macOS asks for an administrator's password through its own prompt (`/usr/libexec/authopen`), and tabby writes `/etc/sudoers.d/tabby-awake` (owner root, mode `0440`, checked with `visudo` first) with one rule: your user may run `/usr/bin/pmset -a disablesleep 1` and `/usr/bin/pmset -a disablesleep 0` without a password. Nothing else runs as root, then or later. The consequence to weigh: any program running as you can then keep the Mac from sleeping, and nothing more. `tabby awake forget` empties the rule (the admin prompt again); `sudo rm /etc/sudoers.d/tabby-awake` removes the file.
+
 ## What stays on it
 
 `~/.claude/tabby` holds tabby's state: one record per session (title, summary, the last 8 prompts trimmed to 400 characters, the working directory, status and context use), your settings and a log. The folder is `0700` and its files `0600` (files an older version made more open are tightened the next time tabby runs): only your account can read them. The five newest backups of your Claude `settings.json` are kept. Records of ended sessions are removed after 30 days. `tabby uninstall` reverts the changes to your Claude settings, shell file and Terminal profiles and says what it leaves behind.
@@ -33,5 +37,6 @@ Please report it privately through [GitHub's security advisories](https://github
 ## What's in scope
 
 - The hooks, the CLI and the installer (`install.sh`): anything that runs code or changes files it shouldn't, or trusts input it shouldn't (session files, transcripts, terminal titles).
+- Awake's sudoers rule (`/etc/sudoers.d/tabby-awake`): anything it allows beyond turning sleep off and on.
 - Tabby Island: the macOS permissions it asks for (Accessibility, Automation) and what it does with them.
 - The release download and the update path.

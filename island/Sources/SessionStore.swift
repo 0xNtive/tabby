@@ -21,6 +21,8 @@ struct StoreSnapshot: Equatable, Sendable {
     var terminalWindowIds: Set<Int> = []
     /// A tile in progress, whoever started it.
     var tiling: TileProgress?
+    /// Awake (the lid can close), on or how it last ended.
+    var awake: AwakeState?
 }
 
 // MARK: - Store (main actor)
@@ -196,6 +198,7 @@ final class SnapshotLoader: @unchecked Sendable {
         snapshot.automationDenied = titleReader.automationDenied
         if windows { snapshot.terminalWindowIds = Set(titleReader.terminalWindows().values) }
         snapshot.tiling = TileProgress.read()
+        snapshot.awake = AwakeState.read()
         return snapshot
     }
 

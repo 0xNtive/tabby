@@ -338,6 +338,8 @@ struct Announcement: Equatable, Identifiable {
     var subtitle: String? = nil
     /// Clicking opens the island on its Processes page.
     var opensProcesses = false
+    /// A color of its own for the symbol and the tail (Awake's marmalade).
+    var accent: Color? = nil
 
     static func done(_ session: IslandSession) -> Announcement {
         var announcement = Announcement(kind: .done, title: session.title, suffix: "is done", symbol: "checkmark.circle.fill",
@@ -376,6 +378,7 @@ struct Announcement: Equatable, Identifiable {
     }
 
     var tint: Color {
+        if let accent { return accent }
         switch kind {
         case .done: return Palette.done
         case .waiting: return Palette.waiting

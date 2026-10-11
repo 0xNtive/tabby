@@ -229,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                      menu: factory.tileMenu(sessionCount: sessions.count) { [weak island] count in
                                          island?.tile(count)
                                      }))
+        menu.addItem(factory.submenu("Keep Awake", symbol: "cup.and.saucer", menu: awakeMenu()))
         menu.addItem(factory.submenu("Theme for All Tabs", symbol: "paintpalette",
                                      menu: factory.themeMenu(store: store, current: store.snapshot.globalThemeId) { id in
                                          Actions.setThemeAll(id)
@@ -254,6 +255,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let quit = NSMenuItem(title: "Quit Tabby Island", action: #selector(quitByUser), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    /// Keep Awake: the Mac keeps running with the lid closed (`tabby awake`).
+    private func awakeMenu() -> NSMenu {
+        let factory = MenuFactory.shared
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let model = AwakeModel.shared
+        if let state = store.snapshot.awake, state.on {
+            let left = AwakeState.span(state.left(now: Date()))
+            menu.addItem(factory.info("Awake · \(left) left, until \(AwakeState.clock(state.until))"))
+            if state.untilDone { menu.addItem(factory.info("Or until every session is done")) }
+            menu.addItem(.separator())
+            menu.addItem(factory.item("Add 1 Hour", symbol: "plus") { model.extend() })
+            menu.addItem(factory.item("Stop: Sleep as Usual", symbol: "moon") { model.stop() })
+        } else {
+            menu.addItem(NSMenuItem.sectionHeader(title: "Keep running with the lid closed"))
+            for choice in AwakeModel.choices {
+                let title = choice.hours == 1 ? "For 1 Hour" : "For \(choice.hours) Hours"
+                menu.addItem(factory.item(title) { model.start(hours: choice.hours, untilDone: false) })
+            }
+            menu.addItem(.separator())
+            menu.addItem(factory.item("Until Every Session Is Done", symbol: "checkmark.circle") {
+                model.start(hours: 8, untilDone: true)
+            })
+            menu.addItem(factory.info("Sleep comes back on by itself"))
+        }
+        return menu
     }
 
     /// Quit from the menu: new Claude sessions leave it closed until `tabby island` or next login.

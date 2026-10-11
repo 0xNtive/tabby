@@ -5,13 +5,14 @@ import Foundation
 /// What the expanded island shows under its toolbar: the running sessions, the ones you ran
 /// before (History), or the processes your terminals left running (Processes).
 enum IslandPage: Equatable, Sendable {
-    case sessions, history, processes
+    case sessions, history, processes, awake
 
     var title: String {
         switch self {
         case .sessions: return "Sessions"
         case .history: return "History"
         case .processes: return "Processes"
+        case .awake: return "Awake"
         }
     }
 
@@ -20,6 +21,7 @@ enum IslandPage: Equatable, Sendable {
         case .sessions: return "rectangle.stack"
         case .history: return "clock.arrow.circlepath"
         case .processes: return "cpu"
+        case .awake: return "cup.and.saucer.fill"
         }
     }
 
@@ -29,12 +31,13 @@ enum IslandPage: Equatable, Sendable {
         case .sessions: return id
         case .history: return "h:\(id)"
         case .processes: return "p:\(id)"
+        case .awake: return "a:\(id)"
         }
     }
 
     static func isPageRow(_ id: String?) -> Bool {
         guard let id else { return false }
-        return id.hasPrefix("h:") || id.hasPrefix("p:")
+        return id.hasPrefix("h:") || id.hasPrefix("p:") || id.hasPrefix("a:")
     }
 }
 

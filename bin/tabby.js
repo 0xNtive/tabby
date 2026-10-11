@@ -22,6 +22,7 @@ import { mergedSessions, transcriptFor } from '../lib/sessions.js';
 import { tile, next, screensCommand } from '../lib/tile.js';
 import { newSession as launch, listFolders } from '../lib/launch.js';
 import * as procs from '../lib/procs.js';
+import * as awake from '../lib/awake.js';
 import { history, historyReport, resume } from '../lib/history.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
@@ -246,6 +247,20 @@ function procsCommand() {
   return console.log(flags.json ? JSON.stringify(result) : procs.report(result));
 }
 
+// `tabby awake [4h|done|+1h|off|forget] [--until-done] [--json]`: the Mac keeps running with the lid closed.
+function awakeCommand() {
+  const words = pos.slice(1);
+  if (words[0] === '_watch') return awake.watch(String(words[1] || ''));
+  if (words[0] === '_check') {
+    const s = awake.check();
+    return flags.json ? console.log(JSON.stringify(s)) : undefined;
+  }
+  const res = words.length || flags['until-done'] ? awake.command(words, { untilDone: on(flags['until-done']) }) : { ok: true, message: awake.describe(awake.check()) };
+  if (!res.ok) process.exitCode = 1;
+  if (flags.json) return console.log(JSON.stringify({ ok: res.ok, message: res.message, ...awake.status() }));
+  return console.log(res.message);
+}
+
 // The macOS session island. install: the ready-made download (a local build if that fails),
 // kept in ~/Applications, opened at login, started with its setup window.
 function island(sub = 'start') {
@@ -333,6 +348,8 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby focus-mode on|off     while Claude works, other Terminal windows show only their topic
   tabby focus-mode idle on|off   when Claude is done: the gist of its reply (on, the default) or the whole reply
+  tabby awake 4h | done | off  keep the Mac running with the lid closed: for 4 hours, or until every
+                              session is done (8 h at most); sleep comes back on by itself (macOS)
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
   tabby terms                 the terms of use
@@ -387,12 +404,12 @@ function askYes(question) {
 }
 
 // Commands that change terminals or settings wait for the terms; read-only ones don't.
-const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-titles', 'focus', 'resume', 'procs']);
+const GATED = new Set(['next', 'tile', 'adopt', 'new', 'island', 'terminal-titles', 'focus', 'resume', 'procs', 'awake']);
 
 function main() {
   const cmd = pos[0];
   const changes = GATED.has(cmd) || !['hook', '_name', '_after', '_after-update', '_profile', 'statusline', 'install', 'uninstall', 'update', 'doctor', 'ls', 'list', 'themes', 'preview', 'setup', 'terms', 'root', '_ticker', 'help', '--help', '-h', 'version', 'config', 'history', undefined].includes(cmd);
-  if (changes && !termsAccepted() && !(cmd === 'island' && pos[1] === 'stop')) {
+  if (changes && !termsAccepted() && !(cmd === 'island' && pos[1] === 'stop') && !(cmd === 'awake' && ['_watch', '_check', 'off', 'stop', 'forget'].includes(pos[1]))) {
     return console.log('tabby is off until you accept its terms. Run: tabby setup');
   }
   switch (cmd) {
@@ -543,6 +560,9 @@ function main() {
     case 'procs':
     case 'processes':
       return procsCommand();
+    case 'awake':
+    case 'lid':
+      return awakeCommand();
     case 'island':
       return island(pos[1]);
     case 'config':

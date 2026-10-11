@@ -204,6 +204,32 @@ enum Snapshotter {
         State(name: "announce-stale") { ui, _ in
             ui.announcement = .stale(DemoData.processes())
         },
+        State(name: "awake-off") { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .awake
+            ui.hoveredRow = "a:4"
+        },
+        State(name: "awake-on") { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.page = .awake
+            ui.awake = DemoData.awake(on: true)
+        },
+        State(name: "awake-collapsed") { ui, _ in ui.awake = DemoData.awake(on: true) },
+        State(name: "awake-hint") { ui, _ in
+            ui.expanded = true
+            ui.mode = .standard
+            ui.awake = DemoData.awake(on: true)
+            ui.hoveredControl = .awake
+        },
+        State(name: "announce-awake") { ui, _ in
+            ui.awake = DemoData.awake(on: true)
+            ui.announcement = .awakeOn(DemoData.awake(on: true))
+        },
+        State(name: "announce-awake-end") { ui, _ in
+            ui.announcement = .awakeOff(DemoData.awake(on: false))
+        },
     ]
 
     static func run(directory: String) {
@@ -626,6 +652,16 @@ enum Snapshotter {
 // MARK: - Demo sessions (every status, notes, summaries)
 
 enum DemoData {
+    /// Awake with 3 h 12 m of 4 h left, until every session is done; or how a night of it ended.
+    static func awake(on: Bool) -> AwakeState {
+        AwakeState.locale = Locale(identifier: "en_US")
+        let now = Date()
+        let start = now.addingTimeInterval(-48 * 60)
+        return AwakeState(on: on, token: "demo", startedAt: start, until: start.addingTimeInterval(4 * 3600), untilDone: true,
+                          minBattery: 10, watcherPid: nil, endedAt: on ? nil : now.addingTimeInterval(-5 * 3600 - 11 * 60),
+                          reason: on ? nil : "done", worked: on ? nil : 4, restored: true)
+    }
+
     static func snapshot(from live: StoreSnapshot) -> StoreSnapshot {
         var snapshot = live
         snapshot.loaded = true

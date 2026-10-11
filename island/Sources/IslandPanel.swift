@@ -111,6 +111,8 @@ final class IslandUIState: ObservableObject {
     @Published var renameText = ""
     /// Sessions, History or Processes (back to sessions when the island closes).
     @Published var page: IslandPage = .sessions
+    /// Awake: the lid can close (the cup beside the dots, the Awake page).
+    @Published var awake: AwakeState?
     /// Snapshot renders: no entrance animations, no blinking.
     var staticRender = false
     var menuOpen = false
@@ -235,6 +237,12 @@ final class IslandController {
     private var renameTookFocus = false
     private var lastJump: (id: String, at: Date)?
 
+    // Awake: the last state seen, and an end that happened while the screen was off.
+    private var lastAwake: AwakeState?
+    private var awakeLoaded = false
+    private var pendingAwakeEnd: AwakeState?
+    private var screensAsleep = false
+
     // Live activities.
     private var announcements: [Announcement] = []
     private var announcementWork: DispatchWorkItem?
@@ -276,6 +284,11 @@ final class IslandController {
                 self?.ui.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             }
         })
+        for (name, asleep) in [(NSWorkspace.screensDidSleepNotification, true), (NSWorkspace.screensDidWakeNotification, false)] {
+            observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.screensChanged(asleep: asleep) }
+            })
+        }
         observers.append(NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
         ) { [weak self] _ in
@@ -414,6 +427,7 @@ final class IslandController {
         guard snapshot.loaded else { return }
         resolveConfig(snapshot)
         updateWatermark(snapshot)
+        updateAwake(snapshot)
         detectTransitions(snapshot)
         refreshAnnouncements(snapshot)
         // A tile someone else started (/tab tile, `tabby tile`): show its progress too.
@@ -1313,7 +1327,45 @@ final class IslandController {
         switch next {
         case .history: pages.loadHistory()
         case .processes: pages.scanProcesses(maxAge: 5)
+        case .awake: AwakeModel.shared.loadInfo()
         case .sessions: break
+        }
+    }
+
+    // MARK: Awake
+
+    /// The cup beside the dots, and a word in the pill when Awake starts or ends. An end while the
+    /// screen is off (the lid closed, say) waits until it comes back on: that's when you're there.
+    private func updateAwake(_ snapshot: StoreSnapshot) {
+        let next = snapshot.awake
+        if ui.awake != next {
+            withAnimation(ui.reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) { ui.awake = next }
+        }
+        guard !inert else { return }
+        AwakeModel.shared.checkIfNeeded(next)
+        let previous = lastAwake
+        let first = !awakeLoaded
+        lastAwake = next
+        awakeLoaded = true
+        guard !first, let next else { return }
+        if next.on, previous?.on != true || previous?.token != next.token {
+            enqueue(.awakeOn(next), force: true)
+        } else if !next.on, let previous, previous.on, previous.token == next.token {
+            if screensAsleep {
+                pendingAwakeEnd = next
+            } else {
+                enqueue(.awakeOff(next), force: true)
+            }
+        }
+    }
+
+    private func screensChanged(asleep: Bool) {
+        screensAsleep = asleep
+        guard !asleep, let ended = pendingAwakeEnd else { return }
+        pendingAwakeEnd = nil
+        // Give the display a moment to light up before the pill drops.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            MainActor.assumeIsolated { self?.enqueue(.awakeOff(ended), force: true) }
         }
     }
 
