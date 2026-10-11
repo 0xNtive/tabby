@@ -50,6 +50,31 @@ so it costs nothing while idle; it's redrawn only when what it shows changes.
 - `showIsland = false` in the island's defaults (the old "Show the island" off) reads as menu-bar
   mode until a place is chosen.
 
+### Awake (the cup; `tabby awake`, `<Claude folder>/tabby/awake.json`)
+
+The cup button opens the Awake page: **1h 2h 4h 8h**, and **Sleep as soon as every session is
+done** (remembered in the island's defaults as `awakeUntilDone`, on by default; the hours are then
+the most it may take). A chip runs `tabby awake 4h [--until-done]`; the first time, that shows the
+macOS admin prompt (authopen) and the page says "Allow it in the macOS prompt…" until it's
+answered. While it's on, the page shows a ring that empties as the time runs out, the time left,
+"until 3:40 AM", **+1h** (`tabby awake +1h`) and **Stop** (`tabby awake off`), and the collapsed
+pill and the status item show a small orange cup. The island only reads `awake.json` (with the store's
+1 s load) and runs the CLI: the CLI's watcher keeps time. When the watcher is gone (a restart) or
+the end time has passed by 30 s, the island runs `tabby awake _check`, at most once a minute.
+
+Announcements: "Awake for 4h · or until done" when it starts, and "Sleep is back on · Every session
+is done · 3 sessions worked · at 3:12 AM" when it ends. An end that happens while the screens are
+asleep (the lid closed) waits for `screensDidWake`. The status menu has the same choices under
+**Keep Awake**. Snapshot states: `awake-off`, `awake-on`, `awake-collapsed`, `awake-hint`,
+`announce-awake`, `announce-awake-end`, and `menubar-card-awake` / `menubar-statusitem-awake`.
+
+### Context alerts
+
+When a session's context use passes 80 %, and again at 95 %, the pill says so ("Fix Invoice
+Totals · 80% context" and a second line on what to do). Once per session and level; a session
+first seen above a level isn't announced. Click it to open the session's tab. Off with
+announcements (`islandAnnounce`).
+
 ### Modes (`islandMode` in `~/.claude/tabby/config.json`)
 
 | Mode | Each session shows |
