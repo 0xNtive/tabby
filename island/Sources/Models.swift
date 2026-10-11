@@ -390,6 +390,18 @@ struct Announcement: Equatable, Identifiable {
         return announcement
     }
 
+    /// "Refactor auth middleware · 80% context" · what to do about it. Clicking opens its tab.
+    static func context(_ session: IslandSession, level: Int) -> Announcement {
+        var announcement = Announcement(kind: .info, title: session.title, suffix: "\(level)% context",
+                                        symbol: level >= 95 ? "exclamationmark.circle.fill" : "circle.lefthalf.filled",
+                                        sessionId: session.id, topic: session.id)
+        announcement.subtitle = session.line(level >= 95
+            ? "Almost full: Claude compacts the conversation soon"
+            : "Getting full: a good moment for /compact or a fresh session")
+        announcement.accent = level >= 95 ? Palette.danger : Palette.waiting
+        return announcement
+    }
+
     /// "3 stale processes use 1.2 GB" · "Clean up ›": opens the Processes page.
     static func stale(_ scan: ProcessScan) -> Announcement {
         let count = scan.stale.count

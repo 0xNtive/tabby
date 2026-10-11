@@ -290,6 +290,8 @@ final class IslandController {
     private var screensAsleep = false
 
     // Live activities.
+    /// Each session's context level last time (0, 80 or 95).
+    private var lastContextLevels: [String: Int] = [:]
     private var announcements: [Announcement] = []
     private var announcementWork: DispatchWorkItem?
     private var announcementHeld = false
@@ -993,7 +995,20 @@ final class IslandController {
         var statuses: [String: SessionStatus] = [:]
         for session in snapshot.sessions { statuses[session.id] = session.status }
         defer { lastStatuses = statuses }
+        // Context use crossing 80 % or 95 %: once per session and level (a session seen
+        // already past a level, as on the first load, isn't told about it).
+        var levels: [String: Int] = [:]
+        for session in snapshot.sessions {
+            let pct = session.contextPct ?? 0
+            levels[session.id] = pct >= 95 ? 95 : pct >= 80 ? 80 : 0
+        }
+        defer { lastContextLevels = levels }
         guard let previous = lastStatuses, config.announce, isShown else { return }
+        for session in SessionStore.listOrder(snapshot.sessions) {
+            guard let level = levels[session.id], level > 0, let before = lastContextLevels[session.id], level > before,
+                  session.status != .waiting else { continue }
+            enqueue(.context(session, level: level))
+        }
         for session in SessionStore.listOrder(snapshot.sessions) {
             guard let before = previous[session.id], before != session.status else { continue }
             if session.status == .waiting {

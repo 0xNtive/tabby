@@ -549,6 +549,10 @@ let stopped = StopResult.parse(#"{"stopped":[{"id":"1","pid":1,"label":"vite","p
 check(stopped?.message == "Stopped vite · freed 300 MB", "stop result: \(stopped?.message ?? "nil")")
 check(IslandPage.isPageRow(IslandPage.history.rowId("a")) && !IslandPage.isPageRow("a1b2-c3"), "page rows")
 
+// Context: a word when a session passes 80 % and 95 %.
+check(Announcement.context(finishedTurn, level: 80).suffix == "80% context"
+      && Announcement.context(finishedTurn, level: 95).subtitle?.contains("Almost full") == true, "context announcements")
+
 // Awake: the island reads the CLI's awake.json.
 let awakeDir = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-awake-\(getpid())")
 try? FileManager.default.createDirectory(at: awakeDir, withIntermediateDirectories: true)

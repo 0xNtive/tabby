@@ -204,6 +204,9 @@ enum Snapshotter {
         State(name: "announce-stale") { ui, _ in
             ui.announcement = .stale(DemoData.processes())
         },
+        State(name: "announce-context") { ui, list in
+            ui.announcement = (list.first { ($0.contextPct ?? 0) >= 80 } ?? list.first).map { Announcement.context($0, level: 80) }
+        },
         State(name: "awake-off") { ui, _ in
             ui.expanded = true
             ui.mode = .standard
