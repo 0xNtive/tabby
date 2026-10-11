@@ -547,8 +547,11 @@ enum Snapshotter {
         let panelHeight: CGFloat = 640
         let list = store.listSessions
         let sessions = store.snapshot.sessions
-        let title = StatusDots.title(dots: StatusDots.dots(sessions), total: sessions.count,
-                                     waiting: sessions.filter { $0.status == .waiting }.count)
+        func statusTitle(awake: Bool) -> NSAttributedString {
+            StatusDots.title(dots: StatusDots.dots(sessions), total: sessions.count,
+                             waiting: sessions.filter { $0.status == .waiting }.count, awake: awake)
+        }
+        var title = statusTitle(awake: false)
         let dark = NSAppearance(named: .darkAqua)
         func measured(_ text: NSAttributedString) -> CGSize {
             var size = CGSize.zero
@@ -567,7 +570,8 @@ enum Snapshotter {
             cursor -= symbol.hasPrefix("battery") ? 42 : 34
             symbolXs.append(cursor)
         }
-        let titleWidth = measured(title).width
+        // Wide enough for the awake cup too, so the item doesn't move between renders.
+        let titleWidth = measured(statusTitle(awake: true)).width
         let itemWidth = (8 + 16 + titleWidth + 8).rounded()
         let item = CGRect(x: cursor - 12 - itemWidth, y: 2, width: itemWidth, height: bar - 4)   // top-left origin
 
@@ -620,6 +624,16 @@ enum Snapshotter {
             write(cropped(rep, to: CGRect(x: item.minX - 24, y: 0, width: close.width, height: bar), size: CGSize(width: width, height: bar)),
                   to: folder.appendingPathComponent("menubar-statusitem.png"))
         }
+        title = statusTitle(awake: true)
+        if let rep = bitmap(pixelsWide: Int(width * 2), pixelsHigh: Int(bar * 2), size: CGSize(width: width, height: bar)) {
+            draw(into: rep) {
+                wallpaper(CGSize(width: width, height: bar))
+                drawBar(height: bar, highlight: false)
+            }
+            write(cropped(rep, to: CGRect(x: item.minX - 24, y: 0, width: close.width, height: bar), size: CGSize(width: width, height: bar)),
+                  to: folder.appendingPathComponent("menubar-statusitem-awake.png"))
+        }
+        title = statusTitle(awake: false)
 
         let working = list.first { $0.status == .busy && $0.tasks != nil } ?? list.first { $0.status == .busy } ?? list.first
         let cases: [(String, Bool, (IslandUIState, SessionDetailModel) -> Void)] = [
@@ -635,6 +649,11 @@ enum Snapshotter {
                 ui.expanded = true; ui.keyboard = true; ui.cardHints = true; ui.mode = .standard
                 ui.hoveredRow = list.first?.id
             }),
+            ("card-awake", true, { ui, _ in
+                ui.expanded = true; ui.keyboard = true; ui.mode = .standard
+                ui.page = .awake
+                ui.awake = DemoData.awake(on: true)
+            }),
             ("announce-done", false, { ui, _ in
                 ui.announcement = (list.first { $0.status.isYourTurn } ?? list.first).map(Announcement.done)
             }),
@@ -643,6 +662,7 @@ enum Snapshotter {
             }),
         ]
         for (name, open, configure) in cases {
+            title = statusTitle(awake: name == "card-awake")
             let ui = IslandUIState()
             ui.staticRender = true
             ui.reduceMotion = false

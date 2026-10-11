@@ -1460,8 +1460,10 @@ final class IslandController {
         awakeLoaded = true
         guard !first, let next else { return }
         if next.on, previous?.on != true || previous?.token != next.token {
+            Debug.log("awake: on until \(next.until)")
             enqueue(.awakeOn(next), force: true)
         } else if !next.on, let previous, previous.on, previous.token == next.token {
+            Debug.log("awake: ended (\(next.reason ?? "?"))\(screensAsleep ? ", told when the screen wakes" : "")")
             if screensAsleep {
                 pendingAwakeEnd = next
             } else {
@@ -1562,7 +1564,8 @@ final class IslandController {
             "clickMonitor=\(clickMonitor != nil) " +
             "expanded=\(ui.expanded) keyboard=\(ui.keyboard) key=\(panel?.isKeyWindow ?? false) " +
             "active=\(NSApp.isActive) front=\(front) mode=\(ui.mode.rawValue) selected=\(ui.hoveredRow ?? "-") " +
-            "announcement=\(ui.announcement?.title ?? "-") queued=\(announcements.count) " +
+            "announcement=\(ui.announcement.map { "\($0.title) / \($0.subtitle ?? "")" } ?? "-") queued=\(announcements.count) " +
+            "awake=\(ui.awake.map { "\($0.on ? "on" : "off") \($0.reason ?? "")" } ?? "-") " +
             "renaming=\(ui.renaming.map { _ in "\"" + ui.renameText + "\"" } ?? "-") allowsKey=\(panel?.allowsKey ?? false) " +
             "hotkeys=\(HotkeyCenter.shared.isEnabled) config=\(config)\n" + watermark.debugState()
     }
