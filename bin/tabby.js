@@ -271,6 +271,10 @@ function island(sub = 'start') {
     case 'stop':
       islandApp.stop();
       return say('Tabby Island stopped. New Claude sessions leave it closed until you run: tabby island');
+    case 'notch':
+    case 'menubar':
+    case 'menu-bar':
+      return say(islandApp.setPlace(sub).message);
     case 'install':
     case 'update':
     case 'build': {
@@ -345,6 +349,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
   tabby adopt                 color sessions that were started before tabby
   tabby island [install|update|stop|login|setup|permissions|status]   the macOS session island
                               (install: the ready-made download; build: compile it here)
+  tabby island menubar|notch  only the cat in the menu bar (click it for every session), or the island
   tabby watermark on|off      the topic in large, faint letters over each Terminal window
   tabby focus-mode on|off     while Claude works, other Terminal windows show only their topic
   tabby focus-mode idle on|off   when Claude is done: the gist of its reply (on, the default) or the whole reply

@@ -83,6 +83,35 @@ enum ClaudePaths {
 // MARK: - Island settings (the island's keys in ~/.claude/tabby/config.json)
 
 /// How much the expanded island shows per session (`islandMode`).
+/// Where tabby lives (`islandPlace`): the island at the notch, or only the menu-bar icon, whose
+/// click drops the same list down as a card.
+enum IslandPlace: String, CaseIterable, Identifiable, Sendable {
+    case notch, menubar
+
+    init?(raw: String?) {
+        guard let raw else { return nil }
+        let key = raw.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "-", with: "")
+        switch key {
+        case "notch", "island": self = .notch
+        case "menubar", "menu", "tray", "statusbar": self = .menubar
+        default: return nil
+        }
+    }
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .notch: return "At the notch"
+        case .menubar: return "In the menu bar"
+        }
+    }
+
+    /// Before `islandPlace` existed, "Show the island" off left only the menu-bar icon: that's
+    /// menu-bar mode now, until a place is chosen.
+    nonisolated(unsafe) static var legacy: IslandPlace = .notch
+}
+
 enum IslandMode: String, CaseIterable, Identifiable, Sendable {
     case minimal, standard, detailed
 
@@ -140,6 +169,8 @@ enum IslandMode: String, CaseIterable, Identifiable, Sendable {
 /// ~/.claude/tabby/config.json (with changes the CLI is still writing laid on top).
 struct IslandConfig: Equatable, Sendable {
     var mode: IslandMode = .standard
+    /// The island at the notch, or just the menu-bar icon (`islandPlace`).
+    var place: IslandPlace = IslandPlace.legacy
     /// Live-activity announcements in the collapsed pill (`islandAnnounce`).
     var announce = true
     /// Global shortcuts on or off (`islandHotkeys`).
@@ -183,6 +214,7 @@ struct IslandConfig: Equatable, Sendable {
 
     init(raw: [String: ConfigValue]) {
         mode = IslandMode(raw: raw["islandMode"]?.string) ?? .standard
+        place = IslandPlace(raw: raw["islandPlace"]?.string) ?? IslandPlace.legacy
         announce = raw["islandAnnounce"]?.bool ?? true
         hotkeys = raw["islandHotkeys"]?.bool ?? true
         if let overrides = raw["islandShortcuts"]?.object {

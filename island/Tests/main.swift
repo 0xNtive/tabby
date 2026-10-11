@@ -165,6 +165,17 @@ for status in [SessionStatus.waiting, .error, .new, .ended, .unknown] {
 }
 check(IslandConfig(raw: [:]).focusIdle, "staying covered when it's your turn is on by default")
 check(!IslandConfig(raw: ["focusIdle": .bool(false)]).focusIdle, "and can be turned off")
+
+// Where the island lives (islandPlace): the notch unless the menu bar is asked for
+check(IslandConfig(raw: [:]).place == .notch, "at the notch by default")
+check(IslandConfig(raw: ["islandPlace": .string("menubar")]).place == .menubar, "islandPlace menubar")
+check(IslandConfig(raw: ["islandPlace": .string(" Menu-Bar ")]).place == .menubar, "islandPlace read loosely")
+check(IslandConfig(raw: ["islandPlace": .string("tray")]).place == .menubar, "tray means the menu bar")
+check(IslandConfig(raw: ["islandPlace": .string("sideways")]).place == .notch, "an unknown place keeps the notch")
+IslandPlace.legacy = .menubar
+check(IslandConfig(raw: [:]).place == .menubar, "the old 'Show the island' off reads as the menu bar")
+check(IslandConfig(raw: ["islandPlace": .string("notch")]).place == .notch, "until a place is chosen")
+IslandPlace.legacy = .notch
 // A tty from a record is handed to osascript: only a device path gets there
 check(SnapshotLoader.devicePath("/dev/ttys003") == "/dev/ttys003" && SnapshotLoader.devicePath("/dev/pts/4") == "/dev/pts/4", "a tty is a device path")
 for bad in ["-e", "-e do shell script \"id\"", "ttys003", "/dev/ttys003; rm -rf ~", "/dev/tty s", "/tmp/x", "/dev/" + String(repeating: "a", count: 80)] {
@@ -537,6 +548,27 @@ check(Fmt.memory(1180) == "1.2 GB" && Fmt.memory(312) == "312 MB", "memory")
 let stopped = StopResult.parse(#"{"stopped":[{"id":"1","pid":1,"label":"vite","ports":[],"memMB":300,"cpu":2}],"failed":[],"memMB":300,"cpu":2,"unknown":[]}"#)
 check(stopped?.message == "Stopped vite · freed 300 MB", "stop result: \(stopped?.message ?? "nil")")
 check(IslandPage.isPageRow(IslandPage.history.rowId("a")) && !IslandPage.isPageRow("a1b2-c3"), "page rows")
+
+// Awake: the island reads the CLI's awake.json.
+let awakeDir = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-awake-\(getpid())")
+try? FileManager.default.createDirectory(at: awakeDir, withIntermediateDirectories: true)
+let awakeNow = Date().timeIntervalSince1970 * 1000
+let awakeJSON = #"{"v":1,"on":true,"token":"t","startedAt":"# + "\(awakeNow - 3_600_000)" + #","until":"# + "\(awakeNow + 3_600_000)"
+    + #","untilDone":true,"minBattery":10,"prior":0,"by":"island","watcherPid":"# + "\(getpid())" + "}"
+try? Data(awakeJSON.utf8).write(to: awakeDir.appendingPathComponent("awake.json"))
+if let data = try? Data(contentsOf: awakeDir.appendingPathComponent("awake.json")),
+   let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+    check(json["on"] as? Bool == true, "awake fixture")
+}
+check(AwakeState.span(3 * 3600 + 12 * 60) == "3h 12m" && AwakeState.span(40 * 60) == "40m" && AwakeState.span(7200) == "2h", "awake spans")
+let awakeState = AwakeState(on: true, token: "t", startedAt: Date().addingTimeInterval(-3600), until: Date().addingTimeInterval(3600),
+                            untilDone: true, minBattery: 10, watcherPid: getpid(), endedAt: nil, reason: nil, worked: nil, restored: true)
+check(abs(awakeState.fraction(now: Date()) - 0.5) < 0.01, "awake ring is half full halfway")
+check(!awakeState.needsCheck(now: Date()), "a live watcher needs no check")
+var orphaned = awakeState
+orphaned.watcherPid = nil
+check(orphaned.needsCheck(now: Date()), "no watcher: check it")
+check(IslandPage.isPageRow(IslandPage.awake.rowId("4")), "awake page rows")
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

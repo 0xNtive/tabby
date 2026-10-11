@@ -49,6 +49,12 @@ extension IslandController {
             let page: IslandPage = parts.last == "history" ? .history : parts.last == "processes" ? .processes : .sessions
             if ui.page != page { setPage(page) }
         case "collapse": setExpanded(false)
+        case "card":
+            // What a click on the status item does in menu-bar mode.
+            toggleCard()
+        case "place":
+            // place:menubar | place:notch — what Settings' picker does.
+            if parts.count > 1, let place = IslandPlace(raw: parts[1]) { setPlace(place) }
         case "stop-stale":
             // What "Stop all" does on the Processes page, for the stale ones of the last scan.
             pages.stop(pages.scan?.items.filter(\.stale).map(\.id) ?? [])

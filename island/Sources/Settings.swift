@@ -32,7 +32,6 @@ final class SettingsState: ObservableObject {
     /// Combos another app had registered first.
     @Published var unavailable: Set<KeyCombo> = []
     @Published var loginItem = false
-    @Published var islandShown = true
 }
 
 // MARK: - Window
@@ -197,14 +196,25 @@ struct GeneralPane: View {
     var body: some View {
         let config = state.config
         Form {
-            Section("Island") {
-                Toggle("Show the island", isOn: setting(state.islandShown) { island.setShown($0) })
+            Section {
+                Picker("Show tabby", selection: setting(config.place) { island.setPlace($0) }) {
+                    ForEach(IslandPlace.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 Picker("Detail", selection: setting(config.mode) { island.setMode($0) }) {
                     ForEach(IslandMode.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 Toggle("Announce when a session is done or needs you", isOn: setting(config.announce) { island.setAnnounce($0) })
                 Toggle("Open at login", isOn: setting(state.loginItem) { island.setLoginItem($0) })
+            } header: {
+                Text("Island")
+            } footer: {
+                Text(config.place == .menubar
+                    ? "Nothing sits at the notch: click the cat in the menu bar for every session, right-click it for the menu. News drops down from it."
+                    : "The island hugs the top of the screen: hover it for every session. In the menu bar, nothing sits there; click the cat icon instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section {
                 HStack(alignment: .firstTextBaseline) {

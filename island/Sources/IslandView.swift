@@ -45,13 +45,16 @@ struct IslandRootView: View {
         let onRowFrames = actions.rowFrames
         let onViewport = actions.viewport
         let onControlFrames = actions.controlFrames
-        ZStack(alignment: .top) {
+        ZStack(alignment: geometry.menuBar ? .topLeading : .top) {
             Color.clear
             island(geometry)
                 .background(GeometryReader { proxy in
                     Color.clear.preference(key: IslandFrameKey.self,
                                            value: proxy.frame(in: .named(IslandSpace.name)))
                 })
+                // Menu-bar mode: under the status item, kept on screen.
+                .padding(.leading, geometry.menuBar ? cardX(geometry) : 0)
+                .padding(.top, geometry.menuBar ? IslandGeometry.menuBarGap : 0)
         }
         .frame(width: geometry.panelSize.width, height: geometry.panelSize.height, alignment: .top)
         .coordinateSpace(.named(IslandSpace.name))
@@ -75,21 +78,40 @@ struct IslandRootView: View {
 
     // MARK: Island shape
 
+    private func islandWidth(_ geometry: IslandGeometry) -> CGFloat {
+        guard ui.expanded else { return collapsedWidth(geometry) }
+        // The menu-bar card has no notch to clear.
+        return geometry.menuBar ? ui.mode.width : max(ui.mode.width, collapsedWidth(geometry) + 24)
+    }
+
+    /// Menu-bar mode: the card's left edge, centered on the status item but never off screen.
+    private func cardX(_ geometry: IslandGeometry) -> CGFloat {
+        let width = islandWidth(geometry)
+        let margin: CGFloat = 8
+        return max(margin, min(geometry.anchorX - width / 2, geometry.panelSize.width - width - margin)).rounded()
+    }
+
     private func island(_ geometry: IslandGeometry) -> some View {
         let expanded = ui.expanded
-        let width = expanded
-            ? max(ui.mode.width, collapsedWidth(geometry) + 24)
-            : collapsedWidth(geometry)
+        let width = islandWidth(geometry)
         let tall = !expanded && announcement?.subtitle != nil
-        let radius: CGFloat = expanded ? 26 : tall ? 18 : max(8, geometry.barHeight * 0.36)
-        let shape = UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: radius,
-                                           bottomTrailingRadius: radius, topTrailingRadius: 0,
+        let menuBar = geometry.menuBar
+        // In the menu bar there's no notch to hug: a card, or a pill, rounded all round.
+        let radius: CGFloat = menuBar
+            ? (expanded ? 18 : tall ? 16 : geometry.barHeight / 2)
+            : (expanded ? 26 : tall ? 18 : max(8, geometry.barHeight * 0.36))
+        let shape = UnevenRoundedRectangle(topLeadingRadius: menuBar ? radius : 0, bottomLeadingRadius: radius,
+                                           bottomTrailingRadius: radius, topTrailingRadius: menuBar ? radius : 0,
                                            style: .continuous)
+        // Nothing shows in the menu bar's place until there's news or the card opens.
+        let visible = !menuBar || expanded || announcement != nil
         return VStack(spacing: 0) {
-            header(geometry, expanded: expanded)
-                .frame(height: geometry.barHeight)
-                .contentShape(Rectangle())
-                .onTapGesture { if !ui.expanded { actions.tapHeader() } }
+            if !(menuBar && expanded) {
+                header(geometry, expanded: expanded)
+                    .frame(height: geometry.barHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if !ui.expanded { actions.tapHeader() } }
+            }
             if let announcement, let subtitle = announcement.subtitle {
                 // Which project, and what Claude did: the pill grows a line under the notch.
                 AnnouncementSubtitle(text: subtitle)
@@ -103,6 +125,7 @@ struct IslandRootView: View {
             }
             if expanded {
                 expandedBody(geometry)
+                    .padding(.top, menuBar ? 2 : 0)
                     .transition(.asymmetric(
                         insertion: .opacity.animation(.easeOut(duration: 0.16).delay(0.04)),
                         removal: .opacity.animation(.easeIn(duration: 0.08))
@@ -114,10 +137,18 @@ struct IslandRootView: View {
         .background(
             shape
                 .fill(Color.black)
-                .shadow(color: .black.opacity(expanded ? 0.55 : 0), radius: expanded ? 22 : 0, x: 0, y: expanded ? 10 : 0)
+                .shadow(color: .black.opacity(expanded ? 0.55 : menuBar ? 0.35 : 0),
+                        radius: expanded ? 22 : menuBar ? 10 : 0, x: 0, y: expanded ? 10 : menuBar ? 4 : 0)
         )
+        // Away from the notch the black needs an edge, like a menu's.
+        .overlay(shape.strokeBorder(Color.white.opacity(menuBar ? 0.12 : 0), lineWidth: 0.5))
+        // Grows down out of the status item, and shrinks back into it.
+        .scaleEffect(visible ? 1 : 0.94, anchor: .top)
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Claude sessions")
+        .accessibilityHidden(!visible)
     }
 
     private var sessionCount: Int { store.snapshot.sessions.count }
@@ -162,6 +193,10 @@ struct IslandRootView: View {
             // than the notch: invisible but hoverable.
             return max(geometry.notchWidth + 2 * right, second)
         }
+        if geometry.menuBar {
+            // Just the news: the status item right above already shows the dots.
+            return max(announcement.map { announcementEar($0, geometry) + 8 } ?? 64, second)
+        }
         if sessionCount == 0 && announcement == nil { return 64 }
         return max(ear + right + 12, second)
     }
@@ -170,9 +205,16 @@ struct IslandRootView: View {
 
     private func header(_ geometry: IslandGeometry, expanded: Bool) -> some View {
         HStack(spacing: 0) {
-            leftEar
-            Spacer(minLength: geometry.hasNotch ? geometry.notchWidth + 12 : 12)
-            rightEar
+            if geometry.menuBar {
+                // Only news shows here; nothing animates while the pill is away.
+                Spacer(minLength: 0)
+                if announcement != nil { rightEar }
+                Spacer(minLength: 0)
+            } else {
+                leftEar
+                Spacer(minLength: geometry.hasNotch ? geometry.notchWidth + 12 : 12)
+                rightEar
+            }
         }
         .padding(.horizontal, expanded ? 18 : 10)
     }
@@ -313,12 +355,12 @@ struct IslandRootView: View {
                 DetailNotice(notice: notice)
                     .padding(.horizontal, 20)
                     .padding(.top, 2)
-                    .padding(.bottom, ui.keyboard || ui.renaming != nil ? 0 : 10)
+                    .padding(.bottom, showsKeys ? 0 : 10)
                     .transition(.opacity)
             }
             if ui.page != .sessions {
                 Color.clear.frame(height: 4)
-            } else if ui.keyboard || ui.renaming != nil {
+            } else if showsKeys {
                 KeyboardHint(renaming: ui.renaming != nil)
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
@@ -329,6 +371,12 @@ struct IslandRootView: View {
                 Color.clear.frame(height: 6)
             }
         }
+    }
+
+    /// The key hints under the list: with keyboard focus at the notch, in the menu-bar card only
+    /// when the shortcut opened it, and while a name is edited.
+    private var showsKeys: Bool {
+        ui.renaming != nil || (ui.keyboard && (!ui.geometry.menuBar || ui.cardHints))
     }
 
     private func rows(_ sessions: [IslandSession]) -> some View {
