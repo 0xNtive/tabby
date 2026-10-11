@@ -279,6 +279,55 @@
     }, () => { lines.forEach((l) => l.classList.add('is-on')); cover.classList.add('is-on'); });
   }
 
+  // Awake: the island opens on the Awake page, 4h gets picked, the lid closes; a night goes by on the clock
+  // while sessions finish, the Mac sleeps, and in the morning the island says how it went.
+  const lid = $('#lid-stage');
+  if (lid) {
+    const show = (state) => { for (const img of $$('.lid-island img', lid)) img.classList.toggle('is-on', img.dataset.state === state); };
+    const pointer = $('.lid-pointer', lid);
+    const hm = $('.night-hm', lid), ampm = $('.night-ampm', lid), menuClock = $('.lid-clock', lid);
+    const done = $$('.night-done li', lid), sleep = $('.night-sleep', lid);
+    // 11:48 PM to 3:12 AM, in minutes after midnight (wrapping).
+    const clock = (m) => {
+      m = ((Math.round(m) % 1440) + 1440) % 1440;
+      const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0');
+      return { hm: `${h % 12 || 12}:${mm}`, ampm: h < 12 ? 'AM' : 'PM' };
+    };
+    const setClock = (m) => { const c = clock(m); hm.textContent = c.hm; ampm.textContent = c.ampm; menuClock.textContent = `${c.hm} ${c.ampm}`; };
+    const START = 23 * 60 + 48, END = 24 * 60 + 3 * 60 + 12;
+    const reset = () => {
+      lid.classList.remove('is-closed', 'is-night', 'is-asleep');
+      pointer.classList.remove('is-on', 'is-at', 'is-click');
+      done.forEach((d) => d.classList.remove('is-on'));
+      sleep.classList.remove('is-on');
+      setClock(START);
+      show('collapsed');
+    };
+    timeline(lid, ({ at }) => {
+      at(0, reset);
+      at(700, () => show('off'));
+      at(1300, () => pointer.classList.add('is-on'));
+      at(1450, () => pointer.classList.add('is-at'));
+      at(2500, () => pointer.classList.add('is-click'));
+      at(2650, () => { pointer.classList.remove('is-click'); show('on'); });
+      at(3500, () => pointer.classList.remove('is-on'));
+      at(4300, () => show('announce'));
+      at(6300, () => show('awake'));
+      at(6900, () => lid.classList.add('is-closed', 'is-night'));
+      // The night: the clock runs fast while the sessions finish one by one.
+      const t0 = 7600, span = 6200, steps = 62;
+      for (let i = 0; i <= steps; i++) {
+        const p = i / steps, eased = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+        at(t0 + p * span, () => setClock(START + (END - START) * eased));
+      }
+      done.forEach((d, i) => at(t0 + 900 + i * 1250, () => d.classList.add('is-on')));
+      at(t0 + span + 300, () => { sleep.classList.add('is-on'); lid.classList.add('is-asleep'); });
+      at(t0 + span + 2400, () => { lid.classList.remove('is-night'); });
+      at(t0 + span + 2900, () => { lid.classList.remove('is-closed', 'is-asleep'); setClock(7 * 60 + 41); show('end'); });
+      at(t0 + span + 8400, () => {});
+    }, () => { reset(); show('on'); });
+  }
+
   // Windows: pick a count; the windows fly from a messy pile into tabby tile's real grid (lib/tile.js grid()).
   const GRIDS = { 2: [2, 1], 3: [3, 1], 4: [2, 2], 6: [3, 2], 8: [4, 2] };
   const ORDER = [2, 3, 4, 6, 8];

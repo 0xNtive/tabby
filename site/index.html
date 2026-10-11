@@ -45,6 +45,7 @@
   <nav aria-label="Sections" class="nav-tabs">
     <a class="nav-tab" href="#tabs">Tabs</a>
     <a class="nav-tab" href="#island">Island</a>
+    <a class="nav-tab" href="#awake">Awake</a>
     <a class="nav-tab" href="#focus">Focus</a>
     <a class="nav-tab" href="#windows">Windows</a>
     <a class="nav-tab" href="#commands">Commands</a>
@@ -59,6 +60,7 @@
   <section id="top" class="hero" aria-labelledby="hero-title">
     <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="hero-copy">
+      <a class="news" href="#awake"><span class="news-tag">New</span><span>Close the lid. Claude keeps working.</span><span class="news-arrow" aria-hidden="true">→</span></a>
       <p class="eyebrow hero-eyebrow">A Claude Code plugin · macOS and Linux</p>
       <h1 id="hero-title" class="hero-title">Every Claude tab, at a&nbsp;glance.</h1>
       <p class="hero-sub">An AI-written name, a calm color and a live status for every Claude Code session. On a Mac, an island that shows them all.</p>
@@ -217,6 +219,67 @@
         <h3>Under 1% CPU, always.</h3>
         <p>SwiftUI for layout, Core Animation for anything that loops. Tabby Island idles like a menu-bar clock.</p>
         <p class="card-foot">No servers, no telemetry, no accounts, and no network code in the app.</p>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Awake: the screen closes like a lid while a night goes by; the island tells you how it went when it opens. -->
+  <section id="awake" class="section awake" aria-labelledby="awake-title">
+    <div class="awake-sky" aria-hidden="true"></div>
+    <div class="center reveal">
+      <p class="eyebrow">New in 0.5 · Awake</p>
+      <h2 id="awake-title" class="h2">Close the lid. Claude keeps&nbsp;working.</h2>
+      <p class="lede narrow">Shut a Mac and it sleeps, and every session stops mid-turn. <code>caffeinate</code> can't help with that one. Pick how long, close the lid, walk away: your Mac goes back to sleep the moment the last session is done.</p>
+    </div>
+    <figure class="lid-stage reveal" id="lid-stage" role="img" aria-label="Tabby Island's Awake page: 3 hours 52 minutes left, until every session is done. The screen closes like a lid while the night goes by and four sessions finish, then opens with the island saying: Sleep is back on, every session is done, 4 sessions worked, at 3:12 AM.">
+      <div class="lid">
+        <div class="lid-screen">
+          <div class="menubar" aria-hidden="true">
+            <span class="mb-apple"></span><span class="mb-app">Terminal</span><span>Shell</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+            <span class="mb-right"><span class="mb-cat"><img src="/assets/logo.svg?v=20260928a" alt=""></span><span class="lid-clock">11:48 PM</span></span>
+          </div>
+          <div class="lid-island" aria-hidden="true">
+            <img data-state="collapsed" class="is-on" src="/assets/ui/island-collapsed.webp?v=20261002a" alt="" width="866" height="136" loading="lazy" decoding="async">
+            <img data-state="off" src="/assets/ui/awake-off.webp?v=20261011a" alt="" width="1104" height="662" loading="lazy" decoding="async">
+            <img data-state="on" src="/assets/ui/awake-on.webp?v=20261011a" alt="" width="1104" height="598" loading="lazy" decoding="async">
+            <img data-state="announce" src="/assets/ui/island-announce-awake.webp?v=20261011a" alt="" width="1422" height="180" loading="lazy" decoding="async">
+            <img data-state="awake" src="/assets/ui/island-awake-collapsed.webp?v=20261011a" alt="" width="938" height="136" loading="lazy" decoding="async">
+            <img data-state="end" src="/assets/ui/island-announce-awake-end.webp?v=20261011a" alt="" width="1078" height="180" loading="lazy" decoding="async">
+          </div>
+          <span class="lid-pointer" aria-hidden="true"></span>
+        </div>
+        <div class="lid-back" aria-hidden="true"><span class="lid-glow"></span></div>
+      </div>
+      <div class="lid-base" aria-hidden="true"></div>
+      <div class="night" aria-hidden="true">
+        <p class="night-time"><span class="night-hm">11:48</span><span class="night-ampm">PM</span></p>
+        <p class="night-note">Lid closed · Claude keeps working</p>
+        <ul class="night-done">
+          <li style="--c:#e79e6b"><i></i>Migrate billing to Stripe v3 <em>is done</em></li>
+          <li style="--c:#7fc489"><i></i>Fix flaky checkout e2e test <em>is done</em></li>
+          <li style="--c:#bea0eb"><i></i>Write the 2.0 release notes <em>is done</em></li>
+          <li style="--c:#48c7c3"><i></i>Benchmark the tokenizer <em>is done</em></li>
+        </ul>
+        <p class="night-sleep"><span class="moon"></span>Every session is done. Your Mac goes to sleep.</p>
+      </div>
+    </figure>
+    <p class="cmdline center-line reveal"><code>/tab awake 4h</code><span class="sep">·</span><code>/tab awake done</code><span class="sep">·</span>the cup in the island<span class="sep">·</span>Keep Awake in the menu-bar menu</p>
+
+    <ul class="cards cards-awake">
+      <li class="card reveal" style="--i:0">
+        <div class="card-shot shot-awake"><img src="/assets/ui/awake-off.webp?v=20261011a" alt="The Awake page: at most 1h, 2h, 4h or 8h, with Sleep as soon as every session is done ticked, then close the lid, Claude keeps working" width="1104" height="662" loading="lazy" decoding="async"></div>
+        <h3>For a while, or until it's done.</h3>
+        <p>Pick 1, 2, 4 or 8 hours. Leave <b>Sleep as soon as every session is done</b> ticked and the hours are only the most it may take.</p>
+      </li>
+      <li class="card reveal" style="--i:1">
+        <div class="card-shot shot-awake"><img src="/assets/ui/awake-on.webp?v=20261011a" alt="Awake on: a ring with 3 hours 52 minutes left, until every session is done, 3:40 AM at the latest, with +1h and Stop buttons" width="1104" height="598" loading="lazy" decoding="async"></div>
+        <h3>It turns itself off.</h3>
+        <p>Sleep comes back when time's up, when the work is done, or below 10% battery. A crash or a restart never leaves it on.</p>
+      </li>
+      <li class="card card-text reveal" style="--i:2">
+        <h3>Asks once, does one thing.</h3>
+        <p>Only <code>pmset disablesleep</code> keeps a closed Mac awake, and it needs an administrator. macOS asks for your password once; tabby may then run exactly two commands, sleep off and sleep on. Nothing else.</p>
+        <p class="card-foot"><code>tabby awake forget</code> takes it back.</p>
       </li>
     </ul>
   </section>

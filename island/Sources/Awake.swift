@@ -72,8 +72,11 @@ struct AwakeState: Equatable, Sendable {
         }
     }
 
-    /// Snapshot renders for the website show US times ("3:40 AM") whatever this Mac uses.
+    /// Snapshot renders for the website show US times ("3:40 AM") whatever this Mac uses, at a
+    /// fixed moment of a night (so the times in a render agree with each other).
     static var locale: Locale?
+    static var fixedNow: Date?
+    static var now: Date { fixedNow ?? Date() }
 
     static func clock(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -186,7 +189,7 @@ final class AwakeModel: ObservableObject {
 extension Announcement {
     /// "Awake for 4h" · "Close the lid any time. Claude keeps working."
     static func awakeOn(_ state: AwakeState) -> Announcement {
-        let span = AwakeState.span(state.left(now: Date()))
+        let span = AwakeState.span(state.left(now: AwakeState.now))
         var announcement = Announcement(kind: .info, title: "Awake for \(span)",
                                         suffix: state.untilDone ? "or until done" : nil, symbol: "cup.and.saucer.fill",
                                         sessionId: nil, topic: "awake")
@@ -228,7 +231,7 @@ struct AwakePage: View {
             Group {
                 if let state, state.on {
                     TimelineView(.periodic(from: .now, by: 15)) { context in
-                        running(state, now: context.date)
+                        running(state, now: AwakeState.fixedNow ?? context.date)
                     }
                 } else {
                     choose

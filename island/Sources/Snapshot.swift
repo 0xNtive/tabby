@@ -653,12 +653,15 @@ enum Snapshotter {
 
 enum DemoData {
     /// Awake with 3 h 12 m of 4 h left, until every session is done; or how a night of it ended.
+    /// A night of it: started at 11:40 PM for 4 h at most, seen at 11:48 PM; it ended at 3:12 AM
+    /// once every session was done.
     static func awake(on: Bool) -> AwakeState {
         AwakeState.locale = Locale(identifier: "en_US")
-        let now = Date()
-        let start = now.addingTimeInterval(-48 * 60)
-        return AwakeState(on: on, token: "demo", startedAt: start, until: start.addingTimeInterval(4 * 3600), untilDone: true,
-                          minBattery: 10, watcherPid: nil, endedAt: on ? nil : now.addingTimeInterval(-5 * 3600 - 11 * 60),
+        let calendar = Calendar.current
+        let night = calendar.date(bySettingHour: 23, minute: 40, second: 0, of: Date()) ?? Date()
+        AwakeState.fixedNow = night.addingTimeInterval(8 * 60)
+        return AwakeState(on: on, token: "demo", startedAt: night, until: night.addingTimeInterval(4 * 3600), untilDone: true,
+                          minBattery: 10, watcherPid: nil, endedAt: on ? nil : night.addingTimeInterval(3 * 3600 + 32 * 60),
                           reason: on ? nil : "done", worked: on ? nil : 4, restored: true)
     }
 

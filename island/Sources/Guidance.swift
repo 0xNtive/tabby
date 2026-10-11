@@ -188,7 +188,7 @@ extension ToolbarHintContent {
         case .awake:
             if let awake, awake.on {
                 return ToolbarHintContent(symbol: IslandPage.awake.symbol,
-                                          title: "Awake · \(AwakeState.span(awake.left(now: Date()))) left",
+                                          title: "Awake · \(AwakeState.span(awake.left(now: AwakeState.now))) left",
                                           detail: "Your Mac keeps running with the lid closed until \(AwakeState.clock(awake.until))\(awake.untilDone ? ", or until every session is done" : ""). Click to add time or stop.",
                                           shortcut: nil)
             }
