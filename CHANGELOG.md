@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 — 2026-10-11
+
+- **A sturdier first start for Awake.** After macOS writes the permission file, tabby now checks it the way sudo does (owned by root, not writable by everyone) instead of asking for one exact mode, then confirms with sudo itself that the two commands run without a password. A stricter check could have stopped a first start that would have worked.
+
 ## 0.5.0 — 2026-10-11
 
 Close the lid and Claude keeps working. And for anyone who'd rather keep the notch empty, tabby can live in the menu bar.
