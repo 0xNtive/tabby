@@ -18,9 +18,11 @@
   .og-brand { display: flex; align-items: center; gap: 14px; font-size: 40px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; }
   .og-brand img { width: 50px; height: 50px; }
   .og-beta { margin-left: 2px; padding: 5px 11px 6px; border: 1.5px solid rgb(244 145 62 / 0.55); border-radius: 999px; background: rgb(244 145 62 / 0.12); color: var(--marmalade); font: 500 16px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
-  .og-title { margin: 44px 0 0; font-size: 72px; font-weight: 650; line-height: 0.98; letter-spacing: -0.035em; }
-  .og-sub { margin: 26px 0 0; max-width: 460px; font-size: 26px; line-height: 1.32; color: #b9bac0; }
-  .og-foot { display: flex; align-items: center; gap: 14px; margin-top: 40px; font: 500 19px/1 var(--mono); color: var(--marmalade); }
+  .og-new { display: inline-flex; align-self: flex-start; align-items: center; gap: 10px; margin-top: 34px; padding: 6px 16px 6px 6px; border: 1.5px solid rgb(244 145 62 / 0.45); border-radius: 999px; background: rgb(244 145 62 / 0.1); font: 500 19px/1.2 var(--display); color: var(--text); }
+  .og-new b { padding: 5px 10px; border-radius: 999px; background: var(--marmalade); color: #1a0e04; font: 600 13px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+  .og-title { margin: 26px 0 0; font-size: 72px; font-weight: 650; line-height: 0.98; letter-spacing: -0.035em; }
+  .og-sub { margin: 22px 0 0; max-width: 460px; font-size: 26px; line-height: 1.32; color: #b9bac0; }
+  .og-foot { display: flex; align-items: center; gap: 14px; margin-top: 32px; font: 500 19px/1 var(--mono); color: var(--marmalade); }
   .og-foot i { width: 5px; height: 5px; border-radius: 50%; background: rgb(255 255 255 / 0.35); }
   .og-foot span + i + span { color: #a9aab0; }
 
@@ -50,6 +52,7 @@
   <div class="og-shade"></div>
   <div class="og-copy">
     <div class="og-brand"><img src="/assets/logo.svg" alt=""><span>tabby</span><span class="og-beta">beta</span></div>
+    <span class="og-new"><b>New</b>Close the lid. Claude keeps working.</span>
     <h1 class="og-title">Every Claude tab, at a&nbsp;glance.</h1>
     <p class="og-sub">A name, a calm color and a live status for every Claude Code session.</p>
     <div class="og-foot"><span>claude-tabby.vercel.app</span><i></i><span>free and local</span></div>
