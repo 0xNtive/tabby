@@ -909,14 +909,16 @@ extension DemoData {
         let now = Date().timeIntervalSince1970 * 1000
         func ago(_ hours: Double) -> Double { now - hours * 3_600_000 }
         let accents = Palette.fallbackAccents
+        // The first two stay under "Today" even when the render runs just after midnight.
+        let sinceMidnight = Date().timeIntervalSince(Calendar.current.startOfDay(for: Date())) / 3600
         func past(_ n: Int, _ title: String, _ project: String, _ summary: String, _ hours: Double, _ accent: Int) -> PastSession {
             PastSession(sessionId: "past-\(n)", title: title, project: project, cwd: "/Users/you/\(project)", summary: summary,
                         lastPrompt: nil, lastAt: ago(hours), live: false, dot: accents[accent].dot, accent: accents[accent].hex,
                         resumable: true)
         }
         return [
-            past(1, "Stripe webhook retries", "billing", "Retrying failed webhooks with backoff; the replay script is next.", 1.2, 1),
-            past(2, "Dark mode for settings", "web", "Every settings pane follows the system theme; the toggle is gone.", 3.5, 5),
+            past(1, "Stripe webhook retries", "billing", "Retrying failed webhooks with backoff; the replay script is next.", min(1.2, sinceMidnight * 0.4), 1),
+            past(2, "Dark mode for settings", "web", "Every settings pane follows the system theme; the toggle is gone.", min(3.5, sinceMidnight * 0.8), 5),
             past(3, "Flaky auth tests", "api", "Fixed the clock skew in the token tests: 50 runs green.", 26, 3),
             past(4, "Release notes 2.0", "docs", "Drafted the 2.0 notes, shortcuts first.", 30, 6),
             past(5, "Tokenizer benchmark", "tok", "Benchmarked the tokenizer on the 1 GB fixture.", 75, 4),
