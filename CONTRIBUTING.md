@@ -24,7 +24,7 @@ Thanks for helping! tabby is small on purpose: zero runtime dependencies, plain 
     TABBY_MARKETPLACE="$PWD" bash install.sh --yes
   ```
 
-  Add `TABBY_NODE_DOWNLOAD=force` to test the private Node.js download, and `TABBY_ISLAND_URL=file:///path/TabbyIsland.zip` (with a `.sha256` next to it) to test the island download before a release exists.
+  Add `TABBY_NODE_DOWNLOAD=force` to test the private Node.js download, and `TABBY_ISLAND_URL=file:///path/TabbyIsland.zip` (with a `.sha256` next to it) to test the island download before a release exists. A zip of your own isn't signature-checked, so tabby honors `TABBY_ISLAND_URL` only outside Claude Code: run this from your own terminal, or with `env -u CLAUDECODE` from Claude's.
 - **Themes:** add them to `lib/themes.js` using the theme's *published* colors, and name accents by hue (red … pink). Then run `npm run export`, which updates `docs/contrast.md` and `site/themes.json`. Tests reject a theme whose text is below WCAG AA.
 - **Island:** `bash island/build.sh` (this Mac) or `--universal`, then `bash island/test.sh`. Check the UI with `"island/build/Tabby Island.app/Contents/MacOS/TabbyIsland" --snapshot <dir>`: it renders every screen to PNGs, with no Screen Recording permission needed. Keep collapsed idle CPU under 1% (Core Animation for anything that loops).
 - **Website:** static files in `site/`. Preview with `cd site && python3 -m http.server`.
@@ -35,6 +35,8 @@ Hooks must never break or slow a session. Catch everything, log to `~/.claude/ta
 
 1. Bump `version` in `package.json`, `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, and add a `CHANGELOG.md` entry (`## X.Y.Z — date`).
 2. Push to `main`: CI runs the tests, and Vercel deploys the site and `/install`.
-3. Tag it: `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow builds the universal Tabby Island, checks its signature and version, and publishes `TabbyIsland.zip` with its `.sha256`. `tabby island install` and the installer download that, and fall back to building locally if it isn't there.
+3. Tag it: `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow builds the universal Tabby Island, checks its code signature and version, signs the zip with the `ISLAND_SIGNING_KEY` secret (Ed25519; the public half is `ISLAND_KEY` in `lib/island.js`) and publishes `TabbyIsland.zip` with its `.sha256` and `.sig`. `tabby island install` and the installer download that, throw it away if the signature doesn't match, and fall back to building locally if it isn't there.
+
+   A new signing key needs a release with the new `ISLAND_KEY` first: a tabby that has the old key accepts only zips signed with it.
 
 Commits: small and descriptive. Update `CHANGELOG.md` for anything users notice.

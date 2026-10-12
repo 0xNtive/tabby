@@ -131,9 +131,11 @@ enum Actions {
             } else {
                 open(bundleId: "com.apple.Terminal")
             }
-        } else {
-            open(bundleId: bundleId(forTerm: term) ?? "com.apple.Terminal")
+        } else if let app = session.bundleId ?? bundleId(forTerm: term) {
+            open(bundleId: app)
         }
+        // A terminal it can't name (tmux started elsewhere, an app it doesn't know): it does
+        // nothing, rather than open Terminal.app.
     }
 
     private static func bundleId(forTerm term: String) -> String? {

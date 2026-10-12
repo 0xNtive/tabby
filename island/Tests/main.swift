@@ -574,5 +574,12 @@ orphaned.watcherPid = nil
 check(orphaned.needsCheck(now: Date()), "no watcher: check it")
 check(IslandPage.isPageRow(IslandPage.awake.rowId("4")), "awake page rows")
 
+// The app a session's terminal is: only well-formed bundle ids reach NSWorkspace.
+check(SnapshotLoader.bundleId("com.apple.Terminal") == "com.apple.Terminal"
+      && SnapshotLoader.bundleId("com.todesktop.230313mzl4w4u92") != nil, "bundle ids")
+check(SnapshotLoader.bundleId("") == nil && SnapshotLoader.bundleId("/Applications/Evil.app") == nil
+      && SnapshotLoader.bundleId("com.x\u{1b}]0;y") == nil && SnapshotLoader.bundleId(String(repeating: "a", count: 101)) == nil
+      && SnapshotLoader.bundleId("cöm.x") == nil, "anything else is no bundle id")
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

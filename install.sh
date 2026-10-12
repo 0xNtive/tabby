@@ -171,8 +171,17 @@ elif git_works; then
   quiet "$CLAUDE" plugin marketplace add "$REPO" || quiet "$CLAUDE" plugin marketplace update tabby || true
 else
   SRC="$TABBY_DIR/src"
-  rm -rf "$SRC" && mkdir -p "$SRC"
-  fetch_source() { curl -fsSL --retry 2 --proto '=https' "https://codeload.github.com/$REPO/tar.gz/refs/heads/main" | tar -xz -C "$1"; }
+  rm -rf "$SRC" && mkdir -p "$SRC/tabby-main"
+  # The latest release, from where GitHub's /releases/latest link points (no API, no token); main
+  # only if that can't be read. The folder keeps the name tabby-main either way.
+  TAG=$(curl -fsSI --proto '=https' --max-time 10 "https://github.com/$REPO/releases/latest" 2> /dev/null | tr -d '\r' | sed -n 's|^[Ll]ocation:[[:space:]]*||p' | tail -n 1)
+  TAG=${TAG##*/}
+  if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then REF="refs/tags/$TAG"; else
+    REF="refs/heads/main"
+    warn "couldn't find tabby's latest release on GitHub, so this is the newest code on main instead"
+  fi
+  echo "source: $REF" >> "$LOG"
+  fetch_source() { curl -fsSL --retry 2 --proto '=https' "https://codeload.github.com/$REPO/tar.gz/$REF" | tar -xz --strip-components 1 -C "$1/tabby-main"; }
   if quiet fetch_source "$SRC"; then
     quiet "$CLAUDE" plugin marketplace remove tabby || true
     quiet "$CLAUDE" plugin marketplace add "$SRC/tabby-main" || true
@@ -238,8 +247,8 @@ fi
 # ---------- 5. Check ----------
 step "Checking the install"
 tabby doctor 2>&1 | tee -a "$LOG" | sed -n '2,$p'
-printf '\n%sDone.%s Open a new Claude Code session (or type /reload-plugins in one that is open):\n' "$B" "$N"
-printf '  its tab gets a name and a color after your first prompt'
+printf '\n%sDone.%s Every Claude Code session is on, the ones already open too:\n' "$B" "$N"
+printf '  each tab gets a name and a color with its next prompt'
 [ "$OS" = Darwin ] && [ "$ISLAND" = 1 ] && printf ', and every session shows in the island at the top center of your screen'
 printf '.\n  /tab in Claude for commands · tabby doctor to check · tabby uninstall to remove everything\n'
 

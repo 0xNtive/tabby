@@ -14,7 +14,7 @@ process.env.TABBY_NO_TERMINAL_PROFILES = '1'; // never switch the real Terminal'
 process.env.TABBY_NO_ISLAND = '1'; // never download, start or quit the real Tabby Island
 process.env.TABBY_NO_UPDATE_CHECK = '1'; // no network
 process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
-delete process.env.TMUX;
+for (const k of ['TMUX', 'STY', 'ZELLIJ']) delete process.env[k]; // a multiplexer changes which codes go out
 delete process.env.TABBY_OFF;
 delete process.env.TABBY_INTERNAL;
 fs.mkdirSync(process.env.TABBY_HOME, { recursive: true });

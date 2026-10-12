@@ -196,6 +196,9 @@ test('labels say what a process is', () => {
   for (const [cmd, label] of cases) assert.equal(P.describe(cmd), label, cmd);
 });
 
+// `ps -o pid=,lstart=` for the made-up table: every process still the one the scan saw.
+const sameStarts = (pids) => new Map(pids.map((pid) => [pid, P.parsePs(ps).get(pid)?.startedAt]));
+
 test('stop: SIGTERM to the group (children first), SIGKILL for whatever stays, and only what the list showed', () => {
   const list = scanned();
   const alive = new Set([600, 601, 602, 700, 710, 801]);
@@ -206,20 +209,42 @@ test('stop: SIGTERM to the group (children first), SIGKILL for whatever stays, a
     if (!alive.has(pid)) throw Object.assign(new Error('gone'), { code: 'ESRCH' });
     if (sig === 'SIGKILL' || !stubborn.has(pid)) alive.delete(pid);
   };
-  const res = P.stop([list.items.find((i) => i.pid === 600).id], { scanned: list, kill, isAlive: (p) => alive.has(p), wait: () => {} });
+  const res = P.stop([list.items.find((i) => i.pid === 600).id], { scanned: list, kill, isAlive: (p) => alive.has(p), wait: () => {}, started: sameStarts });
   assert.deepEqual(sent.filter(([, s]) => s === 'SIGTERM').map(([p]) => p), [602, 601, 600]);
   assert.deepEqual(sent.filter(([, s]) => s === 'SIGKILL').map(([p]) => p), [602]);
   assert.deepEqual(res.stopped.map((s) => s.label), ['vite']);
   assert.ok(alive.has(700) && alive.has(801), 'nothing else touched');
 
-  const stale = P.stop('stale', { scanned: scanned(), kill, isAlive: (p) => alive.has(p), wait: () => {} });
+  const stale = P.stop('stale', { scanned: scanned(), kill, isAlive: (p) => alive.has(p), wait: () => {}, started: sameStarts });
   assert.deepEqual(stale.stopped.map((s) => s.pid).sort(), [600, 700, 710]);
   assert.ok(alive.has(801), 'not stale: still running');
   assert.match(P.stopReport(stale), /^Stopped 3: /);
 
-  const stale2 = P.stop(['801-1'], { scanned: scanned(), kill, isAlive: (p) => alive.has(p), wait: () => {} });
+  const stale2 = P.stop(['801-1'], { scanned: scanned(), kill, isAlive: (p) => alive.has(p), wait: () => {}, started: sameStarts });
   assert.deepEqual(stale2.stopped, [], 'a pid that started at another time (reused) is never hit');
   assert.deepEqual(stale2.unknown, ['801-1']);
+});
+
+test('stop: no SIGKILL for a pid that changed hands during the wait, or that ps no longer knows', () => {
+  assert.equal(P.parseStarts(' 602 Sat Oct 10 13:00:00 2026\n  9 Mon Oct  5 09:03:00 2026\n').get(9), Date.parse('Mon Oct 5 09:03:00 2026'));
+  for (const later of [(pids) => new Map(pids.map((pid) => [pid, NOW])), () => new Map()]) {
+    const list = scanned();
+    const alive = new Set([600, 601, 602]);
+    const sent = [];
+    // vite ignores SIGTERM; by the time SIGKILL is due its pid is someone else's (or unreadable).
+    const kill = (pid, sig) => {
+      sent.push([pid, sig]);
+      if (pid !== 602) alive.delete(pid);
+    };
+    const res = P.stop(['600'], { scanned: list, kill, isAlive: (p) => alive.has(p), wait: () => {}, started: later });
+    assert.deepEqual(sent.filter(([, s]) => s === 'SIGKILL'), [], 'nothing killed');
+    assert.deepEqual(res.stopped.map((s) => s.label), ['vite'], 'the rest of the group stopped');
+  }
+  // A list that didn't come from a scan here: SIGTERM only.
+  const sent = [];
+  const item = { ...scanned().items.find((i) => i.pid === 600) };
+  P.stop(['600'], { scanned: { items: [item] }, kill: (pid, sig) => sent.push([pid, sig]), isAlive: () => true, wait: () => {}, started: sameStarts });
+  assert.deepEqual(sent.map(([, s]) => s), ['SIGTERM', 'SIGTERM', 'SIGTERM']);
 });
 
 test('report: stale first with how to stop them, the rest after', () => {

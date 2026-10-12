@@ -159,7 +159,7 @@ final class SnapshotLoader: @unchecked Sendable {
     private var turnScans: [String: TurnScan] = [:]
     private let turnScanBytes: UInt64 = 16 * 1024 * 1024
     private var heads: [String: (modelId: String?, marketing: String?)] = [:]
-    private var processes: [Int: (tty: String?, term: String?)] = [:]
+    private var processes: [Int: (tty: String?, term: String?, app: String?)] = [:]
     private var themeCache: (stamp: FileStamp, themes: ThemeLoad)?
     /// When a Terminal tab's window first went unknown; it's asked for urgently only for a while.
     private var missingWindowSince: [String: Date] = [:]
@@ -357,10 +357,12 @@ final class SnapshotLoader: @unchecked Sendable {
 
         var tty = str(record?["tty"]).flatMap(Self.devicePath)
         var term = str(record?["term"])
-        if tty == nil || term == nil {
+        var app = str(record?["bundleId"]).flatMap(Self.bundleId)
+        if tty == nil || term == nil || app == nil {
             let probe = processInfo(pid)
             tty = tty ?? probe.tty
             term = term ?? probe.term
+            app = app ?? probe.app
         }
 
         // Title priority: tabby's title → the terminal's live tab title (Claude's AI topic
@@ -409,6 +411,7 @@ final class SnapshotLoader: @unchecked Sendable {
             model: model.map(Fmt.prettyModel),
             tty: tty,
             term: term,
+            bundleId: app,
             startedAt: num(entry?["startedAt"]) ?? num(record?["startedAt"]) ?? 0,
             activityAt: num(entry?["statusUpdatedAt"]) ?? num(entry?["updatedAt"])
                 ?? num(record?["statusAt"]) ?? num(record?["updatedAt"]),
@@ -438,12 +441,21 @@ final class SnapshotLoader: @unchecked Sendable {
         return ["claude", "claude code", "zsh", "bash", "fish", "sh", "login", "-zsh", "-bash"].contains(plain)
     }
 
-    private func processInfo(_ pid: Int) -> (tty: String?, term: String?) {
+    private func processInfo(_ pid: Int) -> (tty: String?, term: String?, app: String?) {
         if let cached = processes[pid] { return cached }
+        // macOS puts the bundle id of the app that started the shell in its environment.
         let info = (tty: ProcessProbe.tty(pid: pid),
-                    term: ProcessProbe.environment(pid: pid, key: "TERM_PROGRAM").map(ProcessProbe.normalizeTerm))
+                    term: ProcessProbe.environment(pid: pid, key: "TERM_PROGRAM").map(ProcessProbe.normalizeTerm),
+                    app: ProcessProbe.environment(pid: pid, key: "__CFBundleIdentifier").flatMap(Self.bundleId))
         processes[pid] = info
         return info
+    }
+
+    /// A bundle id as macOS writes them, nothing else (it ends up in NSWorkspace calls).
+    static func bundleId(_ value: String) -> String? {
+        let ok = !value.isEmpty && value.count <= 100
+            && value.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) && $0.isASCII || $0 == "." || $0 == "-" }
+        return ok ? value : nil
     }
 
     // MARK: Transcript fallback (context usage, model, last prompt)

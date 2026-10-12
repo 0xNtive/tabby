@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hexToOklch, oklchToHex, contrast, tint, markerFor, hueFamily, normHex } from '../lib/color.js';
+import { hexToOklch, oklchToHex, contrast, tint, markerFor, hueFamily, normHex, ansiFg, ansiBg, xterm256 } from '../lib/color.js';
 
 test('oklch round-trips within one 8-bit step', () => {
   for (const hex of ['#1b1e23', '#ef9491', '#48c7c3', '#fdf6e3', '#002b36', '#ffffff', '#000000']) {
@@ -38,4 +38,26 @@ test('emoji markers follow hue', () => {
   assert.equal(markerFor('#30a46c', 'heart'), '💚');
   assert.equal(markerFor('#30a46c', 'none'), '');
   assert.equal(hueFamily('#48c7c3'), 'teal');
+});
+
+test('Terminal.app before macOS 26 gets 256 colors; everything else 24-bit', () => {
+  const saved = { TERM_PROGRAM: process.env.TERM_PROGRAM, COLORTERM: process.env.COLORTERM };
+  const set = (k, v) => (v === undefined ? delete process.env[k] : (process.env[k] = v));
+  try {
+    set('TERM_PROGRAM', 'Apple_Terminal');
+    set('COLORTERM', undefined);
+    assert.equal(ansiFg('#ff0000'), '\x1b[38;5;196m');
+    assert.equal(ansiBg('#808080'), '\x1b[48;5;244m', 'grays use the gray ramp');
+    set('COLORTERM', 'truecolor');
+    assert.equal(ansiFg('#ff0000'), '\x1b[38;2;255;0;0m', 'Terminal 2.15 says truecolor');
+    set('COLORTERM', '24bit');
+    assert.equal(ansiBg('#1b1e23'), '\x1b[48;2;27;30;35m');
+    set('TERM_PROGRAM', 'iTerm.app');
+    set('COLORTERM', undefined);
+    assert.equal(ansiFg('#ff0000'), '\x1b[38;2;255;0;0m');
+  } finally {
+    set('TERM_PROGRAM', saved.TERM_PROGRAM);
+    set('COLORTERM', saved.COLORTERM);
+  }
+  assert.deepEqual(['#000000', '#ffffff', '#5f87af', '#eeeeee'].map(xterm256), [16, 231, 67, 255]);
 });

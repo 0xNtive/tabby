@@ -36,7 +36,6 @@ final class UpdateCenter: ObservableObject {
     private var checkTimer: Timer?
     private var pollTimer: Timer?
     private let fixed: Bool
-    private static let checkEvery: TimeInterval = 6 * 3600
     private static let announcedKey = "announcedUpdate"
 
     init() { fixed = false }
@@ -54,7 +53,7 @@ final class UpdateCenter: ObservableObject {
     // MARK: Lifecycle
 
     /// At launch: what's known, an update that was running when the island restarted, and the
-    /// news if that update just finished. With `automatic`, a check when the last is 6 h old.
+    /// news if that update just finished. With `automatic`, it keeps reading what checks find.
     func start(automatic: Bool) {
         guard !fixed else { return }
         readCheck()
@@ -81,11 +80,15 @@ final class UpdateCenter: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.checkIfStale() }
     }
 
+    /// Only reads what the last check found. The checks themselves start from Claude sessions
+    /// (at most every 6 h) or from a click on Check Now: the island never runs tabby's scripts on
+    /// its own, since whatever it runs acts with its macOS permissions.
     private func checkIfStale() {
+        let wasAvailable = info.available ? info.latest : nil
         readCheck()
-        guard phase == .idle else { return }
-        if let at = info.checkedAt, Date().timeIntervalSince(at) < Self.checkEvery { return }
-        check(manual: false)
+        if info.available, let latest = info.latest, latest != wasAvailable {
+            announce?("tabby \(latest) is out", "arrow.down.circle.fill")
+        }
     }
 
     // MARK: Checking

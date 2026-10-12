@@ -32,13 +32,15 @@ fs.writeFileSync(
 process.env.CLAUDE_CODE_EXECPATH = fakeClaude;
 const callCount = () => fs.readdirSync(calls).filter((n) => n.endsWith('.argv')).length;
 
-let S, N, T, C, I;
+let S, N, T, C, I, L, H;
 before(async () => {
   S = await import('../lib/state.js');
   N = await import('../lib/namer.js');
   T = await import('../lib/term.js');
   C = await import('../lib/commands.js');
   I = await import('../lib/install.js');
+  L = await import('../lib/launch.js');
+  H = await import('../lib/history.js');
 });
 
 const sources = (dir, ext) =>
@@ -199,6 +201,75 @@ test('control characters and bidi overrides never reach a title, a summary or th
   const rec = { title: 'Costs $& more', status: 'idle', term: 'ghostty' };
   assert.ok(T.sequences('ghostty', { title: 'Costs $& more' }).includes('Costs $& more'));
   assert.equal(rec.title, 'Costs $& more');
+});
+
+test('a folder whose name carries escape codes prints without them (tabby new --list, history, resume)', () => {
+  const evil = path.join(os.homedir(), 'work', 'clip\u001b]52;c;SGVsbG8=\u0007board');
+  const unsafe = /[\x00-\x1f\x7f-\x9f]/;
+  const folders = [{ path: evil, name: S.projectName(evil), score: 1, sessions: 2, lastUsed: Date.now(), live: 0 }];
+  const list = L.listFolders({ folders });
+  assert.ok(!unsafe.test(list.replace(/\n/g, '')), JSON.stringify(list));
+  assert.match(list, /~\/work\/clip ]52;c;SGVsbG8= board/);
+  assert.ok(!unsafe.test(L.home(evil)));
+  for (const f of JSON.parse(L.listFolders({ folders, json: true }))) assert.ok(!unsafe.test(f.display));
+  // Gone since: /tab resume and `tabby resume` say where it was.
+  const rows = [{ sessionId: 'gone-1', title: 'Clipboard', project: 'clip\u001b]0;x\u0007', cwd: evil, live: false, resumable: true, lastAt: Date.now() }];
+  const res = H.resume('gone-1', { rows, records: [] });
+  assert.equal(res.ok, false);
+  assert.match(res.message, /^Its folder is gone: ~\/work\/clip/);
+  assert.ok(!unsafe.test(res.message), JSON.stringify(res.message));
+  const hist = H.history({ records: [{ sessionId: 'h-1', cwd: evil, project: 'clip\u001b]0;x\u0007', prompts: ['fix it'], promptCount: 1 }], live: new Set() });
+  assert.ok(!unsafe.test(H.historyReport(hist).replace(/\n/g, '')));
+  assert.ok(!unsafe.test(L.newSession({ dir: 'no\u001b]0;x\u0007/where', dryRun: true })));
+});
+
+test('invisible characters that could disguise a name are taken out; joiners and the ticker’s space stay', () => {
+  for (const ch of ['​', '⁠', '﻿', ' ', ' ', 'ㅤ', 'ᅟ', 'ᅠ', '᠎', '\u{e0001}', '\u{e0041}', '\u{e007f}']) {
+    assert.equal(S.plain(`Auth${ch} Fix`), 'Auth Fix', `U+${ch.codePointAt(0).toString(16)}`);
+  }
+  assert.equal(S.plain('a　b'), 'a　b', 'U+3000 stays');
+  assert.equal(S.plain('👩‍💻 ‌x'), '👩‍💻 ‌x', 'ZWJ and ZWNJ stay');
+  assert.equal(S.plain('a\u001bb‮c'), 'a b c', 'control characters and bidi still become spaces');
+  assert.equal(S.projectName('/work/​⁠'), '');
+});
+
+test('folder colors (each names a working directory) go after 90 days unused', () => {
+  const day = 864e5;
+  fs.mkdirSync(S.paths.root, { recursive: true });
+  S.writeJson(S.paths.projects, {
+    '/work/old': { theme: 'tabby', accentKey: 'blue', at: Date.now() - 91 * day },
+    '/work/recent': { theme: 'tabby', accentKey: 'teal', at: Date.now() - 89 * day },
+    '/work/undated': { theme: 'tabby', accentKey: 'red' },
+  });
+  S.rememberProjectColor('/work/today', 'tabby', 'green');
+  S.pruneSessions();
+  assert.deepEqual(Object.keys(S.readProjects()).sort(), ['/work/recent', '/work/today']);
+});
+
+test('uninstall --purge deletes only <Claude config dir>/tabby itself', () => {
+  const base = fs.mkdtempSync(path.join(tmp, 'purge-'));
+  const claude = path.join(base, 'claude');
+  const make = (dir) => {
+    fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'sessions', 'X.json'), '{}');
+    return dir;
+  };
+  // Somewhere else, a folder of another name, a symlink out: all refused, all left as they were.
+  const elsewhere = make(path.join(base, 'elsewhere', 'tabby'));
+  assert.match(I.purgeState(elsewhere, claude), /NOT deleted/);
+  const other = make(path.join(claude, 'not-tabby'));
+  assert.match(I.purgeState(other, claude), /NOT deleted/);
+  const target = make(path.join(base, 'precious'));
+  fs.symlinkSync(target, path.join(claude, 'tabby'));
+  assert.match(I.purgeState(path.join(claude, 'tabby'), claude), /NOT deleted/);
+  for (const dir of [elsewhere, other, target]) assert.ok(fs.existsSync(path.join(dir, 'sessions', 'X.json')), dir);
+  fs.unlinkSync(path.join(claude, 'tabby'));
+  // The real thing.
+  const ours = make(path.join(claude, 'tabby'));
+  assert.match(I.purgeState(ours, claude), /^deleted /);
+  assert.ok(!fs.existsSync(ours));
+  assert.ok(fs.existsSync(other) && fs.existsSync(claude), 'nothing beside it');
+  assert.match(I.purgeState(ours, claude), /nothing to delete/);
 });
 
 test('/tab strength only takes its own three words', () => {

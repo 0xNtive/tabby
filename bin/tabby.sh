@@ -46,6 +46,22 @@ find_node() {
   return 1
 }
 
+# Hooks in settings.json for the sessions that were open when tabby was set up (lib/bridge.js)
+# reach every session: only those Claude processes go on to Node, or anyone once they have all
+# ended (Node then takes the hooks out of settings.json).
+if [ "${1:-}" = hook ] && [ "${3:-}" = --bridge ]; then
+  listed=0
+  alive=0
+  if [ -f "$home/bridge.pids" ]; then
+    while IFS= read -r p; do
+      case "$p" in '' | *[!0-9]*) continue ;; esac
+      [ "$p" = "${CLAUDE_PID:-}" ] && listed=1
+      kill -0 "$p" 2> /dev/null && alive=1
+    done < "$home/bridge.pids"
+  fi
+  [ "$listed" = 1 ] || [ "$alive" = 0 ] || exit 0
+fi
+
 if node=$(find_node); then
   exec "$node" "$script" "$@"
 fi

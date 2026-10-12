@@ -6,10 +6,10 @@ import tty from 'node:tty';
 import { spawnSync } from 'node:child_process';
 import {
   readConfig, writeConfig, readSession, patchSession, listSessions, liveSessions,
-  readRegistry, isAlive, projectName, ensureDirs, log, rememberProjectColor, plain,
+  readRegistry, isAlive, projectName, ensureDirs, log, plain,
 } from '../lib/state.js';
 import { THEMES, getTheme, themesExport } from '../lib/themes.js';
-import { detectTerminal, ownTty, ttyOfPid, focusTab, terminalTitles } from '../lib/term.js';
+import { whereFrom, ownTty, focusTab } from '../lib/term.js';
 import { chooseLook } from '../lib/assign.js';
 import { withLook, applySession, displayTitle, targetOf } from '../lib/apply.js';
 import { runCommand, helpText } from '../lib/commands.js';
@@ -18,11 +18,12 @@ import { runNamer } from '../lib/namer.js';
 import { statusline } from '../lib/statusline.js';
 import { install, uninstall, refresh, pluginInstalled, writeExports, ROOT } from '../lib/install.js';
 import { ansiFg, ansiBg, markerFor } from '../lib/color.js';
-import { mergedSessions, transcriptFor } from '../lib/sessions.js';
+import { mergedSessions } from '../lib/sessions.js';
 import { tile, next, screensCommand } from '../lib/tile.js';
 import { newSession as launch, listFolders } from '../lib/launch.js';
 import * as procs from '../lib/procs.js';
 import * as awake from '../lib/awake.js';
+import * as bridge from '../lib/bridge.js';
 import { history, historyReport, resume } from '../lib/history.js';
 import { termsAccepted, acceptTerms, TERMS_SUMMARY } from '../lib/terms.js';
 import { runSetup } from '../lib/setup.js';
@@ -93,24 +94,9 @@ function findSession(q) {
 function adoptFromRegistry(q) {
   for (const r of readRegistry().values()) {
     if (r.kind && r.kind !== 'interactive') continue;
-    if (r.sessionId === q || String(r.pid) === String(q) || (q.length >= 6 && r.sessionId?.startsWith(q))) return adoptOne(r);
+    if (r.sessionId === q || String(r.pid) === String(q) || (q.length >= 6 && r.sessionId?.startsWith(q))) return bridge.adoptOne(r);
   }
   return null;
-}
-
-function adoptOne(r, titles = null) {
-  const tty = ttyOfPid(r.pid);
-  if (!tty) return null;
-  const cfg = readConfig();
-  const title = (titles || terminalTitles()).get(tty) || '';
-  const auto = chooseLook({ cwd: r.cwd, sessionId: r.sessionId }, cfg, liveSessions());
-  const rec = patchSession(
-    r.sessionId,
-    withLook({ v: 1, sessionId: r.sessionId, pid: r.pid, tty, term: detectTerminal(), cwd: r.cwd, project: projectName(r.cwd), ownsTitle: false, status: r.status || 'idle', statusAt: Date.now(), title, titleSource: title ? 'claude' : 'project', adopted: true, transcriptPath: transcriptFor(r.cwd, r.sessionId), startedAt: r.startedAt || Date.now(), ...auto }, cfg)
-  );
-  applySession(rec, cfg, { colors: true, title: false });
-  rememberProjectColor(rec.cwd, rec.theme, rec.accentKey);
-  return rec;
 }
 
 // A plain terminal tab without Claude can be named/colored too.
@@ -123,7 +109,7 @@ function bareTab(tty) {
   return patchSession(
     id,
     withLook(
-      { v: 1, sessionId: id, pid: process.ppid, tty, term: detectTerminal(), tmuxPane: process.env.TMUX_PANE || null, cwd: process.cwd(), project: projectName(process.cwd()), ownsTitle: true, status: 'shell', statusAt: Date.now(), title: '', titleSource: 'project', bare: true, startedAt: Date.now(), ...auto },
+      { v: 1, sessionId: id, pid: process.ppid, tty, ...whereFrom(process.env), cwd: process.cwd(), project: projectName(process.cwd()), ownsTitle: true, status: 'shell', statusAt: Date.now(), title: '', titleSource: 'project', bare: true, startedAt: Date.now(), ...auto },
       cfg
     )
   );
@@ -196,22 +182,15 @@ function printThemes() {
 }
 
 // ---------- commands ----------
-// Color sessions that were already running before tabby was installed (colors only —
-// Claude keeps drawing their titles until they restart with the plugin).
+// Sessions that were already running before tabby was set up: colors now, and tabby's hooks
+// through settings.json until they end (lib/bridge.js).
 function adopt() {
-  const titles = terminalTitles();
-  const only = pos[1] ? String(pos[1]).toLowerCase() : null;
-  let n = 0;
-  for (const r of readRegistry().values()) {
-    if (r.kind && r.kind !== 'interactive') continue;
-    if (readSession(r.sessionId)) continue;
-    if (only && !`${r.cwd} ${r.name} ${r.pid} ${titles.get(ttyOfPid(r.pid)) || ''}`.toLowerCase().includes(only)) continue;
-    const rec = adoptOne(r, titles);
-    if (!rec) continue;
+  const res = bridge.open({ only: pos[1] || null });
+  for (const rec of res.adopted) {
     console.log(`  ${markerFor(rec.accent, 'circle')} ${pad(plain(rec.title || rec.project), 34)} ${rec.accentKey} · ${getTheme(rec.theme).name}  (${rec.tty})`);
-    n++;
   }
-  console.log(n ? `Adopted ${n} running session${n === 1 ? '' : 's'} (colors now; AI names, status and /tab after a restart — claude --continue keeps the conversation).` : 'Nothing to adopt — every running session is already tracked.');
+  const line = bridge.describe(res);
+  console.log(line ? line[0].toUpperCase() + line.slice(1) + '.' : 'Nothing to adopt — every running session is already tracked.');
 }
 
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -357,6 +336,7 @@ const HELP = `tabby — name, color and track your Claude Code tabs
                               session is done (8 h at most); sleep comes back on by itself (macOS)
   tabby terminal-titles on|off      Terminal.app windows show only the session name
   tabby install / uninstall   setup (asks you to accept the terms) / revert everything
+  tabby uninstall --purge     the same, and delete ~/.claude/tabby too (names, colors, history, logs)
   tabby terms                 the terms of use
   tabby doctor [--json]       check every part of the install, with the fix for each
   tabby update [--check]      get the newest tabby: plugin, setup and island (--check: only look)
@@ -421,7 +401,7 @@ function main() {
     case 'hook': {
       const input = readStdinJson();
       try {
-        const out = handleHook(pos[1], input);
+        const out = handleHook(pos[1], input, { via: flags.bridge ? 'bridge' : 'plugin' });
         if (out) process.stdout.write(JSON.stringify(out));
       } catch (e) {
         log('hook error', pos[1], e.stack || e.message);
@@ -452,7 +432,9 @@ function main() {
       }
       console.log(c(BOLD, 'Installing tabby'));
       for (const s of install({ statusline: !flags['no-statusline'], shell: !flags['no-shell'], plugin: !flags['no-plugin'], title: !flags['no-title'], terminalTitles: !flags['no-terminal-titles'] })) console.log('  • ' + s);
-      console.log('\nNew Claude sessions are organized automatically. Run `tabby adopt` to color the ones already open,\n`tabby island` for the session island, and open a new shell for the claude --tab/--color/--theme flags.');
+      const open = bridge.describe(bridge.open());
+      if (open) console.log('  • ' + open);
+      console.log('\nNew Claude sessions are organized automatically. `tabby island` for the session island,\nand open a new shell for the claude --tab/--color/--theme flags.');
       return;
     }
     case 'update': {
@@ -487,7 +469,7 @@ function main() {
       return;
     }
     case 'uninstall':
-      for (const s of uninstall()) console.log('  • ' + s);
+      for (const s of uninstall({ purge: on(flags.purge) })) console.log('  • ' + s);
       return;
     case 'doctor':
       return console.log(printDoctor({ json: !!flags.json, color: !!color }));
@@ -542,7 +524,7 @@ function main() {
       const n = Number(pos[1]);
       const rec = sessionQuery ? findSession(sessionQuery) : Number.isInteger(n) && n > 0 ? mergedSessions({ withContext: false })[n - 1] : pos[1] ? findSession(pos[1]) : null;
       if (!rec) return console.log('No such session.');
-      return console.log(focusTab(targetOf(rec)) ? `→ ${displayTitle(rec)}` : 'Could not focus that tab from here.');
+      return console.log(focusTab(targetOf(rec)) ? `→ ${plain(displayTitle(rec))}` : 'Could not focus that tab from here.');
     }
     case 'adopt':
       ensureDirs();
@@ -585,7 +567,7 @@ function main() {
       }
       ensureDirs();
       const rec = currentSession();
-      if (sessionQuery && !rec) return console.log(`No session matches "${sessionQuery}". Try: tabby ls`);
+      if (sessionQuery && !rec) return console.log(`No session matches "${plain(sessionQuery)}". Try: tabby ls`);
       let args = pos.join(' ');
       if (flags.auto) args = 'auto';
       if (flags.name && !pos.length) args = `name ${flags.name}`;

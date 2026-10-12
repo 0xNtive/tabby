@@ -61,7 +61,7 @@ Or with Claude Code's plugin commands:
 /tabby:setup
 ```
 
-All three need Claude Code on macOS or Linux, and take about 15 seconds. Then open a new Claude session: its tab gets a name and a color after your first prompt.
+All three need Claude Code on macOS or Linux, and take about 15 seconds. Every Claude session is on from then on, **including the ones already open**: they get their color right away, and their name, status and `/tab` with their next prompt, without a restart or `/reload-plugins`.
 
 <details>
 <summary><b>What setup changes</b> (all of it reverts with <code>tabby uninstall</code>)</summary>
@@ -73,9 +73,10 @@ All three need Claude Code on macOS or Linux, and take about 15 seconds. Then op
 | `~/.claude/commands/tab.md` | the short `/tab`; plugin commands are namespaced as `/tabby:tab` |
 | a 3-line block in `~/.zshrc` / `~/.bashrc` | the `claude --tab --color --theme` flags and the `tabby` command |
 | Terminal.app: each Claude tab uses a "<profile> · tabby" copy of its profile while it runs | windows and tabs read `🔵 ◐ Dark Mode Settings`, not `api — 🔵 ◐ Dark Mode Settings — caffeinate ◂ claude --dangerously-skip-permissions — 80×24` |
+| tabby's hooks in `settings.json`, only while sessions that were open at setup are still running | Claude Code loads a plugin's hooks when a session starts; these reach the sessions that were already open, do nothing in any other, and are taken out when the last of them ends |
 | `~/.claude/tabby/bin/` | a launcher that runs the newest installed copy with a Node.js it finds wherever it lives |
 | `~/.claude/tabby/node/`, only if you have no Node.js 18+ | a private Node.js 22 (checksum-verified) that only tabby uses |
-| `~/Applications/Tabby Island.app` and a login item (macOS) | the island, downloaded ready-made from the [latest release](https://github.com/0xNtive/tabby/releases/latest) |
+| `~/Applications/Tabby Island.app` and a login item (macOS) | the island, downloaded ready-made from the [latest release](https://github.com/0xNtive/tabby/releases/latest) and installed only if its signature checks out |
 
 Other ways: from a checkout, `git clone https://github.com/0xNtive/tabby && node tabby/bin/tabby.js install`. For one session only, `claude --plugin-dir ./tabby`.
 </details>
@@ -261,12 +262,14 @@ The island asks macOS only for what your terminal needs, and its setup window ch
 | | title | background | tab color | jump to tab | tile |
 |---|---|---|---|---|---|
 | Terminal.app | ✓ only the name ([how](#how-it-works)) | ✓ (bold text too) | emoji marker | ✓ | ✓ (tabs → windows with Accessibility) |
-| iTerm2 | ✓ | ✓ | ✓ native, pulses when waiting | ✓ | ✓ |
+| iTerm2 | ✓ (if the profile lets applications change the title) | ✓ | ✓ native, pulses when waiting | ✓ | partial: moves windows only |
 | Ghostty, WezTerm, kitty, Alacritty | ✓ | ✓ | emoji marker | – | – |
 | VS Code / Cursor | ✓ with `"terminal.integrated.tabs.title": "${sequence}"` | ✓ | emoji marker | – | – |
 | tmux | window name | pane style | status-bar color | ✓ | – |
+| Zellij | pane title | ✓ | emoji marker | – | – |
+| GNU screen | window hardstatus | – | emoji marker | – | – |
 
-The watermark and Focus mode cover Terminal.app windows.
+The watermark and Focus mode cover Terminal.app windows. Tiling iTerm2 moves its windows into place, but doesn't split tabs into windows or leave full-screen windows alone the way it does for Terminal.app. Inside screen or Zellij, tabby talks to the multiplexer, not the terminal around it, so there's no jumping to the tab; screen shows the title where your `.screenrc` puts the hardstatus.
 
 ## Troubleshooting
 
@@ -279,13 +282,13 @@ sh ~/.claude/tabby/bin/tabby doctor       # the same, in a shell without the tab
 
 | What you see | What to do |
 |---|---|
-| A tab has no name or color | That session started before tabby: `/reload-plugins` in it, or restart it (`claude --continue` keeps the conversation). `tabby adopt` colors it now. |
+| A tab has no name or color | That session started before tabby and setup couldn't reach it: `tabby adopt` brings it in (it says why if it can't). `/reload-plugins` in it, or a restart (`claude --continue` keeps the conversation), always works. |
 | The island shows no sessions | Same: only sessions started after the install are tracked. |
 | No macOS permission prompt | `tabby island permissions`, then **Allow**. It starts the app it asks about first, so macOS can prompt. **Ask Again** resets an earlier "Don't Allow". |
 | `tabby needs Node.js 18` | Run the installer again: it sets up a private Node.js. |
 | The island isn't there | `tabby island`. If it isn't installed, `tabby island install`. It needs macOS 14 or newer. |
 
-Running the installer again is always safe: it repairs in place. Logs are in `~/.claude/tabby/install.log` and `~/.claude/tabby/tabby.log`.
+Running the installer again is always safe: it repairs in place. Logs are in `~/.claude/tabby/install.log` and `~/.claude/tabby/tabby.log` (sessions starting, with their folder's name, the names the AI picks, and errors; capped at 512 KB).
 
 ## How it works
 
@@ -295,7 +298,7 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 - **Status** comes from the hooks, plus Claude's own session registry. **Context** comes from the status line, or else from the transcript. **Subagents** (for Focus mode) come from each session's `subagents/` transcripts.
 - **Terminal.app titles.** Terminal adds the folder, process, arguments and size to every title, and reads its title settings only at launch. So while a session runs, its tab uses a copy of its own profile ("Basic · tabby") with just those title parts turned off. `tabby terminal-titles off` puts the tabs back and deletes the copies.
 - **Processes** are read with `ps` and `lsof` on your Mac. To tell what a terminal or Claude started from a launchd service or an app, tabby looks at a few environment variable names in each candidate (`TERM_SESSION_ID`, `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `XPC_SERVICE_NAME`) and nothing else; it keeps none of it. Services, apps, Claude itself and its MCP servers, shells you type in, `ssh-agent`, `tmux` and other accounts' processes are never offered. Stopping sends SIGTERM to the process and its children, then SIGKILL to what's still there after 2 seconds, and only to processes whose start time still matches the list you saw.
-- **The island** is a native SwiftUI + AppKit app. It reads `~/.claude/tabby` and Claude's registry, and runs the tabby CLI for anything that changes state. Each [release](https://github.com/0xNtive/tabby/releases) ships it universal (Apple silicon and Intel) with a SHA-256 checksum, which the installer checks, and a build attestation (`gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`).
+- **The island** is a native SwiftUI + AppKit app. It reads `~/.claude/tabby` and Claude's registry, and runs the tabby CLI for anything that changes state. Each [release](https://github.com/0xNtive/tabby/releases) ships it universal (Apple silicon and Intel), signed by the release workflow (tabby checks the Ed25519 signature before installing it, and builds from source when it doesn't match), with a SHA-256 checksum and a build attestation (`gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby`).
 - **Exit.** On exit a tab gets its profile colors back (`OSC 110/111/112`), and in Terminal.app its own profile; `/clear` keeps its identity.
 
 ## Privacy, cost and terms
@@ -303,7 +306,7 @@ Running the installer again is always safe: it repairs in place. Logs are in `~/
 - **Nothing you typed leaves your machine except the naming request:** that session's last few prompts (trimmed), a short excerpt of Claude's last reply and the project folder's name go to Claude Haiku through your own Claude Code login, to the provider you already use. About 500 tokens (roughly $0.001), covered by Pro and Max. The request can use no tools, reads only your own Claude settings and returns only a name. `/tab namer heuristic` names tabs on your machine instead; `off` not at all.
 - **Update checks** ask github.com where tabby's latest release is, every 6 hours at most: a plain request that sends nothing about you. `tabby config updateCheck false` (or Settings › General) turns them off. Tabby Island and its updates are downloaded from this repository's releases.
 - **No servers, no telemetry.** Tabby Island has no network code at all, and a test fails the build if network code appears anywhere but the updater, the island download and the installer.
-- **Your files stay yours.** tabby's state in `~/.claude/tabby` (session names, the last few prompts, settings) is readable only by your account.
+- **Your files stay yours.** tabby's state in `~/.claude/tabby` (session names, the last few prompts, settings) is readable only by your account. Records of ended sessions go after 30 days, each folder's remembered color after 90 days unused, and `tabby uninstall --purge` deletes all of it.
 - **What it trusts, and what it doesn't yet do** (the island isn't notarized while tabby is in beta) is in [SECURITY.md](SECURITY.md).
 - tabby is free. Future versions may show clearly labeled sponsored messages in tabby's own UI, never in your prompts, conversations or model context. See the [Terms of Use](TERMS.md), which setup asks you to accept.
 - tabby is an independent project, **not affiliated with Anthropic**. Claude is a trademark of Anthropic.

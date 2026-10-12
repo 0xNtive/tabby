@@ -26,7 +26,7 @@ If that happens:
 - it will never be targeted using the content of your prompts, code or files;
 - the change will be announced in the release notes before it ships.
 
-You can stop at any time with `tabby uninstall`.
+You can stop at any time with `tabby uninstall` (`tabby uninstall --purge` also deletes what tabby keeps in `~/.claude/tabby`).
 
 ## 4. Acceptable use
 

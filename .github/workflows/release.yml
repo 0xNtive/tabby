@@ -1,7 +1,9 @@
 name: release
 # Push a tag vX.Y.Z (matching package.json) and this publishes the ready-made Tabby Island that
 # `tabby island install` downloads: universal (Apple silicon + Intel), ad-hoc signed with the
-# stable requirement, zipped with a .sha256 next to it and a build provenance attestation
+# stable requirement, zipped with a .sha256 and an Ed25519 signature (.sig, made with the
+# ISLAND_SIGNING_KEY secret; tabby checks it against the public key in lib/island.js and throws
+# away a zip that doesn't match) next to it, and a build provenance attestation
 # (gh attestation verify TabbyIsland.zip --repo 0xNtive/tabby). Only commits on main are built,
 # and a release's files are never replaced: a fix is a new version.
 on:
@@ -48,6 +50,32 @@ jobs:
           ditto -c -k --norsrc --noextattr --keepParent "Tabby Island.app" TabbyIsland.zip
           shasum -a 256 TabbyIsland.zip | awk '{print $1}' > TabbyIsland.zip.sha256
           cat TabbyIsland.zip.sha256
+      - name: Sign the zip
+        working-directory: island/build
+        env:
+          ISLAND_SIGNING_KEY: ${{ secrets.ISLAND_SIGNING_KEY }}
+        run: |
+          if [ -z "$ISLAND_SIGNING_KEY" ]; then
+            echo "::error::The ISLAND_SIGNING_KEY secret is missing: tabby throws away an unsigned island, so there is nothing to publish."
+            exit 1
+          fi
+          node -e '
+            const crypto = require("crypto"), fs = require("fs");
+            const zip = fs.readFileSync("TabbyIsland.zip");
+            const key = crypto.createPrivateKey(process.env.ISLAND_SIGNING_KEY);
+            const sig = crypto.sign(null, zip, key);
+            if (!crypto.verify(null, zip, crypto.createPublicKey(key), sig)) process.exit(1);
+            fs.writeFileSync("TabbyIsland.zip.sig", sig.toString("base64") + "\n");
+          '
+          # The key that signed it is the one tabby trusts.
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import { signed } from "../../lib/island.js";
+            if (!signed("TabbyIsland.zip", fs.readFileSync("TabbyIsland.zip.sig", "utf8"))) {
+              console.error("::error::The signature does not match the public key in lib/island.js");
+              process.exit(1);
+            }
+          '
       - name: Attest where the zip was built
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
@@ -57,9 +85,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes=$(awk -v v="${TAG#v}" 'index($0, "## " v " ") == 1 {f=1; next} /^## / && f {exit} f' CHANGELOG.md)
-          install='**Install:** paste `Install tabby for me: run curl -fsSL https://claude-tabby.vercel.app/install.md and follow it.` into Claude Code, or run `curl -fsSL https://claude-tabby.vercel.app/install | bash`. `TabbyIsland.zip` is what the installer downloads (it checks the .sha256). It isn'"'"'t notarized, so a copy downloaded through a browser is blocked by Gatekeeper: use the installer, or `tabby island install`.'
+          install='**Install:** paste `Install tabby for me: run curl -fsSL https://claude-tabby.vercel.app/install.md and follow it.` into Claude Code, or run `curl -fsSL https://claude-tabby.vercel.app/install | bash`. `TabbyIsland.zip` is what the installer downloads (it checks the .sha256 and the signature in .sig). It isn'"'"'t notarized, so a copy downloaded through a browser is blocked by Gatekeeper: use the installer, or `tabby island install`.'
           notes=$(printf '%s\n\n---\n%s\n' "${notes:-See CHANGELOG.md}" "$install")
-          files=(island/build/TabbyIsland.zip island/build/TabbyIsland.zip.sha256)
+          files=(island/build/TabbyIsland.zip island/build/TabbyIsland.zip.sha256 island/build/TabbyIsland.zip.sig)
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" # fails if the release already has them
           else

@@ -1,6 +1,6 @@
 {
   "name": "claude-tabby",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Every Claude Code tab, at a glance: AI tab names, calm colors, live status, a macOS session island (or menu bar), and Awake: close the lid and Claude keeps working.",
   "keywords": [
     "claude",

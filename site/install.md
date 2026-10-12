@@ -57,7 +57,7 @@ It returns `{ ok, next, checks: [{ id, title, status, detail, fix }] }`, with st
 - `fix.run`: run it. These are tabby's own commands.
 - `fix.tell`: tell them what to do, in your own words, and wait for them.
 
-Run doctor again until nothing is `fail`. Right after installing, a `warn` on **sessions** is expected: sessions that were already open (including this one) pick tabby up after `/reload-plugins` or a restart.
+Run doctor again until nothing is `fail`. Sessions that were already open, this one included, are picked up by setup: they get their colors right away, and names, status and `/tab` from their next prompt, with no restart. If **sessions** still says some aren't tracked, its fix (`T adopt`) brings them in.
 
 ## 5. Tabby Island's permissions (macOS)
 
@@ -80,7 +80,7 @@ Then check `T doctor --json` about every 10 s, for up to 2 minutes, and look at 
 
 Tell them, briefly:
 
-- Open a **new** Claude Code session, or type `/reload-plugins` in the ones already open. Each tab gets a name and a color after its first prompt.
+- Every Claude Code session is on, the ones already open too: each tab has its color now and gets its name after its next prompt. New sessions are organized from the start.
 - On a Mac, Tabby Island sits at the top center of the screen: hover it to see every session. Its menu-bar icon has Settings and the shortcuts.
 - `/tab` shows the commands. "fix tabby" in Claude runs this check again. `tabby uninstall` removes everything.
 - Updates: the island shows an **Update** button when a new version is out, or `/tab update` in Claude, or `tabby update` in a terminal.
@@ -94,8 +94,8 @@ Tell them, briefly:
 | `The plugin didn't install` | No network to GitHub, or git broken | The log shows Claude's own error. Ask them to type `/plugin marketplace add 0xNtive/tabby`, then `/plugin install tabby@tabby` in Claude, then run the installer again |
 | `Tabby Island could not be installed` | The download from github.com failed, and there are no Xcode Command Line Tools to build it | Check that `curl -sI https://github.com` works. Or `xcode-select --install` (they confirm a dialog; takes a few minutes), then `T island install` |
 | `needs macOS 14` | Older macOS | Everything but the island works. Nothing to do |
-| The island shows no sessions | Only sessions started after the install are tracked | Start a new Claude session. `T adopt` colors the ones already open |
-| A tab has no name or color | That session started before tabby | `/reload-plugins` in it, or restart it: `claude --continue` keeps the conversation |
+| The island shows no sessions | Setup couldn't reach the open sessions | `T adopt` brings them in. A new Claude session always shows |
+| A tab has no name or color | That session started before tabby, and setup couldn't add hooks for it (`settings.json` isn't valid JSON, or hooks are turned off) | `T adopt` says why. `/reload-plugins` in it, or a restart (`claude --continue` keeps the conversation), always works |
 | Colors look wrong or text is hard to read | Light theme on a dark Claude, or the reverse | Follow the `theme` check's fix |
 | Anything else | | Read `~/.claude/tabby/install.log` and `~/.claude/tabby/tabby.log`. Running the installer again is safe: it repairs in place |
 

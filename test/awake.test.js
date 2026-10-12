@@ -15,6 +15,8 @@ process.env.CLAUDE_CONFIG_DIR = path.join(tmp, 'claude');
 process.env.TABBY_NO_ISLAND = '1';
 process.env.TABBY_AWAKE_TICK_MS = '60';
 process.env.TABBY_AWAKE_GRACE_MS = '150';
+// Inside Claude Code (hooks have CLAUDE_PROJECT_DIR) the stand-ins below are refused, not followed.
+delete process.env.CLAUDE_PROJECT_DIR;
 fs.mkdirSync(process.env.TABBY_HOME, { recursive: true });
 fs.mkdirSync(path.join(tmp, 'claude', 'sessions'), { recursive: true });
 
@@ -205,6 +207,25 @@ test('forget leaves a rule file that grants nothing', () => {
   assert.equal(r.ok, true, r.message);
   assert.doesNotMatch(fs.readFileSync(rule, 'utf8'), /NOPASSWD/);
   assert.equal(A.allowed(), false);
+});
+
+test('inside Claude Code a stand-in from the environment stops Awake: never followed, never swapped for the real program', () => {
+  const asked = fs.existsSync(authLog) ? fs.readFileSync(authLog, 'utf8') : '';
+  const lib = new URL('../lib/awake.js', import.meta.url).href;
+  const code = `const A = await import(${JSON.stringify(lib)});
+console.log(JSON.stringify({ start: A.command(['4h']), allow: A.command(['allow']), off: A.stop('off'), unsupported: A.unsupported(), allowed: A.allowed(), sleep: A.sleepDisabled() }));`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: tmp } });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  for (const res of [out.start, out.allow, out.off]) {
+    assert.equal(res.ok, false);
+    assert.match(res.message, /^TABBY_\w+ is set, and inside Claude Code tabby ignores it/);
+  }
+  assert.match(out.unsupported, /ignores it/);
+  assert.equal(out.allowed, false);
+  assert.equal(out.sleep, null, 'pmset never ran');
+  assert.equal(sleepOff(), false);
+  assert.equal(fs.existsSync(authLog) ? fs.readFileSync(authLog, 'utf8') : '', asked, 'no admin prompt');
 });
 
 test('the CLI speaks it too', () => {

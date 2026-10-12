@@ -28,10 +28,10 @@ description: Diagnose and fix tabby when something about it isn't working — ta
 - Not running: `… tabby island`. Not installed or outdated: `… tabby island install` (downloads the ready-made app, and builds it here if the download fails).
 - Permissions: the `island-permissions` check lists each one (`allowed | notAsked | waiting | denied | notNeeded`). `… tabby island permissions` opens its setup window at the permissions. **Allow All** asks for each in turn, and **Ask Again** resets a "Don't Allow". The island asks only for what their terminal needs: nothing at all for VS Code, Cursor, Ghostty or Warp.
 - Accessibility still off with the switch on: in System Settings › Privacy & Security › Accessibility, have them remove Tabby Island (−), then click Allow in the island again.
-- No sessions in the island: only sessions started after tabby was installed are tracked. `/reload-plugins` in an open session, or `… tabby adopt` for colors now.
+- No sessions in the island, or some missing: `… tabby adopt` brings in every open session tabby isn't tracking yet (colors now; names, status and `/tab` from its next prompt).
 
 ## Tabs
 
-- A tab has no name or color: that session started before tabby. `/reload-plugins` there, or restart it (`claude --continue` keeps the conversation).
+- A tab has no name or color: that session started before tabby. `… tabby adopt` brings it in without a restart; if it says hooks couldn't be added, `/reload-plugins` there or a restart (`claude --continue` keeps the conversation) does it.
 - `/tab` does nothing: the terms aren't accepted (the `terms` check), or the session predates the plugin (see above).
 - Text hard to read: follow the `theme` check's fix.

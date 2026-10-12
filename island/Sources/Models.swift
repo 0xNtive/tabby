@@ -585,6 +585,8 @@ struct IslandSession: Equatable, Identifiable, Sendable {
     var model: String?
     var tty: String?
     var term: String?
+    /// The app the session's terminal is (com.apple.Terminal, com.microsoft.VSCode, …), when known.
+    var bundleId: String? = nil
     var startedAt: Double
     var activityAt: Double?
     var hasRecord: Bool

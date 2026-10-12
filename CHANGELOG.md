@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-10-12
+
+Every session is on, the ones already open too. A third security pass. And tabby knows more terminals.
+
+- **Sessions that were already open are on right away.** Claude Code loads a plugin's hooks only when a session starts, so ten sessions open at install time used to need `/reload-plugins` each, or a restart. Hooks in `settings.json` do reach running sessions, so setup now adds tabby's hooks there for those sessions only: they get their color at once, and their name, status and `/tab` with the next prompt. In every other session the hooks stop before Node starts, and they're taken out of `settings.json` by themselves when the last of those sessions ends (`tabby uninstall` takes them out too). `tabby adopt` does the same any time, and `tabby doctor` offers it when it finds a session tabby isn't tracking.
+- **Tabby Island's download is signed.** The release workflow signs the zip with a key only it holds (Ed25519), and tabby checks the signature against the public key it ships with before unpacking anything; a zip that doesn't match is thrown away, and tabby builds the island from source instead when it can. The `gh attestation verify` call is gone: it needed `gh`, and it told GitHub which account was installing tabby. A zip of your own (`TABBY_ISLAND_URL`) is honored only outside Claude Code, where a project's settings can't set it.
+- **Tabby Island runs tabby's scripts only when you click.** Whatever it runs acts with its macOS permissions, so it no longer starts an update check on its own: Claude sessions do that, and the island reads what they found (or checks when you click Check Now).
+- **Text that could disguise a name is taken out**: zero-width characters, line separators, fillers and tag characters, and every folder path and name `tabby` prints is cleaned of escape codes (a folder named to set your clipboard couldn't, through `tabby new --list` or `/tab resume`).
+- **Less kept, for less long.** A folder's remembered color goes after 90 days unused, and `tabby uninstall --purge` deletes `~/.claude/tabby` as well.
+- **Smaller hardening.** `tabby procs stop` checks a process's start time again right before force-quitting it. Awake ignores its test stand-ins inside Claude Code and refuses to run instead. Installs and updates without git fetch the latest release, not `main`.
+- **Terminals.** VS Code or Cursor opened from an iTerm2 or Ghostty shell is no longer taken for iTerm2 or Ghostty: the terminal's own `TERM_PROGRAM` decides. GNU screen and Zellij are recognized. tmux commands go to the session's own tmux server, and colors use pane options. Terminal.app before macOS 26 gets 256-color status lines, since it can't show 24-bit color. `tabby doctor` warns when an iTerm2 profile doesn't let programs set the title. Sessions started before tabby get their real terminal, and the island brings the right app forward for terminals it can't script, instead of opening Terminal.app. Checked against iTerm2 3.7.4: its scripting dictionary is unchanged for what tabby uses, and its documentation still lists the tab color and color codes tabby sends.
+
 ## 0.5.1 — 2026-10-11
 
 - **A sturdier first start for Awake.** After macOS writes the permission file, tabby now checks it the way sudo does (owned by root, not writable by everyone) instead of asking for one exact mode, then confirms with sudo itself that the two commands run without a password. A stricter check could have stopped a first start that would have worked.
