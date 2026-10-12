@@ -2,11 +2,13 @@
 
 > tabby is a free, open-source Claude Code plugin (in beta) for macOS and Linux. It gives every Claude Code session's terminal tab an AI-written name, a calm color and a live status, and on a Mac it adds Tabby Island: a panel at the top of the screen that lists every session and shows which one needs you. It runs on the user's machine: no servers, no telemetry, no accounts.
 
+Since 0.6: installing tabby also reaches the Claude Code sessions that are already open (their color right away, then name, status and `/tab` with their next prompt, no restart or `/reload-plugins`): Claude Code loads a plugin's hooks only when a session starts, so setup adds tabby's hooks to `settings.json` for those sessions and removes them once they have all ended. Tabby Island downloads are signed by the release workflow (Ed25519) and checked before they are opened. Terminal.app gets every feature; iTerm2 all but Focus mode and the watermark; Ghostty, WezTerm, kitty, Alacritty, VS Code, Cursor, tmux and Zellij get names, colors and status.
+
 Since 0.5: **Awake** keeps a Mac running with the lid closed so Claude Code sessions keep working (for a set time, or until every session is done, then the Mac sleeps again; `tabby awake 4h`, `/tab awake done`). It uses `pmset disablesleep` through a one-time sudoers rule that allows only that command. **Menu bar mode** (`tabby island menubar`) replaces the notch island with the menu-bar icon, whose click drops the session list down. The island also warns when a session passes 80% and 95% of its context window.
 
 Install by pasting this into Claude Code: Install tabby for me: run `curl -fsSL https://claude-tabby.vercel.app/install.md` and follow it. Or in a terminal: `curl -fsSL https://claude-tabby.vercel.app/install | bash`. `tabby uninstall` reverts every change.
 
-What leaves the machine: only the tab-naming request (the session's last few prompts, a short excerpt of Claude's last reply and the project folder's name), sent to Claude Haiku through the user's own Claude Code login; `/tab namer heuristic` turns that off. An update check asks github.com for the latest release.
+What leaves the machine: only the tab-naming request (the session's last few prompts, a short excerpt of Claude's last reply and the project folder's name), sent to Claude Haiku through the user's own Claude Code login; `/tab namer heuristic` turns that off. An update check asks github.com for the latest release, and Tabby Island is downloaded from GitHub's releases; neither carries anything about the user.
 
 ## Docs
 

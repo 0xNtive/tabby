@@ -93,6 +93,7 @@ Tell them, briefly:
 | `Couldn't download Node.js` | Offline, proxy or firewall | `brew install node`, or the installer from https://nodejs.org, then run the installer again |
 | `The plugin didn't install` | No network to GitHub, or git broken | The log shows Claude's own error. Ask them to type `/plugin marketplace add 0xNtive/tabby`, then `/plugin install tabby@tabby` in Claude, then run the installer again |
 | `Tabby Island could not be installed` | The download from github.com failed, and there are no Xcode Command Line Tools to build it | Check that `curl -sI https://github.com` works. Or `xcode-select --install` (they confirm a dialog; takes a few minutes), then `T island install` |
+| `its signature doesn't check out, so it was thrown away` | The island zip didn't come from tabby's release workflow, or arrived damaged | Never install it some other way. tabby builds the island from source instead when Xcode's Command Line Tools are there (`xcode-select --install`, then `T island install`); trying again later is fine too |
 | `needs macOS 14` | Older macOS | Everything but the island works. Nothing to do |
 | The island shows no sessions | Setup couldn't reach the open sessions | `T adopt` brings them in. A new Claude session always shows |
 | A tab has no name or color | That session started before tabby, and setup couldn't add hooks for it (`settings.json` isn't valid JSON, or hooks are turned off) | `T adopt` says why. `/reload-plugins` in it, or a restart (`claude --continue` keeps the conversation), always works |
