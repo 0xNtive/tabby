@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The island's Update button restarts the island on the new version.** macOS `pgrep` and `pkill` leave out their own ancestors, and the island runs tabby as its child, so an update swapped the app on disk under the old island, which kept running. Both calls now include ancestors (`-a`).
+
 ## 0.6.0 — 2026-10-12
 
 Every session is on, the ones already open too. A third security pass. And tabby knows more terminals.
