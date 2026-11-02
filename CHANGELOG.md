@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — 2026-11-02
 
+- **Tiling finds your windows again.** Once you've closed a Terminal window that was still running something, Terminal keeps the "terminate running processes?" sheet in its window list (seen on macOS 27), and asking it anything fails. Tabby's scripts stopped there: tiling said "Could not find the terminal windows of your sessions", and jumping to a session, ending one or setting its colors failed for every window listed after it. They now step over it. And when Terminal really can't be asked, tiling says that, instead of saying it found nothing.
+- **Drag a file onto a covered window in focus mode.** A cover used to swallow the drag, so a picture or file you dropped on a session slid back. Drags now pass through to Terminal, which takes them the way it always does (the file's path at the prompt). The window under the mouse lights up, and the drop opens that session so you can carry on typing.
 - **The island's Update button restarts the island on the new version.** macOS `pgrep` and `pkill` leave out their own ancestors, and the island runs tabby as its child, so an update swapped the app on disk under the old island, which kept running. Both calls now include ancestors (`-a`).
 
 ## 0.6.0 — 2026-10-12

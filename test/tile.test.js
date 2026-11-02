@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tabby-tile-test-'));
 process.env.TABBY_HOME = path.join(tmp, 'tabby');
@@ -159,4 +160,43 @@ test('tabby new: the command, the terminal and where the window goes', () => {
   assert.deepEqual(L.resolveFolder(tmp, folders), { dir: tmp });
   assert.match(L.resolveFolder('nothing-like-it', folders).error, /No folder/);
   assert.match(L.resolveFolder('/no/such/dir', folders).error, /No such folder/);
+});
+
+test("every Terminal script gets past a window it can't read", () => {
+  // Terminal keeps the sheet that asks "terminate running processes?" in its window list. It has
+  // no id, bounds or tabs: asking fails with -1728, and without a `try` that ends the whole script.
+  // Tiling then found no windows at all, and jumping to a session failed for every window listed
+  // after it.
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const files = ['lib/tile.js', 'lib/term.js', 'lib/terminal-prefs.js', 'island/Sources/Actions.swift', 'island/Sources/SessionEnd.swift', 'island/Sources/TerminalTitles.swift'];
+  let loops = 0;
+  for (const file of files) {
+    const blocks = fs.readFileSync(path.join(root, file), 'utf8').split('tell application "').filter((b) => b.startsWith('Terminal"'));
+    for (const block of blocks) {
+      for (const m of block.matchAll(/repeat with w in windows\s+(?:--[^\n]*\s+)?(\S+[^\n]*)/g)) {
+        loops++;
+        assert.match(m[1], /^(try|set ts to \{\})$/, `${file}: the first thing a window loop does is guard against that window, not "${m[1]}"`);
+      }
+    }
+  }
+  assert.ok(loops >= 7, `found the loops (${loops})`);
+});
+
+test('tiling says so when Terminal could not be asked about its windows', () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'osa-'));
+  const stub = (stderr) => fs.writeFileSync(path.join(dir, 'osascript'), `#!/bin/sh\necho "${stderr}" >&2\nexit 1\n`, { mode: 0o755 });
+  const saved = process.env.PATH;
+  process.env.PATH = `${dir}:${saved}`;
+  try {
+    stub('execution error: Not authorized to send Apple events to Terminal. (-1743)');
+    const denied = T.tileTtys('Terminal', ['/dev/ttys900'], 1, { dryRun: true }).lines.join('\n');
+    assert.match(denied, /Privacy & Security › Automation/);
+    assert.doesNotMatch(denied, /accessibility/i, 'the island takes a line that asks to allow Accessibility as that permission');
+    stub('execution error: Terminal got an error: AppleEvent handler failed. (-10000)');
+    assert.match(T.tileTtys('Terminal', ['/dev/ttys900'], 1, { dryRun: true }).lines.join('\n'), /Could not ask Terminal about its windows: .*-10000/);
+    fs.writeFileSync(path.join(dir, 'osascript'), '#!/bin/sh\nprintf \'4180\\t/dev/ttys004\\t0,30,800,900\\t1\\tfalse\\n\'\n', { mode: 0o755 });
+    assert.match(T.tileTtys('Terminal', ['/dev/ttys900'], 1, { dryRun: true }).lines.join('\n'), /Could not find the terminal windows/, 'asked fine, and the session has no window');
+  } finally {
+    process.env.PATH = saved;
+  }
 });

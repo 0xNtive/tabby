@@ -19,6 +19,20 @@ enum FocusRule {
     }
 }
 
+// MARK: - Drops
+
+/// Something being dragged goes through the covers to Terminal, which takes the drop as it always
+/// does (a file's path, typed at the prompt). WatermarkController does that; this is where it lands.
+enum FocusDrop {
+    /// The Terminal window whose cover a drop at `point` lands on: only if that cover is the top
+    /// window there. Nil when another app's window is over it, or for a title bar (never covered).
+    /// `covers`: cover's window number → the Terminal window under it.
+    static func target(at point: CGPoint, windows: [Int: WindowServer.Entry], covers: [Int: Int]) -> Int? {
+        let top = windows.filter { $0.value.bounds.contains(point) }.min { $0.value.index < $1.value.index }
+        return top.flatMap { covers[$0.key] }
+    }
+}
+
 // MARK: - Subagents
 
 /// One of Claude's subagents (an Agent/Task tool call) while it runs.

@@ -205,7 +205,12 @@ enum SessionEnder {
     on hasTab(targetTTY)
         tell application "Terminal"
             repeat with w in windows
-                repeat with t in tabs of w
+                -- a window Terminal lists but can't describe must not stop the search
+                set ts to {}
+                try
+                    set ts to tabs of w
+                end try
+                repeat with t in ts
                     if tty of t is targetTTY then return true
                 end repeat
             end repeat
@@ -220,7 +225,11 @@ enum SessionEnder {
             repeat 20 times
                 set found to false
                 repeat with w in windows
-                    repeat with t in tabs of w
+                    set ts to {}
+                    try
+                        set ts to tabs of w
+                    end try
+                    repeat with t in ts
                         if tty of t is targetTTY then
                             set found to true
                             if not (busy of t) then

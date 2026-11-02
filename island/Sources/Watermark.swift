@@ -303,6 +303,13 @@ final class WatermarkController {
     private var lastTick = Date.distantPast
     private var mouseMonitor: Any?
     private var observers: [NSObjectProtocol] = []
+    /// Something's being dragged: covers let the mouse through, so a drop reaches Terminal.
+    private var dragging = false
+    /// The drag pasteboard's change count (only the count: nothing on it is ever read). Starting
+    /// a drag writes to it; moving a window or selecting text doesn't.
+    private var dragPasteboardCount = 0
+    /// The Terminal window whose cover the drag is over.
+    private var dropTarget: Int?
     /// A Terminal window showed up that the store can't place yet (a tab moved to its own window).
     var onUnknownWindow: (() -> Void)?
     /// A cover was clicked: open that session (its session id).
@@ -452,8 +459,71 @@ final class WatermarkController {
         }
         noticeUnknownWindows(windows)
         animateCovers(reduceMotion: reduceMotion)
+        if dragging {
+            if mouseDown { setDropTarget(dropWindow(windows)) } else { endDrag() }
+        }
 
-        schedule(after: settling ? 0.1 : (terminalActive ? 0.25 : 1.0))
+        schedule(after: settling || dragging ? 0.1 : (terminalActive ? 0.25 : 1.0))
+    }
+
+    // MARK: Dragging through covers
+
+    private func dragPasteboardChanged() -> Bool {
+        let count = NSPasteboard(name: .drag).changeCount
+        defer { dragPasteboardCount = count }
+        return count != dragPasteboardCount
+    }
+
+    private func beginDrag() {
+        guard !dragging else { return }
+        dragging = true
+        Debug.log("drag: covers let it through")
+        for overlay in overlays.values where overlay.presentation == .cover {
+            overlay.coverWindow?.ignoresMouseEvents = true
+        }
+        poke()
+    }
+
+    /// The button came up. The drop lands in Terminal around now, so the covers stay out of the
+    /// way a moment longer. A drop on a cover opens its session, the way a click does: what was
+    /// dropped is at the prompt, for you to carry on typing.
+    private func endDrag() {
+        guard dragging else { return }
+        dragging = false
+        let dropped = dropWindow(WindowServer.onScreen())
+        setDropTarget(nil)
+        Debug.log("drag: ended over \(dropped.map(String.init) ?? "no cover")")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if !self.dragging {
+                    for overlay in self.overlays.values where overlay.presentation == .cover {
+                        overlay.coverWindow?.ignoresMouseEvents = false
+                    }
+                }
+                guard let dropped, let session = self.targets[dropped]?.cover?.sessionId else { return }
+                self.onCoverClick?(session)
+                self.poke(after: 0.3)
+            }
+        }
+    }
+
+    /// The Terminal window whose cover is under the mouse, if a drop would land on it.
+    private func dropWindow(_ windows: [Int: WindowServer.Entry]) -> Int? {
+        let mouse = NSEvent.mouseLocation
+        let primary = NSScreen.screens.first?.frame.height ?? mouse.y
+        var covers: [Int: Int] = [:]
+        for (id, overlay) in overlays where overlay.presentation == .cover && overlay.shown {
+            if let number = overlay.coverWindow?.windowNumber { covers[number] = id }
+        }
+        return FocusDrop.target(at: CGPoint(x: mouse.x, y: primary - mouse.y), windows: windows, covers: covers)
+    }
+
+    private func setDropTarget(_ id: Int?) {
+        guard id != dropTarget else { return }
+        if let old = dropTarget { overlays[old]?.coverWindow?.cover.dropTarget = false }
+        if let id { overlays[id]?.coverWindow?.cover.dropTarget = true }
+        dropTarget = id
     }
 
     /// Terminal's frontmost session window on this desktop (the one you'd type into). Only
@@ -504,7 +574,8 @@ final class WatermarkController {
         if next == .cover, let content = target.cover {
             let cover = overlay.cover
             cover.cover.content = content
-            cover.ignoresMouseEvents = false
+            cover.ignoresMouseEvents = dragging
+            cover.cover.onDragEntered = { [weak self] in self?.beginDrag() }
             cover.cover.onClick = { [weak self] in
                 // The session this window shows now (another can take its place while covered).
                 self?.onCoverClick?(self?.targets[id]?.cover?.sessionId ?? content.sessionId)
@@ -687,12 +758,19 @@ final class WatermarkController {
             MainActor.assumeIsolated { self?.poke(after: 0.2) }
         })
         // Global mouse events need no permission: a click can raise a Terminal window over its
-        // watermark, and a drag moves it.
+        // watermark, a drag moves it, and a drag can carry a file to a cover.
+        dragPasteboardCount = NSPasteboard(name: .drag).changeCount
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .leftMouseDragged]) { [weak self] event in
             let type = event.type
             MainActor.assumeIsolated {
                 guard let self else { return }
-                if type == .leftMouseDragged, Date().timeIntervalSince(self.lastTick) < 0.06 { return }
+                switch type {
+                case .leftMouseDown: _ = self.dragPasteboardChanged()
+                case .leftMouseUp: self.endDrag()
+                default:
+                    if Date().timeIntervalSince(self.lastTick) < 0.06 { return }
+                    if self.focusMode, self.dragPasteboardChanged() { self.beginDrag() }
+                }
                 self.poke(after: type == .leftMouseUp ? 0.05 : 0.02)
             }
         }
@@ -706,6 +784,8 @@ final class WatermarkController {
         observers = []
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
+        dragging = false
+        dropTarget = nil
     }
 
     // MARK: Debugging
@@ -722,9 +802,9 @@ final class WatermarkController {
             }
             return "  window \(id) “\(targets[id]?.text ?? "?")” \(overlay.presentation) shown=\(overlay.shown) " +
                 "alpha=\(String(format: "%.2f", window.alphaValue)) frame=\(NSStringFromRect(window.frame)) " +
-                "overlay=\(window.windowNumber) \(above)"
+                "overlay=\(window.windowNumber) \(above) clicks=\(!window.ignoresMouseEvents)"
         }
-        return "watermark enabled=\(settings.enabled) focusMode=\(focusMode) focusIdle=\(focusIdle) targets=\(targets.count) " +
+        return "watermark enabled=\(settings.enabled) focusMode=\(focusMode) focusIdle=\(focusIdle) dragging=\(dragging) targets=\(targets.count) " +
             "overlays=\(overlays.count) animating=\(animation != nil) active=\(NSApp.isActive)\n" +
             rows.sorted().joined(separator: "\n")
     }

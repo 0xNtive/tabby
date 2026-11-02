@@ -337,6 +337,9 @@ enum Snapshotter {
             ("12-your-turn-narrow", done(long, theme: nil), CGSize(width: 480, height: 620)),
             ("13-your-turn-wide", done(working, theme: nil), CGSize(width: 1400, height: 380)),
             ("14-your-turn-short", done(working, theme: nil), CGSize(width: 760, height: 300)),
+            ("15-drop-target", content(working, theme: nil, agents: Array(agents.prefix(1))), CGSize(width: 760, height: 460)),
+            ("16-drop-target-light", done(long, theme: light), CGSize(width: 760, height: 460)),
+            ("17-drop-target-small", content(working, theme: nil, agents: []), CGSize(width: 420, height: 220)),
         ]
         for (name, content, size) in cases {
             let view = FocusMockView(frame: NSRect(origin: .zero, size: size))
@@ -344,6 +347,7 @@ enum Snapshotter {
             view.cover.clock = now
             view.cover.frameIndex = 3
             view.cover.content = content
+            view.cover.dropTarget = name.contains("drop-target")
             let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.moveToRetinaScreen()
             window.isReleasedWhenClosed = false

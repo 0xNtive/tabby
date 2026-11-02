@@ -388,6 +388,10 @@ final class FocusCoverView: NSView {
     /// Seconds since 1970, for the elapsed times; nil means now (tests pin it).
     var clock: TimeInterval?
     var onClick: (() -> Void)?
+    /// Something's being dragged over this cover: says a drop will land.
+    var dropTarget = false { didSet { if dropTarget != oldValue { needsDisplay = true } } }
+    /// A drag reached this cover before the controller noticed it (see `dragTypes`).
+    var onDragEntered: (() -> Void)?
 
     private var layoutCache: (size: CGSize, agents: Int, layout: FocusLayout?)?
 
@@ -422,8 +426,20 @@ final class FocusCoverView: NSView {
 
     override func mouseDown(with event: NSEvent) { onClick?() }
 
+    /// Registered only to notice a drag the controller's watch on the mouse missed (a source that
+    /// reuses its drag pasteboard). A cover takes no drop: it gets out of the way, and from the
+    /// drag's next move on the terminal under it is what's there.
+    static let dragTypes: [NSPasteboard.PasteboardType] = [.fileURL, .URL, .string, .png, .tiff, .html, .rtf]
+        + NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        onDragEntered?()
+        return []
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let content else { return }
+        defer { if dropTarget { drawDropTarget(content) } }
         let background = NSBezierPath()
         let r = min(cornerRadius, bounds.height / 4)
         background.move(to: NSPoint(x: bounds.minX, y: bounds.minY))
@@ -439,7 +455,7 @@ final class FocusCoverView: NSView {
             if !layout.compact { drawBox(layout, content) }
             layout.title.draw(with: layout.titleRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
-        if let hint = layout.hint, dirtyRect.intersects(layout.hintRect) {
+        if !dropTarget, let hint = layout.hint, dirtyRect.intersects(layout.hintRect) {
             hint.draw(with: layout.hintRect, options: [.usesLineFragmentOrigin])
         }
         if layout.maxLines > 0, dirtyRect.intersects(layout.lines) { drawLines(layout, content) }
@@ -454,6 +470,26 @@ final class FocusCoverView: NSView {
             let size = button.size()
             button.draw(at: NSPoint(x: (layout.buttonRect.midX - size.width / 2).rounded(),
                                     y: (layout.buttonRect.midY - size.height / 2).rounded()))
+        }
+    }
+
+    /// A ring in the session's color and, where it fits, what a drop does.
+    private func drawDropTarget(_ content: FocusCoverContent) {
+        let ring = NSBezierPath(roundedRect: bounds.insetBy(dx: 3, dy: 3), xRadius: max(cornerRadius - 3, 3), yRadius: max(cornerRadius - 3, 3))
+        ring.lineWidth = 3
+        content.accent.setStroke()
+        ring.stroke()
+        let font = NSFont.monospacedSystemFont(ofSize: min(max((bounds.height * 0.026).rounded(), 11), 16), weight: .bold)
+        for text in ["Drop to add to this session", "Drop here"] {
+            let label = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: content.background])
+            let size = label.size()
+            let pill = CGRect(x: ((bounds.width - size.width) / 2 - 14).rounded(), y: (bounds.maxY - size.height - 34).rounded(),
+                              width: ceil(size.width + 28), height: ceil(size.height + 14))
+            guard pill.width <= bounds.width - 20, pill.height * 3 <= bounds.height else { continue }
+            content.accent.setFill()
+            NSBezierPath(roundedRect: pill, xRadius: pill.height / 4, yRadius: pill.height / 4).fill()
+            label.draw(at: CGPoint(x: pill.minX + 14, y: pill.minY + 7))
+            break
         }
     }
 
@@ -563,8 +599,8 @@ final class FocusCoverView: NSView {
 
 // MARK: - Window
 
-/// Opaque where it draws, takes clicks (one opens the session), never key, never activates the
-/// island: only ever ordered directly above a Terminal window.
+/// Opaque where it draws, takes clicks (one opens the session) but lets drags through, never key,
+/// never activates the island: only ever ordered directly above a Terminal window.
 final class FocusCoverWindow: NSPanel {
     let cover = FocusCoverView()
 
@@ -582,6 +618,7 @@ final class FocusCoverWindow: NSPanel {
         collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
         alphaValue = 0
         contentView = cover
+        cover.registerForDraggedTypes(FocusCoverView.dragTypes)
     }
 
     override var canBecomeKey: Bool { false }

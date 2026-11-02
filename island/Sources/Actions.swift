@@ -195,7 +195,12 @@ enum Actions {
         set targetTTY to item 1 of argv
         tell application "Terminal"
             repeat with w in windows
-                repeat with t in tabs of w
+                -- a window Terminal lists but can't describe must not stop the search
+                set ts to {}
+                try
+                    set ts to tabs of w
+                end try
+                repeat with t in ts
                     if tty of t is targetTTY then
                         if miniaturized of w then set miniaturized of w to false
                         set selected of t to true

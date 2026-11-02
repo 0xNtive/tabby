@@ -262,6 +262,24 @@ check(later.isEmpty, "a subagent quiet for 15 minutes is taken for dead")
 check(scanner.running(transcript: focusDir.appendingPathComponent("none.jsonl").path).isEmpty, "no subagents folder")
 try? FileManager.default.removeItem(at: focusDir)
 
+// A drop lands on a cover only if that cover is the top window under the mouse
+do {
+    func entry(_ index: Int, _ rect: CGRect) -> WindowServer.Entry { WindowServer.Entry(index: index, pid: 1, bounds: rect) }
+    let terminal = CGRect(x: 100, y: 100, width: 400, height: 300)
+    let content = CGRect(x: 100, y: 128, width: 400, height: 272) // the cover leaves the title bar
+    let covers = [11: 1, 22: 2]
+    let alone: [Int: WindowServer.Entry] = [11: entry(0, content), 1: entry(1, terminal)]
+    check(FocusDrop.target(at: CGPoint(x: 300, y: 300), windows: alone, covers: covers) == 1, "drop on a cover: its window")
+    check(FocusDrop.target(at: CGPoint(x: 300, y: 110), windows: alone, covers: covers) == nil, "drop on the title bar: not a cover")
+    check(FocusDrop.target(at: CGPoint(x: 900, y: 900), windows: alone, covers: covers) == nil, "drop elsewhere: no window")
+    let finderOnTop: [Int: WindowServer.Entry] = [99: entry(0, CGRect(x: 250, y: 250, width: 200, height: 200)), 11: entry(1, content), 1: entry(2, terminal)]
+    check(FocusDrop.target(at: CGPoint(x: 300, y: 300), windows: finderOnTop, covers: covers) == nil, "another app's window over the cover: not on it")
+    check(FocusDrop.target(at: CGPoint(x: 150, y: 150), windows: finderOnTop, covers: covers) == 1, "beside that window: on the cover")
+    let overlapping: [Int: WindowServer.Entry] = [22: entry(0, CGRect(x: 200, y: 200, width: 400, height: 300)), 2: entry(1, CGRect(x: 200, y: 172, width: 400, height: 328)),
+                                                  11: entry(2, content), 1: entry(3, terminal)]
+    check(FocusDrop.target(at: CGPoint(x: 300, y: 300), windows: overlapping, covers: covers) == 2, "two covers overlap: the one on top")
+}
+
 // The cover's layout: the title is big but under the watermark's size, and everything fits
 MainActor.assumeIsolated {
     var cover = FocusCoverContent(sessionId: "s", title: "Migrate billing to Stripe v3", project: "billing",
